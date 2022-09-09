@@ -1,9 +1,9 @@
 use tayu_procon::{
-    scan
+    scani
 };
 
 fn main() {
-    scan!(n: usize, v: [i64; n]);
+    scani!(n: usize, v: [i64; n]);
 
     for w in v {
         println!("{}", w);

@@ -56,12 +56,9 @@ macro_rules! scan {
         let $v = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap();
     };
     ( interactive : $interactive:literal, $v:ident : $t:ty, $( $rest:tt )+ ) => {
-        scan!(interactive: $interactive, $v : $t);
-        scan!(interactive: $interactive, $( $rest )+);
+        $crate::scan!(interactive: $interactive, $v : $t);
+        $crate::scan!(interactive: $interactive, $( $rest )+);
     };
-    // ( $( $v:ident : $t:ty ),* ) => {
-    //     scan!(interactive: false, $( $v : $t ),*);
-    // };
     ( $( $rest:tt )+ ) => {
         $crate::scan!(interactive: false, $( $rest )+);
     };
@@ -70,7 +67,7 @@ macro_rules! scan {
 
 #[macro_export]
 macro_rules! scani {
-    ( $( $v:ident : $t:ty ),* ) => {
-        $crate::scan!(interactive: true, $( $v : $t ),*);
+    ( $( $rest:tt )* ) => {
+        $crate::scan!(interactive: true, $( $rest )*);
     };
 }

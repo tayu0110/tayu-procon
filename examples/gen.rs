@@ -5,7 +5,7 @@ fn main() {
     let mut file = std::fs::File::create("./big_input_file.txt").unwrap();
     let mut rng = rand::thread_rng();
 
-    const N: usize = 10_000_000;
+    const N: usize = 100_000_000;
 
     writeln!(file, "{}", N).unwrap();
 
