@@ -1,11 +1,11 @@
 use tayu_procon::{
-    scani
+    scan
 };
 
 fn main() {
-    scani!(n: usize, v: [i64; n]);
+    scan!(n: usize, z: [[[i64; 10]; 10]; n / 100]);
 
-    for w in v {
-        println!("{}", w);
+    for w in z {
+        println!("{:?}", w);
     }
 }
