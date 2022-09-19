@@ -11,6 +11,7 @@ thread_local! {
     static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
 }
 
+#[inline]
 fn refill_buffer(interactive: bool) -> Result<(), Error> {
     let mut s = String::new();
     
@@ -24,13 +25,9 @@ fn refill_buffer(interactive: bool) -> Result<(), Error> {
         *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
         Ok(())
     })
-
-    // BUF.with(|buf| {
-    //     buf.borrow_mut().append(&mut s.split_ascii_whitespace().map(|s| s.to_string()).collect());
-    //     Ok(())
-    // })
 }
 
+#[inline]
 pub fn scan_string(interactive: bool) -> String {
     BUF_SPLIT_WHITESPACE.with(|buf_str| {
         if let Some(s) = buf_str.borrow_mut().next() {
@@ -45,16 +42,6 @@ pub fn scan_string(interactive: bool) -> String {
 
         unreachable!("Read Error: No input items.");
     })
-    // BUF.with(|buf| {
-    //     if buf.borrow().is_empty() {
-    //         refill_buffer(interactive).unwrap();
-    //     }
-
-    //     if let Some(s) = buf.borrow_mut().pop_front() {
-    //         return s;
-    //     }
-    // unreachable!("Read Error: No input items.");
-    // })
 }
 
 #[macro_export]
@@ -63,8 +50,8 @@ macro_rules! scan {
     ( @interactive : $interactive:literal ) => {};
     // Terminator
     ( @interactive : $interactive:literal, ) => {};
-    // Vec<Vec<....>>
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] ) => {
+    // Vec<Vec<....>>, ......
+    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] $( $rest:tt )* ) => {
         let $v = {
             let len = $len;
             (0..len).fold(vec![], |mut v, _| {
@@ -73,23 +60,15 @@ macro_rules! scan {
                 v
             })
         };
+        $crate::scan!(@interactive: $interactive, $( $rest )*);
     };
-    // Vec<Vec<....>>, ......
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ], $( $rest:tt )+ ) => {
-        $crate::scan!(@interactive: $interactive, $v : [ [ $( $inner )+ ] ; $len ]);
-        $crate::scan!(@interactive: $interactive, $( $rest )+);
-    };
-    // Vec<$t>
-    ( @interactive : $interactive:literal, $v:ident : [ $t:ty ; $len:expr ] ) => {
+    // Vec<$t>, .....
+    ( @interactive : $interactive:literal, $v:ident : [ $t:ty ; $len:expr ] $( $rest:tt )* ) => {
         let $v = {
             let len = $len;
             (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
         };
-    };
-    // Vec<$t>, .....
-    ( @interactive : $interactive:literal, $v:ident : [ $t:ty ; $len:expr ], $( $rest:tt )+ ) => {
-        $crate::scan!(@interactive: $interactive, $v : [ $t ; $len ]);
-        $crate::scan!(@interactive: $interactive, $( $rest )+);
+        $crate::scan!(@interactive: $interactive, $( $rest )*);
     };
     // let $v: $t = ......
     ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {
@@ -101,8 +80,8 @@ macro_rules! scan {
         $crate::scan!(@interactive: $interactive, $( $rest )+);
     };
     // ......
-    ( $( $rest:tt )+ ) => {
-        $crate::scan!(@interactive: false, $( $rest )+);
+    ( $( $rest:tt )* ) => {
+        $crate::scan!(@interactive: false, $( $rest )*);
     };
 }
 

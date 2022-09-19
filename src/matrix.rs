@@ -12,6 +12,7 @@ pub struct Matrix<T: Modulo> {
 
 #[allow(dead_code)]
 impl<T: Modulo> Matrix<T> {
+    #[inline]
     pub fn new(row: usize, column: usize) -> Self {
         assert!(row > 0 && column > 0);
         Matrix {
@@ -21,14 +22,17 @@ impl<T: Modulo> Matrix<T> {
         }
     }
     
+    #[inline]
     fn row(&self) -> usize {
         self.row
     }
     
+    #[inline]
     fn column(&self) -> usize {
         self.column
     }
     
+    #[inline]
     fn set(&mut self, row: usize, column: usize, val: Mint<T>) {
         assert!(row < self.row() && column < self.column());
         let c = self.column();
@@ -36,12 +40,14 @@ impl<T: Modulo> Matrix<T> {
         self.matrix[c*row+column] = val;
     }
     
+    #[inline]
     fn get(&self, row: usize, column: usize) -> Mint<T> {
         assert!(row < self.row() && column < self.column());
 
         self.matrix[row*self.column() + column]
     }
     
+    #[inline]
     fn id(size: usize) -> Self {
         let mut matrix = vec![Mint::<T>::zero(); size * size];
         matrix
@@ -56,6 +62,7 @@ impl<T: Modulo> Matrix<T> {
         }
     }
 
+    #[inline]
     fn add(&self, rhs: &Self) -> Self {
         assert!(self.row() == rhs.row() && self.column() == rhs.column());
         
@@ -71,6 +78,7 @@ impl<T: Modulo> Matrix<T> {
         }
     }
 
+    #[inline]
     fn sub(&self, rhs: &Self) -> Self {
         assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
@@ -86,6 +94,7 @@ impl<T: Modulo> Matrix<T> {
         }
     }
 
+    #[inline]
     fn mul(&self, rhs: &Self) -> Self {
         unsafe {
             self.mul_sub(rhs)

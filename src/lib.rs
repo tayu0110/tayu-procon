@@ -3,6 +3,7 @@ pub mod convolution;
 pub mod fenwicktree;
 pub mod flow;
 pub mod geometry;
+pub mod graph;
 pub mod iolib;
 pub mod matrix;
 pub mod mincost_flow;

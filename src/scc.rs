@@ -17,7 +17,7 @@ fn dfs2(now: usize, g: i32, group: &Vec<i32>, s: &mut Vec<i32>, r: &Vec<Vec<usiz
     }
 }
 
-#[allow(dead_code)]
+#[deprecated]
 // Return the array of each vertex with ID for each strongly connected component
 pub fn scc(n: usize, edges: &Vec<(usize, usize)>) -> Vec<i32> {
     let mut t = vec![vec![]; n];
@@ -50,6 +50,7 @@ pub fn scc(n: usize, edges: &Vec<(usize, usize)>) -> Vec<i32> {
     res
 }
 
+#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::{
