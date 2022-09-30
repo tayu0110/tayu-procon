@@ -78,7 +78,7 @@ where M: Modulo {
     pub fn pow(&self, mut exp: i64) -> Self {
         let (mut val, mut res) = (self.val, 1);
         while exp > 0 {
-            if exp % 2 == 1 { 
+            if exp & 1 == 1 { 
                 res = (res * val) % M::modulo();
             }
             val = (val * val) % M::modulo();
@@ -105,22 +105,26 @@ where M: Modulo {
     
     #[inline]
     pub fn add_raw(&self, rhs: i64) -> Self {
-        *self + Mint::new(rhs)
+        assert!(0 <= rhs && rhs < M::modulo());
+        Mint::new(self.val + rhs)
     }
     
     #[inline]
     pub fn sub_raw(&self, rhs: i64) -> Self {
-        *self - Mint::new(rhs)
+        assert!(0 <= rhs && rhs < M::modulo());
+        Mint::new(self.val - rhs)
     }
     
     #[inline]
     pub fn mul_raw(&self, rhs: i64) -> Self {
-        *self * Mint::new(rhs)
+        assert!(0 <= rhs && rhs < M::modulo());
+        Mint::new(self.val * rhs)
     }
     
     #[inline]
     pub fn div_raw(&self, rhs: i64) -> Self {
-        *self / Mint::new(rhs)
+        assert!(0 <= rhs && rhs < M::modulo());
+        *self / Mint::raw(rhs)
     }
 }
 

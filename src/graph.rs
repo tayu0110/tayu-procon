@@ -16,66 +16,41 @@ impl Direction for Directed {
     }
 }
 
-pub trait Weight : Clone {
-    fn is_weighted() -> bool;
-}
-#[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Weighted {}
-impl Weight for Weighted {
-    fn is_weighted() -> bool {
-        true
-    }
-}
-#[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum UnWeighted {}
-impl Weight for UnWeighted {
-    fn is_weighted() -> bool {
-        false
-    }
-}
-
 
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Edge<W: Weight> {
+pub struct Edge {
     pub to: usize,
     pub weight: i64,
-    pub _w: std::marker::PhantomData<W>
 }
 
 
-pub type DirectedGraph<W> = Graph<Directed, W>;
-pub type UnDirectedGraph<W> = Graph<UnDirected, W>;
+pub type DirectedGraph = Graph<Directed>;
+pub type UnDirectedGraph = Graph<UnDirected>;
 
 #[derive(Debug, Clone)]
-pub struct Graph<D: Direction, W: Weight> {
+pub struct Graph<D: Direction> {
     size: usize,
-    graph: Vec<Vec<Edge<W>>>,
+    graph: Vec<Vec<Edge>>,
     _d: std::marker::PhantomData<D>
 }
 
-impl <'a, D: Direction> Graph<D, Weighted> {
-    pub fn from_edges(size: usize, edges: Vec<(usize, usize, i64)>) -> Self {
+impl<'a, D: Direction> Graph<D> {
+    #[inline]
+    pub fn new(size: usize) -> Self {
+        Self { size, graph: vec![vec![]; size], _d: std::marker::PhantomData }
+    }
+
+    #[inline]
+    pub fn from_weighted_edges(size: usize, edges: Vec<(usize, usize, i64)>) -> Self {
         edges
             .into_iter()
             .fold(Self::new(size), |mut g, (from, to, weight)| {
-                g.set_edge(from, to, weight);
+                g.set_weighted_edge(from, to, weight);
                 g
             })
     }
-
-    pub fn set_edge(&mut self, from: usize, to: usize, weight: i64) {
-        self.graph[from].push(Edge { to, weight, _w: std::marker::PhantomData });
-        if !D::is_directed() && from != to {
-            self.graph[to].push(Edge { to: from, weight, _w: std::marker::PhantomData });
-        }
-    }
     
-    pub fn neighbors_mut(&'a mut self, index: usize) -> NeighborsMut<'a, Weighted> {
-        NeighborsMut { inner: self.graph[index].iter_mut() }
-    }
-}
-
-impl<D: Direction> Graph<D, UnWeighted> {
+    #[inline]
     pub fn from_edges(size: usize, edges: Vec<(usize, usize)>) -> Self {
         edges
             .into_iter()
@@ -84,67 +59,183 @@ impl<D: Direction> Graph<D, UnWeighted> {
                 g
             })
     }
-    pub fn set_edge(&mut self, from: usize, to: usize) {
-        self.graph[from].push(Edge { to, weight: 1, _w: std::marker::PhantomData });
+
+    #[inline]
+    pub fn set_weighted_edge(&mut self, from: usize, to: usize, weight: i64) {
+        self.graph[from].push(Edge { to, weight });
         if !D::is_directed() && from != to {
-            self.graph[to].push(Edge { to: from, weight: 1, _w: std::marker::PhantomData });
+            self.graph[to].push(Edge { to: from, weight });
         }
     }
-}
 
-impl<'a, D: Direction, W: Weight> Graph<D, W> {
-    pub fn new(size: usize) -> Self {
-        Self { size, graph: vec![vec![]; size], _d: std::marker::PhantomData }
+    #[inline]
+    pub fn set_edge(&mut self, from: usize, to: usize) {
+        self.set_weighted_edge(from, to, 1)
     }
-    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a, W> {
+
+    #[inline]
+    pub fn resize(&mut self, size: usize) {
+        self.size = size;
+        self.graph.resize(size, vec![]);
+    }
+
+    #[inline]
+    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> {
         Neighbors { inner: self.graph[index].iter() }
     }
+    
+    #[inline]
+    pub fn edges(&'a self, index: usize) -> Edges<'a> {
+        Edges { inner: self.graph[index].iter() }
+    }
+    
+    #[inline]
+    pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
+        EdgesMut { inner: self.graph[index].iter_mut() }
+    }
+
     pub fn rev_graph(&self) -> Self {
         let mut graph = vec![vec![]; self.size];
 
         for from in 0..self.size {
-            for Edge { to, weight, _w } in &self.graph[from] {
-                graph[*to].push(Edge { to: from, weight: *weight, _w: *_w });
+            for Edge { to, weight } in &self.graph[from] {
+                graph[*to].push(Edge { to: from, weight: *weight });
             }
         }
 
         Self { size: self.size, graph, _d: std::marker::PhantomData }
     }
+
 }
 
-pub struct Neighbors<'a, W: Weight> {
-    inner: std::slice::Iter<'a, Edge<W>>
-}
+impl<D: Direction> std::convert::From<Vec<(usize, usize)>> for Graph<D> {
+    fn from(from: Vec<(usize, usize)>) -> Self {
+        let mut graph = Graph::<D>::new(1 << 10);
+        let mut max = 0;
 
-impl<'a> Iterator for Neighbors<'a, Weighted> {
-    type Item = (&'a usize, &'a i64);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|Edge { to, weight, _w }| (to, weight))
+        for (from, to) in from {
+            if std::cmp::max(from, to) >= graph.size {
+                max = std::cmp::max(from, to);
+                graph.resize(std::cmp::max(from, to).next_power_of_two());
+            }
+
+            graph.set_edge(from, to);
+        }
+
+        graph.resize(max+1);
+
+        graph
     }
 }
 
-impl<'a> Iterator for Neighbors<'a, UnWeighted> {
+impl<D: Direction> std::convert::From<Vec<(usize, usize, i64)>> for Graph<D> {
+    fn from(from: Vec<(usize, usize, i64)>) -> Self {
+        let mut graph = Graph::<D>::new(1 << 10);
+        let mut max = 0;
+
+        for (from, to, weight) in from {
+            if std::cmp::max(from, to) >= graph.size {
+                max = std::cmp::max(from, to);
+                graph.resize(std::cmp::max(from, to).next_power_of_two());
+            }
+
+            graph.set_weighted_edge(from, to, weight);
+        }
+
+        graph.resize(max+1);
+
+        graph
+    }
+}
+
+impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Graph<D> {
+    fn from(from: Vec<Vec<usize>>) -> Self {
+        let size = from.len();
+        let edges = 
+        if D::is_directed() {
+            from
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| v.into_iter().map(move |to| (from, to)))
+                .flatten()
+                .collect()
+        } else {
+            from
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| v.into_iter().filter(move |to| from <= *to).map(move |to| (from, to)))
+                .flatten()
+                .collect()
+        };
+        
+        Graph::<D>::from_edges(size, edges)
+    }
+}
+
+impl<D: Direction> std::convert::From<Vec<Vec<(usize, i64)>>> for Graph<D> {
+    fn from(from: Vec<Vec<(usize, i64)>>) -> Self {
+        let size = from.len();
+        let edges = 
+            if D::is_directed() {
+                from
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
+                    .flatten()
+                    .collect()
+            } else {
+                from
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
+                    .flatten()
+                    .collect()
+            };
+        
+        Graph::<D>::from_weighted_edges(size, edges)
+    }
+}
+
+
+pub struct Neighbors<'a> {
+    inner: std::slice::Iter<'a, Edge>
+}
+
+impl<'a> Iterator for Neighbors<'a> {
     type Item = &'a usize;
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|Edge { to, weight: _, _w }| to)
+        self.inner.next().map(|Edge { to, weight: _ }| to)
     }
 }
 
-pub struct NeighborsMut<'a, W: Weight> {
-    inner: std::slice::IterMut<'a, Edge<W>>
+pub struct Edges<'a> {
+    inner: std::slice::Iter<'a, Edge>
 }
 
-impl<'a> Iterator for NeighborsMut<'a, Weighted> {
+impl<'a> Iterator for Edges<'a> {
+    type Item = (&'a usize, &'a i64);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|Edge { to, weight }| (to, weight))
+    }
+}
+
+
+pub struct EdgesMut<'a> {
+    inner: std::slice::IterMut<'a, Edge>
+}
+
+impl<'a> Iterator for EdgesMut<'a> {
     type Item = (&'a usize, &'a mut i64);
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|Edge { to, weight, _w }| (&*to, weight))
+        self.inner.next().map(|Edge { to, weight }| (&*to, weight))
     }
 }
+
 
 /// Find the single starting point shortest path by Dijkstra's algorithm.  
 /// The computational complexity is O(ElogV), where E is the number of edges and V is the number of vertices, because a BinaryHeap is used.  
 /// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
-pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec<i64> {
+pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size];
     
     let mut nt = std::collections::BinaryHeap::new();
@@ -156,7 +247,7 @@ pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> V
         }
         res[now] = nd;
 
-        for (to, weight) in graph.neighbors(now) {
+        for (to, weight) in graph.edges(now) {
             if res[*to] == std::i64::MAX {
                 nt.push(std::cmp::Reverse((nd + *weight, *to)));
             }
@@ -166,10 +257,11 @@ pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> V
     res
 }
 
+
 /// Find the single starting point shortest path by Dijkstra's algorithm.  
 /// The computational complexity is O(V^2), where V is the number of vertices.  
 /// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
-pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec<i64> {
+pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size];
     let mut checked = vec![false; graph.size];
     res[from] = 0;
@@ -177,7 +269,7 @@ pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec
     let mut now = from;
     for _ in 0..graph.size {
         checked[now] = true;
-        for (to, weight) in graph.neighbors(now) {
+        for (to, weight) in graph.edges(now) {
             res[*to] = std::cmp::min(res[*to], res[now] + *weight);
         }
         let mut new = (std::i64::MAX, graph.size+1);
@@ -195,6 +287,7 @@ pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec
     res
 }
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NegativeCycleError;
 impl std::fmt::Display for NegativeCycleError {
@@ -207,7 +300,7 @@ impl std::error::Error for NegativeCycleError {}
 
 /// Find the single starting point shortest path by Bellman-Ford's algorithm.  
 /// If the graph has negative cycle, return NegativeCycleError and the solution updated with std::i64::MIN for the cost of the vertices affected by the negative cycle.  
-pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Result<Vec<i64>, (NegativeCycleError, Vec<i64>)> {
+pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D>) -> Result<Vec<i64>, (NegativeCycleError, Vec<i64>)> {
     const INF: i64 = std::i64::MAX;
     let mut res = vec![INF; graph.size];
     res[from] = 0;
@@ -216,7 +309,7 @@ pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Re
     for i in 0..graph.size*2 {
         let mut updated = false;
         for from in 0..graph.size {
-            for (to, weight) in graph.neighbors(from) {
+            for (to, weight) in graph.edges(from) {
                 if res[*to] > res[from] + *weight {
                     if i < graph.size-1 {
                         res[*to] = res[from] + *weight;
@@ -240,12 +333,13 @@ pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Re
     }
 }
 
-pub fn warshall_floyd<D: Direction>(graph: &Graph<D, Weighted>) -> Vec<Vec<i64>> {
+
+pub fn warshall_floyd<D: Direction>(graph: &Graph<D>) -> Vec<Vec<i64>> {
     let mut res = vec![vec![std::i64::MAX; graph.size]; graph.size];
 
     for from in 0..graph.size {
         res[from][from] = 0;
-        for (to, weight) in graph.neighbors(from) {
+        for (to, weight) in graph.edges(from) {
             res[from][*to] = *weight;
         }
     }
@@ -262,9 +356,9 @@ pub fn warshall_floyd<D: Direction>(graph: &Graph<D, Weighted>) -> Vec<Vec<i64>>
 }
 
 
-/// Perform strongly connected component decomposition of a directed graph.  
+/// Perform strongly connected component decomposition of a directed graph by Losaraju's algorithm.  
 /// The decomposed strongly connected components are ordered topologically and returned as two-dimensional vectors.  
-pub fn scc<W: Weight>(graph: &Graph<Directed, W>) -> Vec<Vec<usize>> {
+pub fn scc(graph: &Graph<Directed>) -> Vec<Vec<usize>> {
     let rev_graph = graph.rev_graph();
     
     let mut used = vec![false; graph.size];
@@ -289,18 +383,18 @@ pub fn scc<W: Weight>(graph: &Graph<Directed, W>) -> Vec<Vec<usize>> {
 
     res
 }
-fn dfs_for_scc<W: Weight>(now: usize, used: &mut Vec<bool>, order: &mut Vec<usize>, graph: &Graph<Directed, W>) {
+fn dfs_for_scc(now: usize, used: &mut Vec<bool>, order: &mut Vec<usize>, graph: &Graph<Directed>) {
     used[now] = true;
-    for Edge { to, weight: _, _w } in &graph.graph[now] {
+    for Edge { to, weight: _ } in &graph.graph[now] {
         if !used[*to] {
             dfs_for_scc(*to, used, order, graph);
         }
     }
     order.push(now);
 }
-fn rdfs_for_scc<W: Weight>(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<usize>, graph: &Graph<Directed, W>) {
+fn rdfs_for_scc(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<usize>, graph: &Graph<Directed>) {
     groups[now] = group;
-    for Edge { to, weight: _, _w } in &graph.graph[now] {
+    for Edge { to, weight: _ } in &graph.graph[now] {
         if groups[*to] < 0 {
             rdfs_for_scc(*to, group, groups, list, graph);
         }
@@ -312,7 +406,7 @@ fn rdfs_for_scc<W: Weight>(now: usize, group: i32, groups: &mut Vec<i32>, list: 
 /// Detect bridges in the graph.  
 /// The detected bridges are returned as a list of tuples of vertices at both ends.  
 /// The elements of a tuple are always placed with the directed edge source in front and destination behind.  
-pub fn low_link<D: Direction, W: Weight>(graph: &Graph<D, W>) -> Vec<(usize, usize)> {
+pub fn low_link<D: Direction>(graph: &Graph<D>) -> Vec<(usize, usize)> {
     let mut ord = vec![std::usize::MAX; graph.size];
     let mut low = vec![std::usize::MAX; graph.size];
 
@@ -325,13 +419,12 @@ pub fn low_link<D: Direction, W: Weight>(graph: &Graph<D, W>) -> Vec<(usize, usi
     }
     res
 }
-
-fn dfs_for_lowlink<D: Direction, W: Weight>(now: usize, par: usize, now_ord: usize, ord: &mut Vec<usize>, low: &mut Vec<usize>, res: &mut Vec<(usize, usize)>, graph: &Graph<D, W>) -> usize {
+fn dfs_for_lowlink<D: Direction>(now: usize, par: usize, now_ord: usize, ord: &mut Vec<usize>, low: &mut Vec<usize>, res: &mut Vec<(usize, usize)>, graph: &Graph<D>) -> usize {
     ord[now] = now_ord;
     low[now] = ord[now];
     
     let mut next_ord = now_ord + 1;
-    for Edge { to, weight: _, _w } in &graph.graph[now] {
+    for Edge { to, weight: _ } in &graph.graph[now] {
         if ord[*to] == std::usize::MAX {
             next_ord = dfs_for_lowlink(*to, now, next_ord, ord, low, res, graph);
             low[now] = std::cmp::min(low[now], low[*to]);
@@ -360,12 +453,12 @@ impl std::error::Error for CycleDetectionError {}
 
 /// Returns the topological sort of a directed graph.  
 /// If a cycle is detected, a topological sort cannot be defined, so CycleDetectionError is returned.  
-pub fn topological_sort<W: Weight>(graph: &Graph<Directed, W>) -> Result<Vec<usize>, CycleDetectionError> {
+pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDetectionError> {
     let mut res = vec![];
     let mut ins = vec![0; graph.size];
 
     for now in 0..graph.size {
-        for Edge { to, weight: _, _w } in &graph.graph[now] {
+        for Edge { to, weight: _ } in &graph.graph[now] {
             ins[*to] += 1;
         }
     }
@@ -383,7 +476,7 @@ pub fn topological_sort<W: Weight>(graph: &Graph<Directed, W>) -> Result<Vec<usi
         ins[now] = -1;
         res.push(now);
 
-        for Edge { to, weight: _, _w } in &graph.graph[now] {
+        for Edge { to, weight: _ } in &graph.graph[now] {
             if ins[*to] > 0 {
                 ins[*to] -= 1;
                 if ins[*to] == 0 {
@@ -411,20 +504,20 @@ impl std::fmt::Display for InvalidTree {
 impl std::error::Error for InvalidTree {}
 
 
-pub type DirectedTree<W> = Tree<Directed, W>;
-pub type UnDirectedTree<W> = Tree<UnDirected, W>;
+pub type DirectedTree = Tree<Directed>;
+pub type UnDirectedTree = Tree<UnDirected>;
 
 #[derive(Debug, Clone)]
-pub struct Tree<D: Direction, W: Weight> {
+pub struct Tree<D: Direction> {
     size: usize,
     root: usize,
     par: Vec<usize>,
-    graph: Vec<Vec<Edge<W>>>,
+    graph: Vec<Vec<Edge>>,
     _d: std::marker::PhantomData<D>
 }
 
-impl<'a, D: Direction, W: Weight> Tree<D, W> {
-    fn from_weighted_edges(edges: Vec<(usize, usize, i64)>) -> Result<Self, InvalidTree> {
+impl<'a, D: Direction> Tree<D> {
+    pub fn from_weighted_edges(edges: Vec<(usize, usize, i64)>) -> Result<Self, InvalidTree> {
         let size = edges.len() + 1;
         let mut par = vec![std::usize::MAX; size];
         let mut graph = vec![vec![]; size];
@@ -439,9 +532,9 @@ impl<'a, D: Direction, W: Weight> Tree<D, W> {
                 }
                 par[to] = from;
             }
-            graph[from].push(Edge { to, weight, _w: std::marker::PhantomData });
+            graph[from].push(Edge { to, weight });
             if !D::is_directed() {
-                graph[to].push(Edge { to: from, weight, _w: std::marker::PhantomData });
+                graph[to].push(Edge { to: from, weight });
             }
         }
 
@@ -449,7 +542,7 @@ impl<'a, D: Direction, W: Weight> Tree<D, W> {
             let mut nt = std::collections::VecDeque::new();
             nt.push_back(0);
             while let Some(now) = nt.pop_front() {
-                for Edge { to, weight: _, _w } in &graph[now] {
+                for Edge { to, weight: _ } in &graph[now] {
                     if *to != par[now] {
                         if par[*to] != std::usize::MAX {
                             return Err(InvalidTree);
@@ -465,8 +558,39 @@ impl<'a, D: Direction, W: Weight> Tree<D, W> {
     }
 
     #[inline]
-    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a, W> {
+    pub fn from_edges(edges: Vec<(usize, usize)>) -> Result<Self, InvalidTree> {
+        let edges = edges
+                .into_iter()
+                .map(|(from, to)| (from, to, 1))
+                .collect();
+        Self::from_weighted_edges(edges)
+    }
+
+    /// The parent of root node is std::usize::MAX.
+    #[inline]
+    pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
+        let edges = pars
+                .into_iter()
+                .enumerate()
+                .filter(|v| v.1 != std::usize::MAX)
+                .map(|(i, par)| (par, i, 1))
+                .collect();
+        Self::from_weighted_edges(edges)
+    }
+
+    #[inline]
+    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> {
         Neighbors { inner: self.graph[index].iter() }
+    }
+
+    #[inline]
+    pub fn edges(&'a self, index: usize) -> Edges<'a> {
+        Edges { inner: self.graph[index].iter() }
+    }
+
+    #[inline]
+    pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
+        EdgesMut { inner: self.graph[index].iter_mut() }
     }
 
     #[inline]
@@ -485,24 +609,13 @@ impl<'a, D: Direction, W: Weight> Tree<D, W> {
         nt.push_back((self.root, std::usize::MAX));
 
         while let Some((now, par)) = nt.pop_front() {
-            for Edge { to, weight: _, _w } in &self.graph[now] {
+            for Edge { to, weight: _ } in &self.graph[now] {
                 if par != *to {
                     self.par[*to] = now;
                     nt.push_back((*to, now));
                 }
             }
         }
-    }
-}
-
-impl<'a, D: Direction> Tree<D, Weighted> {
-    #[inline]
-    pub fn from_edges(edges: Vec<(usize, usize, i64)>) -> Result<Self, InvalidTree> {
-        Self::from_weighted_edges(edges)
-    }
-
-    pub fn neighbors_mut(&'a mut self, index: usize) -> NeighborsMut<'a, Weighted> {
-        NeighborsMut { inner: self.graph[index].iter_mut() }
     }
 
     pub fn reroot_with_diameter(&mut self) {
@@ -518,7 +631,7 @@ impl<'a, D: Direction> Tree<D, Weighted> {
             dist[now] = nd;
             max = std::cmp::max(max, (nd, now));
 
-            for Edge { to, weight, _w } in &self.graph[now] {
+            for Edge { to, weight } in &self.graph[now] {
                 if dist[*to] < 0 {
                     nt.push(std::cmp::Reverse((nd + weight, *to)));
                 }
@@ -529,73 +642,76 @@ impl<'a, D: Direction> Tree<D, Weighted> {
     }
 }
 
-impl<D: Direction> Tree<D, UnWeighted> {
-    pub fn from_edges(edges: Vec<(usize, usize)>) -> Result<Self, InvalidTree> {
-        let edges = edges
-                .into_iter()
-                .map(|(from, to)| (from, to, 1))
-                .collect();
-        Self::from_weighted_edges(edges)
-    }
 
-    /// The parent of root node is std::usize::MAX.
-    pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
-        let edges = pars
-                .into_iter()
-                .enumerate()
-                .filter(|v| v.1 != std::usize::MAX)
-                .map(|(i, par)| (par, i, 1))
-                .collect();
-        Self::from_weighted_edges(edges)
-    }
-
-    pub fn reroot_with_diameter(&mut self) {
-        let mut dist = vec![-1; self.size];
-        let mut nt = std::collections::VecDeque::new();
-        nt.push_back(std::cmp::Reverse((0, self.root)));
-
-        let mut max = (std::i64::MIN, 0);
-        while let Some(std::cmp::Reverse((nd, now))) = nt.pop_front() {
-            if dist[now] >= 0 {
-                continue;
-            }
-            dist[now] = nd;
-            max = std::cmp::max(max, (nd, now));
-
-            for Edge { to, weight, _w } in &self.graph[now] {
-                if dist[*to] < 0 {
-                    nt.push_back(std::cmp::Reverse((nd + weight, *to)));
-                }
-            }
-        }
-
-        self.reroot_with_rebuild(max.1);
-    }
-}
-
-impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize)>> for Tree<D, UnWeighted> {
+impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize)>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<(usize, usize)>) -> Result<Self, Self::Error> {
         Self::from_edges(value)
     }
 }
 
-impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize, i64)>> for Tree<D, Weighted> {
+impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<(usize, usize, i64)>) -> Result<Self, Self::Error> {
-        Self::from_edges(value)
+        Self::from_weighted_edges(value)
     }
 }
 
-impl<D: Direction, W: Weight> std::convert::From<Tree<D, W>> for Graph<D, W> {
-    fn from(from: Tree<D, W>) -> Self {
+impl<D: Direction> std::convert::TryFrom<Vec<Vec<usize>>> for Tree<D> {
+    type Error = InvalidTree;
+    fn try_from(value: Vec<Vec<usize>>) -> Result<Self, Self::Error> {
+        let edges = 
+            if D::is_directed() {
+                value
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().map(move |to| (from, to)))
+                    .flatten()
+                    .collect()
+            } else {
+                value
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().filter(move |to| from <= *to).map(move |to| (from, to)))
+                    .flatten()
+                    .collect()
+            };
+        Self::from_edges(edges)
+    }
+}
+
+impl<D: Direction> std::convert::TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
+    type Error = InvalidTree;
+    fn try_from(value: Vec<Vec<(usize, i64)>>) -> Result<Self, Self::Error> {
+        let edges = 
+            if D::is_directed() {
+                value
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
+                    .flatten()
+                    .collect()
+            } else {
+                value
+                    .into_iter()
+                    .enumerate()
+                    .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
+                    .flatten()
+                    .collect()
+            };
+        Self::from_weighted_edges(edges)
+    }
+}
+
+impl<D: Direction> std::convert::From<Tree<D>> for Graph<D> {
+    fn from(from: Tree<D>) -> Self {
         Graph { size: from.size, graph: from.graph, _d: from._d }
     }
 }
 
 
 /// If an ancestor earlier than its own rank is searched, std::usize::MAX is returned.  
-pub fn nth_ancestor<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usize) -> usize {
+pub fn nth_ancestor<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     const MAX_RANK_LOG: usize = 25;
     let mut doubling = vec![vec![std::usize::MAX; tree.size]; MAX_RANK_LOG];
 
@@ -632,7 +748,8 @@ pub fn nth_ancestor<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(u
 }
 
 
-pub fn lca<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usize) -> usize {
+/// Returns a closure that finds the Lowest Common Ancestor of the two vertices belonging to the tree.
+pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     const MAX_RANK_LOG: usize = 25;
     let mut doubling = vec![vec![std::usize::MAX; tree.size]; MAX_RANK_LOG];
     let mut rank = vec![std::usize::MAX; tree.size];
@@ -649,7 +766,7 @@ pub fn lca<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usi
         }
         rank[now] = r;
 
-        for Edge { to, weight: _, _w } in &tree.graph[now] {
+        for to in tree.neighbors(now) {
             if *to != tree.par[now] {
                 nt.push_back((*to, r + 1));
             }
@@ -699,12 +816,12 @@ pub fn lca<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usi
 
 
 /// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
-pub fn spanning_tree(graph: &Graph<UnDirected, Weighted>) -> Result<Tree<UnDirected, Weighted>, InvalidTree> {
+pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, InvalidTree> {
     use crate::unionfind::UnionFind;
 
     let mut nt = std::collections::BinaryHeap::new();
     for from in 0..graph.size {
-        for (to, weight) in graph.neighbors(from) {
+        for (to, weight) in graph.edges(from) {
             nt.push(std::cmp::Reverse((*weight, from, *to)));
         }
     }
@@ -718,14 +835,13 @@ pub fn spanning_tree(graph: &Graph<UnDirected, Weighted>) -> Result<Tree<UnDirec
         }
     }
 
-    Tree::<UnDirected, Weighted>::from_edges(edges)
+    Tree::<UnDirected>::from_weighted_edges(edges)
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::super::graph::{
-        Weighted, UnWeighted,
         DirectedGraph, UnDirectedGraph,
         dijkstra_heap, dijkstra_v2, bellman_ford, warshall_floyd, scc, low_link, topological_sort
     };
@@ -748,7 +864,7 @@ mod tests {
             (7, 0, 8),
             (8, 2, 6), (8, 4, 1)
         ];
-        let dir: DirectedGraph<Weighted> = DirectedGraph::<Weighted>::from_edges(10, weighted_edges);
+        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
 
         let dist = dijkstra_heap(0, &dir);
         assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
@@ -806,7 +922,7 @@ mod tests {
             (7, 8, -9),
             (8, 5, 4)
         ];
-        let dir: DirectedGraph<Weighted> = DirectedGraph::<Weighted>::from_edges(9, signed_weighted_edges);
+        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         let dist = bellman_ford(0, &dir).unwrap();
         assert_eq!(dist, vec![0, 1, 3, 0, 4, -3, 0, 7, -2]);
@@ -825,7 +941,7 @@ mod tests {
             (6, 7),
             (7, 8)
         ];
-        let dir: DirectedGraph<UnWeighted> = DirectedGraph::<UnWeighted>::from_edges(9, edges);
+        let dir: DirectedGraph = DirectedGraph::from_edges(9, edges);
         let list = topological_sort(&dir)
             .unwrap()
             .into_iter()
@@ -853,7 +969,7 @@ mod tests {
             (6, 7),
             (7, 8)
         ];
-        let undir: UnDirectedGraph<UnWeighted> = UnDirectedGraph::<UnWeighted>::from_edges(9, edges);
+        let undir: UnDirectedGraph = UnDirectedGraph::from_edges(9, edges);
         let mut links = low_link(&undir);
         links.sort();
         assert_eq!(links, vec![(0, 1), (2, 5)]);
@@ -872,7 +988,7 @@ mod tests {
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
         // |par|NA| 0| 0| 1| 1| 2| 3| 4| 4| 5| 7| 9|
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        let mut undir = UnDirectedTree::<UnWeighted>::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9]).unwrap();
+        let mut undir = UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9]).unwrap();
 
         let anc = nth_ancestor(&mut undir);
         assert_eq!(anc(6, 2), 1);
@@ -902,12 +1018,12 @@ mod tests {
             (3, 9, 3),
             (4, 5, 4), (4, 6, 2), (4, 8, 1)
         ];
-        let undir = UnDirectedGraph::<Weighted>::from_edges(10, edges);
+        let undir = UnDirectedGraph::from_weighted_edges(10, edges);
         let tree = spanning_tree(&undir).unwrap();
         let set = (0..tree.size)
             .map(|i| tree.graph[i]
                                 .iter()
-                                .map(|Edge { to, weight: _, _w }| 
+                                .map(|Edge { to, weight: _ }| 
                                         (std::cmp::min(i, *to), std::cmp::max(i, *to)))
                                 .collect::<Vec<(_, _)>>())
             .flatten()
@@ -937,7 +1053,7 @@ mod tests {
             (7, 8, -9),
             (8, 5, 4)
         ];
-        let dir: DirectedGraph<Weighted> = DirectedGraph::<Weighted>::from_edges(9, signed_weighted_edges);
+        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!
         let _ = bellman_ford(0, &dir).unwrap();
@@ -963,7 +1079,7 @@ mod tests {
             (7, 8, -9),
             (8, 5, 4)
         ];
-        let dir: DirectedGraph<Weighted> = DirectedGraph::<Weighted>::from_edges(9, signed_weighted_edges);
+        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!
         let _ = topological_sort(&dir).unwrap();
@@ -989,6 +1105,6 @@ mod tests {
         ];
 
         // Panic!!!
-        let _ = UnDirectedTree::<Weighted>::from_edges(edges).unwrap();
+        let _ = UnDirectedTree::from_weighted_edges(edges).unwrap();
     }
 }
