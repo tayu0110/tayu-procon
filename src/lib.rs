@@ -1,4 +1,5 @@
 pub mod bitset;
+pub mod complex;
 pub mod convolution;
 pub mod fenwicktree;
 pub mod flow;
@@ -9,6 +10,9 @@ pub mod matrix;
 pub mod mincost_flow;
 pub mod modint;
 pub mod numeric;
+pub mod numsequence;
 pub mod scc;
 pub mod segtree;
+pub mod trie;
 pub mod unionfind;
+pub mod utility;

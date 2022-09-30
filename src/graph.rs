@@ -62,12 +62,14 @@ impl <'a, D: Direction> Graph<D, Weighted> {
                 g
             })
     }
+
     pub fn set_edge(&mut self, from: usize, to: usize, weight: i64) {
         self.graph[from].push(Edge { to, weight, _w: std::marker::PhantomData });
         if !D::is_directed() && from != to {
             self.graph[to].push(Edge { to: from, weight, _w: std::marker::PhantomData });
         }
     }
+    
     pub fn neighbors_mut(&'a mut self, index: usize) -> NeighborsMut<'a, Weighted> {
         NeighborsMut { inner: self.graph[index].iter_mut() }
     }
@@ -139,7 +141,9 @@ impl<'a> Iterator for NeighborsMut<'a, Weighted> {
     }
 }
 
-// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX
+/// Find the single starting point shortest path by Dijkstra's algorithm.  
+/// The computational complexity is O(ElogV), where E is the number of edges and V is the number of vertices, because a BinaryHeap is used.  
+/// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
 pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size];
     
@@ -162,7 +166,9 @@ pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> V
     res
 }
 
-// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX
+/// Find the single starting point shortest path by Dijkstra's algorithm.  
+/// The computational complexity is O(V^2), where V is the number of vertices.  
+/// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
 pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size];
     let mut checked = vec![false; graph.size];
@@ -198,6 +204,9 @@ impl std::fmt::Display for NegativeCycleError {
 }
 impl std::error::Error for NegativeCycleError {}
 
+
+/// Find the single starting point shortest path by Bellman-Ford's algorithm.  
+/// If the graph has negative cycle, return NegativeCycleError and the solution updated with std::i64::MIN for the cost of the vertices affected by the negative cycle.  
 pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D, Weighted>) -> Result<Vec<i64>, (NegativeCycleError, Vec<i64>)> {
     const INF: i64 = std::i64::MAX;
     let mut res = vec![INF; graph.size];
@@ -252,6 +261,9 @@ pub fn warshall_floyd<D: Direction>(graph: &Graph<D, Weighted>) -> Vec<Vec<i64>>
     res
 }
 
+
+/// Perform strongly connected component decomposition of a directed graph.  
+/// The decomposed strongly connected components are ordered topologically and returned as two-dimensional vectors.  
 pub fn scc<W: Weight>(graph: &Graph<Directed, W>) -> Vec<Vec<usize>> {
     let rev_graph = graph.rev_graph();
     
@@ -277,7 +289,6 @@ pub fn scc<W: Weight>(graph: &Graph<Directed, W>) -> Vec<Vec<usize>> {
 
     res
 }
-
 fn dfs_for_scc<W: Weight>(now: usize, used: &mut Vec<bool>, order: &mut Vec<usize>, graph: &Graph<Directed, W>) {
     used[now] = true;
     for Edge { to, weight: _, _w } in &graph.graph[now] {
@@ -287,7 +298,6 @@ fn dfs_for_scc<W: Weight>(now: usize, used: &mut Vec<bool>, order: &mut Vec<usiz
     }
     order.push(now);
 }
-
 fn rdfs_for_scc<W: Weight>(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<usize>, graph: &Graph<Directed, W>) {
     groups[now] = group;
     for Edge { to, weight: _, _w } in &graph.graph[now] {
@@ -298,6 +308,10 @@ fn rdfs_for_scc<W: Weight>(now: usize, group: i32, groups: &mut Vec<i32>, list: 
     list.push(now);
 }
 
+
+/// Detect bridges in the graph.  
+/// The detected bridges are returned as a list of tuples of vertices at both ends.  
+/// The elements of a tuple are always placed with the directed edge source in front and destination behind.  
 pub fn low_link<D: Direction, W: Weight>(graph: &Graph<D, W>) -> Vec<(usize, usize)> {
     let mut ord = vec![std::usize::MAX; graph.size];
     let mut low = vec![std::usize::MAX; graph.size];
@@ -322,7 +336,7 @@ fn dfs_for_lowlink<D: Direction, W: Weight>(now: usize, par: usize, now_ord: usi
             next_ord = dfs_for_lowlink(*to, now, next_ord, ord, low, res, graph);
             low[now] = std::cmp::min(low[now], low[*to]);
             if ord[now] < low[*to] {
-                res.push((std::cmp::min(now, *to), std::cmp::max(now, *to)));
+                res.push((now, *to));
             }
         }
         if *to != par {
@@ -343,6 +357,9 @@ impl std::fmt::Display for CycleDetectionError {
 }
 impl std::error::Error for CycleDetectionError {}
 
+
+/// Returns the topological sort of a directed graph.  
+/// If a cycle is detected, a topological sort cannot be defined, so CycleDetectionError is returned.  
 pub fn topological_sort<W: Weight>(graph: &Graph<Directed, W>) -> Result<Vec<usize>, CycleDetectionError> {
     let mut res = vec![];
     let mut ins = vec![0; graph.size];
@@ -383,6 +400,7 @@ pub fn topological_sort<W: Weight>(graph: &Graph<Directed, W>) -> Result<Vec<usi
     }
 }
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InvalidTree;
 impl std::fmt::Display for InvalidTree {
@@ -391,6 +409,7 @@ impl std::fmt::Display for InvalidTree {
     }
 }
 impl std::error::Error for InvalidTree {}
+
 
 pub type DirectedTree<W> = Tree<Directed, W>;
 pub type UnDirectedTree<W> = Tree<UnDirected, W>;
@@ -404,7 +423,7 @@ pub struct Tree<D: Direction, W: Weight> {
     _d: std::marker::PhantomData<D>
 }
 
-impl<D: Direction, W: Weight> Tree<D, W> {
+impl<'a, D: Direction, W: Weight> Tree<D, W> {
     fn from_weighted_edges(edges: Vec<(usize, usize, i64)>) -> Result<Self, InvalidTree> {
         let size = edges.len() + 1;
         let mut par = vec![std::usize::MAX; size];
@@ -444,13 +463,23 @@ impl<D: Direction, W: Weight> Tree<D, W> {
 
         Ok(Tree { size, root: 0, par, graph, _d: std::marker::PhantomData })
     }
+
+    #[inline]
+    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a, W> {
+        Neighbors { inner: self.graph[index].iter() }
+    }
+
+    #[inline]
     pub fn reroot(&mut self, new: usize) {
         self.root = new;
     }
+
+    #[inline]
     pub fn reroot_with_rebuild(&mut self, new: usize) {
         self.reroot(new);
         self.rebuild();
     }
+
     fn rebuild(&mut self) {
         let mut nt = std::collections::VecDeque::new();
         nt.push_back((self.root, std::usize::MAX));
@@ -466,10 +495,16 @@ impl<D: Direction, W: Weight> Tree<D, W> {
     }
 }
 
-impl<D: Direction> Tree<D, Weighted> {
+impl<'a, D: Direction> Tree<D, Weighted> {
+    #[inline]
     pub fn from_edges(edges: Vec<(usize, usize, i64)>) -> Result<Self, InvalidTree> {
         Self::from_weighted_edges(edges)
     }
+
+    pub fn neighbors_mut(&'a mut self, index: usize) -> NeighborsMut<'a, Weighted> {
+        NeighborsMut { inner: self.graph[index].iter_mut() }
+    }
+
     pub fn reroot_with_diameter(&mut self) {
         let mut dist = vec![-1; self.size];
         let mut nt = std::collections::BinaryHeap::new();
@@ -502,6 +537,7 @@ impl<D: Direction> Tree<D, UnWeighted> {
                 .collect();
         Self::from_weighted_edges(edges)
     }
+
     /// The parent of root node is std::usize::MAX.
     pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
         let edges = pars
@@ -512,6 +548,7 @@ impl<D: Direction> Tree<D, UnWeighted> {
                 .collect();
         Self::from_weighted_edges(edges)
     }
+
     pub fn reroot_with_diameter(&mut self) {
         let mut dist = vec![-1; self.size];
         let mut nt = std::collections::VecDeque::new();
@@ -556,7 +593,8 @@ impl<D: Direction, W: Weight> std::convert::From<Tree<D, W>> for Graph<D, W> {
     }
 }
 
-/// If an ancestor earlier than its own rank is searched, std::usize::MAX is returned.
+
+/// If an ancestor earlier than its own rank is searched, std::usize::MAX is returned.  
 pub fn nth_ancestor<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usize) -> usize {
     const MAX_RANK_LOG: usize = 25;
     let mut doubling = vec![vec![std::usize::MAX; tree.size]; MAX_RANK_LOG];
@@ -592,6 +630,7 @@ pub fn nth_ancestor<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(u
         now
     }
 }
+
 
 pub fn lca<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usize) -> usize {
     const MAX_RANK_LOG: usize = 25;
@@ -658,7 +697,8 @@ pub fn lca<D: Direction, W: Weight>(tree: &mut Tree<D, W>) -> impl Fn(usize, usi
     }
 }
 
-// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error
+
+/// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
 pub fn spanning_tree(graph: &Graph<UnDirected, Weighted>) -> Result<Tree<UnDirected, Weighted>, InvalidTree> {
     use crate::unionfind::UnionFind;
 
