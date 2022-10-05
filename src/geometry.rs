@@ -120,7 +120,7 @@ pub fn convex_hull<T: Numeric + IntoFloat>(mut points: Vec<(T, T)>) -> Vec<(T, T
         return points;
     }
     
-    points.sort();
+    points.sort_by(|v, w| v.partial_cmp(w).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut convex = vec![vec![]; 2];
     let check = [std::cmp::Ordering::Less, std::cmp::Ordering::Greater];
@@ -131,7 +131,7 @@ pub fn convex_hull<T: Numeric + IntoFloat>(mut points: Vec<(T, T)>) -> Vec<(T, T
                 let (f, s) = (Vector::new([fx, fy], [sx, sy]), Vector::new([sx, sy], [x, y]));
     
                 let outer_product = f.outer_product(&s);
-                if outer_product.cmp(&T::zero()) == check[i] || outer_product == T::zero() {
+                if outer_product.partial_cmp(&T::zero()) == Some(check[i]) || outer_product == T::zero() {
                     convex.push((sx, sy));
                     break;
                 }
@@ -170,7 +170,7 @@ pub fn sort_by_arg<T: Numeric>(mut points: Vec<(T, T)>) -> Vec<(T, T)> {
     points.sort_by(|&(x0, y0), &(x1, y1)| {
         ((y0, x0) < (T::zero(), T::zero()))
             .cmp(&((y1, x1) < (T::zero(), T::zero())))
-            .then_with(|| (x1 * y0).cmp(&(x0 * y1)))
+            .then_with(|| (x1 * y0).partial_cmp(&(x0 * y1)).unwrap())
     });
     
     points

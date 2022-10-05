@@ -1,6 +1,8 @@
 use std::ops::{
     Add, Sub, Mul, Div, Rem, Neg,
-    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign
+    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign,
+    Shl, Shr,
+    ShlAssign, ShrAssign
 };
 use std::convert::{
     From, Into,
@@ -21,7 +23,7 @@ impl std::error::Error for Error { }
 pub trait Numeric
         : Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Div<Self, Output = Self> + Neg<Output = Self> 
             + AddAssign + SubAssign + MulAssign + DivAssign
-            + std::fmt::Debug + std::fmt::Display + Clone + Copy + PartialEq + Eq + PartialOrd + Ord + std::hash::Hash + Default {
+            + std::fmt::Debug + std::fmt::Display + Clone + Copy + PartialEq + PartialOrd + Default {
     fn one() -> Self;
     fn zero() -> Self;
     fn max_value() -> Self;
@@ -30,15 +32,19 @@ pub trait Numeric
 }
 
 pub trait Integer
-        : Numeric + Rem<Self, Output = Self> + RemAssign {
+        : Numeric + Rem<Self, Output = Self> + RemAssign
+          + Shl + Shr + ShlAssign + ShrAssign
+          + std::hash::Hash + Eq + Ord {
 }
 
-pub trait IntoFloat
-        : Numeric {
+pub trait IntoFloat : Numeric {
     fn as_f64(self) -> f64;
     fn as_f32(self) -> f32;
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Implement Numeric, Integer and IntoFloat for i64
+//////////////////////////////////////////////////////////////////////////////////
 impl Numeric for i64 {
     fn one() -> Self { 1 }
     fn zero() -> Self { 0 }
@@ -57,8 +63,12 @@ impl IntoFloat for i64 {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Implement Rational Number
+//////////////////////////////////////////////////////////////////////////////////
+/// Represent rational numbers.
+/// The denominator is always retained as a positive number.
 // numerator / denominator
-// denominator is always positive.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Rational {
     numerator: i64,
@@ -104,6 +114,9 @@ impl Neg for Rational {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Define operations on rational numbers
+//////////////////////////////////////////////////////////////////////////////////
 impl Add for Rational {
     type Output = Rational;
     fn add(self, rhs: Self) -> Self::Output {
@@ -191,6 +204,10 @@ impl std::fmt::Debug for Rational {
     }
 }
 
+
+//////////////////////////////////////////////////////////////////////////////////
+// Define operations between rational numbers and floating point numbers.
+//////////////////////////////////////////////////////////////////////////////////
 impl Add<f64> for Rational {
     type Output = f64;
     fn add(self, rhs: f64) -> Self::Output {
@@ -223,6 +240,9 @@ impl Div<f64> for Rational {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Implement Numeric and IntoFloat for Rational
+//////////////////////////////////////////////////////////////////////////////////
 impl Numeric for Rational {
     fn one() -> Self {
         Self {
@@ -296,7 +316,12 @@ impl TryInto<f32> for Rational {
     }
 }
 
-#[allow(dead_code)]
+
+//////////////////////////////////////////////////////////////////////////////////
+// Define famous functions for integers
+//////////////////////////////////////////////////////////////////////////////////
+
+/// Return gcd(x, y).
 pub fn gcd<T: Integer>(x: T, y: T) -> T {
     if y == T::zero() {
         x
@@ -305,15 +330,40 @@ pub fn gcd<T: Integer>(x: T, y: T) -> T {
     }
 }
 
-#[allow(dead_code)]
+
+/// Return lcm(x, y).
 pub fn lcm<T: Integer>(x: T, y: T) -> T {
     x / gcd(x, y) * y
 }
 
+
+/// Solve the equation "ax + by = gcd(a, b)".
+// ax + by = gcd(a, b)
+// bx' + (a % b)y' = gcd(a, b)
+//      if a % b == 0
+//          b  = gcd(a, b)
+//          && bx' = gcd(a, b) -> x' = 1, y' = 0;
+//      else
+//          bx' + (a - b * floor(a / b))y' = gcd(a, b)
+//          ay' - b(x' - floor(a / b)y')    = gcd(a, b)
+//              -> x = 'y, y = 'x - floor(a / b)'y
+pub fn ext_gcd<T: Integer>(a: T, x: &mut T, b: T, y: &mut T) -> T {
+    if b == T::zero() {
+        *x = T::one();
+        *y = T::zero();
+        return a;
+    }
+
+    let g = ext_gcd(b, y, a % b, x);
+    *y -= a / b * *x;
+    g
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::{
-        gcd, lcm
+        gcd, lcm, ext_gcd
     };
 
     #[test]
@@ -329,5 +379,12 @@ mod tests {
         assert_eq!(lcm(0, 12), 0);
 
         assert_eq!(lcm(1000_000_000_000_000_000, 2000_000_000_000_000_000), 2000_000_000_000_000_000);
+
+        let (mut x, mut y) = (0, 0);
+        let g = ext_gcd(111, &mut x, 30, &mut y);
+
+        assert_eq!(g, 3);
+        assert_eq!(x, 3);
+        assert_eq!(y, -11);
     }
 }

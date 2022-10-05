@@ -24,14 +24,12 @@ impl Modulo for Mod1000000007 {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Mint<M>
-where M: Modulo {
+pub struct Mint<M: Modulo> {
     val: i64,
     _p: marker::PhantomData<M>
 }
 
-impl<M> Mint<M>
-where M: Modulo {
+impl<M: Modulo> Mint<M> {
     #[inline]
     pub fn new(val: i64) -> Self {
         Mint {
@@ -43,26 +41,17 @@ where M: Modulo {
     #[inline]
     pub fn raw(val: i64) -> Self {
         assert!(0 <= val && val < M::modulo());
-        Mint {
-            val,
-            _p: marker::PhantomData
-        }
+        Mint { val, _p: marker::PhantomData }
     }
     
     #[inline]
     pub fn zero() -> Self {
-        Mint {
-            val: 0i64,
-            _p: marker::PhantomData
-        }
+        Mint { val: 0i64, _p: marker::PhantomData }
     }
     
     #[inline]
     pub fn one() -> Self {
-        Mint {
-            val: 1i64,
-            _p: marker::PhantomData
-        }
+        Mint { val: 1i64, _p: marker::PhantomData }
     }
     
     #[inline]
@@ -84,10 +73,7 @@ where M: Modulo {
             val = (val * val) % M::modulo();
             exp >>= 1;
         }
-        Self {
-            val: res,
-            _p: marker::PhantomData
-        }
+        Self { val: res, _p: marker::PhantomData }
     }
 
     #[inline]
@@ -128,74 +114,64 @@ where M: Modulo {
     }
 }
 
-impl<M> Default for Mint<M>
-where M: Modulo {
+impl<M: Modulo> Default for Mint<M> {
     fn default() -> Self {
         Mint::zero()
     }
 }
 
-impl<M> std::fmt::Debug for Mint<M>
-where M: Modulo {
+impl<M: Modulo> std::fmt::Debug for Mint<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.val)
     }
 }
 
-impl<M> std::fmt::Display for Mint<M>
-where M: Modulo {
+impl<M: Modulo> std::fmt::Display for Mint<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.val)
     }
 }
 
-impl<M> Add for Mint<M>
-where M: Modulo {
+impl<M: Modulo> Add for Mint<M> {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         Self::new(self.val + rhs.val)
     }
 }
 
-impl<M> AddAssign for Mint<M>
-where M: Modulo {
+impl<M: Modulo> AddAssign for Mint<M> {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
     }
 }
 
-impl<M> Sub for Mint<M>
-where M: Modulo {
+impl<M: Modulo> Sub for Mint<M> {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Self::new(self.val - rhs.val + M::modulo())
     }
 }
 
-impl<M> SubAssign for Mint<M>
-where M: Modulo {
+impl<M: Modulo> SubAssign for Mint<M> {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
     }
 }
 
-impl<M> Mul for Mint<M>
-where M: Modulo {
+impl<M: Modulo> Mul for Mint<M> {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         Self::new(self.val * rhs.val)
     }
 }
 
-impl<M> MulAssign for Mint<M>
-where M: Modulo {
+impl<M: Modulo> MulAssign for Mint<M> {
     fn mul_assign(&mut self, rhs: Self) {
         *self = *self * rhs;
     }
 }
 
-impl<M> Div for Mint<M>
-where M: Modulo {
+impl<M: Modulo> Div for Mint<M> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         assert!(rhs.val != 0);
@@ -203,8 +179,7 @@ where M: Modulo {
     }
 }
 
-impl<M> DivAssign for Mint<M>
-where M: Modulo {
+impl<M: Modulo> DivAssign for Mint<M> {
     fn div_assign(&mut self, rhs: Self) {
         assert!(rhs.val != 0);
         *self *= rhs.inv()
@@ -217,10 +192,11 @@ pub fn combination<M: Modulo>(size: i64) -> impl Fn(usize, usize) -> Mint<M> {
         .scan(Mint::<M>::one(), |s, v| { *s *= Mint::new(v); Some(*s) })
         .collect());
 
-    let mut ifact = vec![fact[size as usize].inv()];
+    let inv = fact[size as usize].inv();
+    let mut ifact = vec![inv];
     ifact.append(&mut (1..=size)
         .rev()
-        .scan(fact[size as usize].inv(), |s, v| { *s *= Mint::new(v); Some(*s) })
+        .scan(inv, |s, v| { *s *= Mint::new(v); Some(*s) })
         .collect());
     ifact.reverse();
 

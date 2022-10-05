@@ -96,9 +96,7 @@ impl<T: Modulo> Matrix<T> {
 
     #[inline]
     fn mul(&self, rhs: &Self) -> Self {
-        unsafe {
-            self.mul_sub(rhs)
-        }
+        unsafe { self.mul_sub(rhs) }
     }
 
     #[target_feature(enable = "avx2")]
@@ -133,11 +131,11 @@ impl<T: Modulo> Matrix<T> {
 
         let (mut ret, mut now) = (Self::id(self.row()), self.clone());
         while n > 0 {
-            if n % 2 == 1 {
+            if n & 1 == 1 {
                 ret = ret.mul(&now);
             }
             now = now.mul(&now);
-            n /= 2;
+            n >>= 1;
         }
         ret
     }
@@ -148,8 +146,7 @@ impl<T: Modulo> From<Vec<Vec<Mint<T>>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from
-                        .into_iter()
+            matrix: from.into_iter()
                         .flatten()
                         .collect()
         }
@@ -161,8 +158,7 @@ impl<T: Modulo> From<Vec<Vec<i64>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from
-                        .into_iter()
+            matrix: from.into_iter()
                         .flatten()
                         .map(|v| Mint::<T>::new(v))
                         .collect()
@@ -175,8 +171,7 @@ impl<T: Modulo> From<Vec<Vec<i32>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from
-                        .into_iter()
+            matrix: from.into_iter()
                         .flatten()
                         .map(|v| Mint::<T>::new(v as i64))
                         .collect()
