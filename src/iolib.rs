@@ -50,8 +50,8 @@ macro_rules! scan {
     ( @interactive : $interactive:literal ) => {};
     // Terminator
     ( @interactive : $interactive:literal, ) => {};
-    // Vec<Vec<....>>, ......
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] $( $rest:tt )* ) => {
+    // Vec<Vec<....>>
+    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ]) => {
         let $v = {
             let len = $len;
             (0..len).fold(vec![], |mut v, _| {
@@ -60,15 +60,41 @@ macro_rules! scan {
                 v
             })
         };
+    };
+    // Vec<Vec<....>>, ......
+    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] , $( $rest:tt )* ) => {
+        $crate::scan!(@interactive: $interactive, [ [ $( $inner )+ ] ; $len ]);
         $crate::scan!(@interactive: $interactive, $( $rest )*);
     };
+    // Vec<$t>
+    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ]) => {
+        let $v = {
+            let len = $len;
+            (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
+        };
+    };
     // Vec<$t>, .....
-    ( @interactive : $interactive:literal, $v:ident : [ $t:ty ; $len:expr ] $( $rest:tt )* ) => {
+    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ] , $( $rest:tt )* ) => {
         let $v = {
             let len = $len;
             (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
         };
         $crate::scan!(@interactive: $interactive, $( $rest )*);
+    };
+    // Expand tuple
+    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt )) => {
+        { let tmp = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap(); tmp }
+    };
+    // Expand tuple
+    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt $( , $rest:tt )* ) ) => {
+        (
+            $crate::scan!(@interactive: $interactive, @expandtuple, ( $t )),
+            $( $crate::scan!(@interactive: $interactive, @expandtuple, ( $rest )), )*
+        )
+    };
+    // let $v: ($t, $u, ....) = (.......)
+    ( @interactive : $interactive:literal, $v:ident : ( $( $rest:tt )* ) ) => {
+        let $v = $crate::scan!(@interactive: $interactive, @expandtuple, ( $( $rest )* ));
     };
     // let $v: $t = ......
     ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {

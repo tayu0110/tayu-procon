@@ -17,9 +17,13 @@ where T: Clone + Copy + Sized {
         Self { sz, def_val, update_func, tree }
     }
 
-    pub fn update(&mut self, mut index: usize, val: T) {
+    pub fn set(&mut self, index: usize, val: T) {
+        self.update_by(index, val, |_old, act| act);
+    }
+
+    pub fn update_by(&mut self, mut index: usize, val: T, f: fn(old: T, act: T) -> T) {
         index += self.sz;
-        self.tree[index] = val;
+        self.tree[index] = f(self.tree[index], val);
         let update_func = &self.update_func;
         while index >> 1 > 0 {
             index >>= 1;
@@ -248,7 +252,7 @@ where
         write!(f, "tree: {:?}\nlz: {:?}", tree, lazy)
     }
 }
-#[allow(dead_code)]
+
 pub fn range_add_range_sum_query(size: usize) -> LazySegtree<(i64, i64), i64> {
     LazySegtree::from_vec(
         &vec![(0i64, 1i64); size],
@@ -258,7 +262,7 @@ pub fn range_add_range_sum_query(size: usize) -> LazySegtree<(i64, i64), i64> {
         |f, x| (x.0+f*x.1, x.1),
         |f, g| f + g)
 }
-#[allow(dead_code)]
+
 pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {
     LazySegtree::from_vec(
         &vec![0i64; size],
@@ -268,7 +272,7 @@ pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {
         |f, x| f + x,
         |f, g| f + g)
 }
-#[allow(dead_code)]
+
 pub fn range_add_range_minimum_query(size: usize) -> LazySegtree<i64, i64> {
     LazySegtree::from_vec(
         &vec![0i64; size],
@@ -278,6 +282,83 @@ pub fn range_add_range_minimum_query(size: usize) -> LazySegtree<i64, i64> {
         |f, x| f + x,
         |f, g| f + g)
 }
-// Range Add Range Maximum Query: F: i64, S: i64, from_vec(&vec![0i64; size], |l, r| std::cmp::max(l, r), || -111222333444555666i64, || 0i64, |f, x| f + x, |f, g| f + g);
-// Range Add Range Minimum Query: F: i64, S: i64, from_vec(&vec![0i64; size], |l, r| std::cmp::min(l, r), || 111222333444555666i64, || 0i64, |f, x| f + x, |f, g| f + g);
-// Range Add Range Sum Query: F: i64, S: (i64, i64), from_vec(&vec![(0i64, 1i64); size], |l, r| (l.0+r.0, l.1+r.1), || (0, 0), || 0i64, |f, x| (x.0+f*x.1, x.1), |f, g| f + g);
+
+
+#[cfg(test)]
+mod tests {
+    use crate::segtree::{
+        SegmentTree,
+        range_add_range_maximum_query, range_add_range_minimum_query, range_add_range_sum_query
+    };
+
+    #[test]
+    fn segtree_test() {
+        let mut st = SegmentTree::new(10, 0, |l, r| l + r);
+
+        let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
+        for (i, w) in v.into_iter().enumerate() {
+            st.set(i, w);
+        }
+
+        assert_eq!(st.get(0, 10), 62);
+        assert_eq!(st.get(5, 10), 33);
+        assert_eq!(st.get(0, 5), 29);
+        assert_eq!(st.get(3, 7), 30);
+
+        st.set(4, -1);
+
+        assert_eq!(st.get(0, 10), 47);
+        assert_eq!(st.get(5, 10), 33);
+        assert_eq!(st.get(0, 5), 14);
+        assert_eq!(st.get(3, 7), 15);
+
+        st.update_by(4, 15, |old, val| old + val);
+
+        assert_eq!(st.get(0, 10), 62);
+        assert_eq!(st.get(5, 10), 33);
+        assert_eq!(st.get(0, 5), 29);
+        assert_eq!(st.get(3, 7), 30);
+
+        st.update_by(6, 3, |old, val| old * val);
+
+        assert_eq!(st.get(0, 10), 74);
+        assert_eq!(st.get(5, 10), 45);
+        assert_eq!(st.get(0, 5), 29);
+        assert_eq!(st.get(3, 7), 42);
+    }
+
+    #[test]
+    fn lazy_segtree_test() {
+        let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
+
+        let mut st = range_add_range_maximum_query(10);
+        for (i, w) in v.iter().enumerate() {
+            st.apply(i, *w);
+        }
+
+        assert_eq!(st.prod(0, 10), 14);
+        assert_eq!(st.prod(5, 10), 11);
+        assert_eq!(st.prod(0, 5), 14);
+        assert_eq!(st.prod(5, 8), 6);
+        
+        let mut st = range_add_range_minimum_query(10);
+        for (i, w) in v.iter().enumerate() {
+            st.apply(i, *w);
+        }
+
+        assert_eq!(st.prod(0, 10), 1);
+        assert_eq!(st.prod(5, 10), 3);
+        assert_eq!(st.prod(0, 5), 1);
+        assert_eq!(st.prod(2, 5), 4);
+        
+        let mut st = range_add_range_sum_query(10);
+        for (i, w) in v.iter().enumerate() {
+            st.apply(i, *w);
+        }
+
+        assert_eq!(st.prod(0, 10).0, 62);
+        assert_eq!(st.prod(5, 10).0, 33);
+        assert_eq!(st.prod(0, 5).0, 29);
+        assert_eq!(st.prod(3, 7).0, 30);
+    }
+}
