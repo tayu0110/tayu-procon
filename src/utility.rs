@@ -405,10 +405,12 @@ mod tests {
         let lcpa = sa.lcp_array();
         assert_eq!(lcpa, vec![0, 1, 4, 1, 1, 0, 3, 0, 0, 0, 2, 0]);
 
-        let sample: &'static str = "zazazazaz";
+        let sample: &'static str = "iqwfmiwjua";
         let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![9, 7, 5, 3, 1, 8, 6, 4, 2, 0]);
-        let lcpa = sa.lcp_array();
-        assert_eq!(lcpa, vec![0, 2, 4, 6, 0, 1, 3, 5, 7, 0]);
+        assert_eq!(sa.sa, vec![10, 9, 3, 0, 5, 7, 4, 1, 8, 2, 6]);
+
+        let sample: &'static str = "caamclyoemcpxfzhdixt";
+        let sa = SuffixArray::new(sample);
+        assert_eq!(sa.sa, vec![20, 1, 2, 0, 4, 10, 16, 8, 13, 15, 17, 5, 3, 9, 7, 11, 19, 12, 18, 6, 14]);
     }
 }
