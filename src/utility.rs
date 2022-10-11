@@ -245,22 +245,11 @@ impl SuffixArray {
                 // so s[i] <> s[i+1] == a{s[i+1]} <> a{s[i+2]}
                 //      if s[i+1] < s[i+2] (types[i+1] = S), then s[i] < s[i+1] and types[i] = S
                 //      otherwise s[i+1] > s[i+2] (types[i+1] = L), then s[i] > s[i+1] and types[i] = L
-                match types[i+1] {
-                    Type::L => Type::L,
-                    _ => Type::S
-                }
+                types[i+1]
             }
         }
 
-        if types[0] == Type::S {
-            types[0] = Type::LMS;
-            lms_indices[s[0]].push(0);
-        }
-
-        let mut char_start = vec![0; kinds];
-        for i in 1..kinds {
-            char_start[i] = char_start[i-1] + char_num[i-1];
-        }
+        let char_start = [vec![0], char_num.iter().scan(0, |s, n| { *s += *n; Some(*s) }).collect()].concat();
 
         let pseudo_sa = Self::induced_sort(&lms_indices.into_iter().flatten().collect::<Vec<_>>(), &char_start, &char_num, s, &types);
 
@@ -289,18 +278,17 @@ impl SuffixArray {
             }
         }
 
-        let (rank_to_index, lms_ranks) = lms_indices
-                .into_iter()
-                .enumerate()
-                .filter(|(_, c)| *c != std::usize::MAX)
-                .unzip::<usize, usize, Vec<usize>, Vec<usize>>();
-
-        let lms_indices = if lms_ranks.len() == rank+1 {
+        let lms_indices = if lms_perm.len() == rank+1 {
             lms_perm
         } else {
+            let (restore_index, lms_ranks) = lms_indices
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, c)| *c != std::usize::MAX)
+                    .unzip::<usize, usize, Vec<usize>, Vec<usize>>();
             Self::sa_is(rank + 1, &lms_ranks)
                     .into_iter()
-                    .map(|i| rank_to_index[i])
+                    .map(|i| restore_index[i])
                     .collect::<Vec<_>>()
            
         };
@@ -310,7 +298,6 @@ impl SuffixArray {
     fn induced_sort(lms_indices: &[usize], char_start: &[usize], char_num: &[usize], s: &[usize], types: &[Type]) -> Vec<usize> {
         let kinds = char_start.len();
         let mut sa = vec![std::usize::MAX; s.len()];
-        sa[0] = s.len() - 1;
 
         let mut filled = 0;
         for (i, lms) in lms_indices.into_iter().enumerate().rev() {
@@ -360,18 +347,15 @@ impl SuffixArray {
 
         let mut lcp = 0;
         let mut lcpa = vec![0; self.sa.len()];
-        for i in 0..self.sa.len() {
-            let index = rank[i];
-            let pos1 = self.sa[index];
-
+        for index in rank {
             if index == self.sa.len() - 1 {
                 lcp = 0;
                 lcpa[index] = lcp;
                 continue;
             }
-
-            let pos2 = self.sa[index + 1];
-            while self.s[lcp + pos1] == self.s[lcp + pos2] {
+        
+            let (pos_l, pos_r) = (self.sa[index], self.sa[index+1]);
+            while self.s[lcp + pos_l] == self.s[lcp + pos_r] {
                 lcp += 1;
             }
             lcpa[index] = lcp;
@@ -404,6 +388,10 @@ mod tests {
         assert_eq!(sa.sa, vec![11, 10, 7, 0, 3, 5, 8, 1, 4, 6, 9, 2]);
         let lcpa = sa.lcp_array();
         assert_eq!(lcpa, vec![0, 1, 4, 1, 1, 0, 3, 0, 0, 0, 2, 0]);
+
+        let sample: &'static str = "ababacaca";
+        let sa = SuffixArray::new(sample);
+        assert_eq!(sa.sa, vec![9, 8, 0, 2, 6, 4, 1, 3, 7, 5]);
 
         let sample: &'static str = "iqwfmiwjua";
         let sa = SuffixArray::new(sample);
