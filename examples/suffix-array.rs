@@ -177,12 +177,13 @@ impl SuffixArray {
 
     pub fn new(s: impl Into<String>) -> Self {
         let s = [s.into().bytes().map(|b| b as usize).collect(), vec![0]].concat();
-        let sa = Self::sa_is(Self::CHARS, &s);
+        let mut sa = vec![std::usize::MAX; s.len()];
+        Self::sa_is(Self::CHARS, &s, &mut sa);
 
         Self { s, sa }
     }
 
-    fn sa_is(kinds: usize, s: &[usize]) -> Vec<usize> {
+    fn sa_is(kinds: usize, s: &[usize], sa: &mut Vec<usize>) {
         let mut types = vec![Type::S; s.len()];
         let mut lms_indices = vec![vec![]; kinds];
         let mut char_num = vec![0; kinds];
@@ -215,13 +216,14 @@ impl SuffixArray {
 
         let char_start = [vec![0], char_num.iter().scan(0, |s, n| { *s += *n; Some(*s) }).collect()].concat();
 
-        let pseudo_sa = Self::induced_sort(&lms_indices.into_iter().flatten().collect::<Vec<_>>(), &char_start, &char_num, s, &types);
+        // Calculate Pseudo SA
+        Self::induced_sort(&lms_indices.into_iter().flatten().collect::<Vec<_>>(), &char_start, &char_num, s, &types, sa);
 
         let mut rank = 0;
         let mut lms_prev = (std::usize::MAX, std::usize::MAX);
         let mut lms_perm = vec![];
         let mut lms_indices = vec![std::usize::MAX; s.len()];
-        for index in pseudo_sa.iter().filter(|index| types[**index] == Type::LMS) {
+        for index in sa.iter().take(s.len()).filter(|index| types[**index] == Type::LMS) {
             if lms_prev == (std::usize::MAX, std::usize::MAX) {
                 lms_prev = (*index, *index);
                 lms_indices[*index] = rank;
@@ -250,32 +252,48 @@ impl SuffixArray {
                     .enumerate()
                     .filter(|(_, c)| *c != std::usize::MAX)
                     .unzip::<usize, usize, Vec<usize>, Vec<usize>>();
-            Self::sa_is(rank + 1, &lms_ranks)
-                    .into_iter()
-                    .map(|i| restore_index[i])
-                    .collect::<Vec<_>>()
-           
+            Self::sa_is(rank + 1, &lms_ranks, sa);
+            sa.into_iter()
+                .take(lms_ranks.len())
+                .map(|i| restore_index[*i])
+                .collect()
         };
-        Self::induced_sort(&lms_indices, &char_start, &char_num, s, &types)
+
+        Self::induced_sort(&lms_indices, &char_start, &char_num, s, &types, sa);
     }
 
-    fn induced_sort(lms_indices: &[usize], char_start: &[usize], char_num: &[usize], s: &[usize], types: &[Type]) -> Vec<usize> {
+    fn induced_sort(lms_indices: &[usize], char_start: &[usize], char_num: &[usize], s: &[usize], types: &[Type], sa: &mut Vec<usize>) {
         let kinds = char_start.len();
-        let mut sa = vec![std::usize::MAX; s.len()];
+        sa.iter_mut().take(s.len()).for_each(|sa| *sa = std::usize::MAX);
+        sa[0] = s.len() - 1;
 
-        let mut filled = 0;
-        for (i, lms) in lms_indices.into_iter().enumerate().rev() {
+        let mut checked = 1;
+        let mut filled = vec![0; kinds];
+        for (i, lms) in lms_indices.into_iter().enumerate() {
             let c = s[*lms];
 
-            if i + 1 < lms_indices.len() && c != s[lms_indices[i+1]] {
-                filled = 0;
+            if i > 0 && c != s[lms_indices[i-1]] {
+                let target = char_start[c] + char_num[c] - 1;
+
+                while checked <= target {
+                    if sa[checked] != std::usize::MAX && sa[checked] > 0 && types[sa[checked]-1] == Type::L {
+                        let nc = s[sa[checked]-1];
+                        sa[char_start[nc] + filled[nc]] = sa[checked] - 1;
+                        filled[nc] += 1;
+                    }
+
+                    checked += 1;
+                }
             }
-            sa[char_start[c] + char_num[c] - 1 - filled] = *lms;
-            filled += 1;
+
+            if types[*lms-1] == Type::L {
+                let nc = s[*lms-1];
+                sa[char_start[nc] + filled[nc]] = *lms - 1;
+                filled[nc] += 1;
+            }
         }
 
-        let mut filled = vec![0; kinds];
-        for i in 0..sa.len() {
+        for i in checked..s.len() {
             if sa[i] != std::usize::MAX && sa[i] > 0 && types[sa[i]-1] == Type::L {
                 let c = s[sa[i]-1];
                 sa[char_start[c] + filled[c]] = sa[i] - 1;
@@ -288,33 +306,31 @@ impl SuffixArray {
         }
 
         let mut filled = vec![0; kinds];
-        for i in (0..sa.len()).rev() {
+        for i in (0..s.len()).rev() {
             if sa[i] != std::usize::MAX && sa[i] > 0 && types[sa[i]-1] != Type::L {
                 let c = s[sa[i]-1];
                 sa[char_start[c] + char_num[c] - 1 - filled[c]] = sa[i] - 1;
                 filled[c] += 1;
             }
         }
-
-        sa
     }
 
     pub fn get_sa(&self) -> &[usize] {
         &self.sa[1..]
     }
 
+    /// LCPA\[i\] := Longest Common Prefix between s\[sa\[i\]\] and s\[sa\[i+1\]\]
     pub fn lcp_array(&self) -> Vec<usize> {
-        let mut rank = vec![0; self.sa.len()];
-        for (i, sa) in self.sa.iter().enumerate() {
+        let mut rank = vec![0; self.sa.len()-1];
+        for (i, sa) in self.sa.iter().enumerate().skip(1) {
             rank[*sa] = i;
         }
 
         let mut lcp = 0;
-        let mut lcpa = vec![0; self.sa.len()];
+        let mut lcpa = vec![0; self.sa.len()-2];
         for index in rank {
             if index == self.sa.len() - 1 {
                 lcp = 0;
-                lcpa[index] = lcp;
                 continue;
             }
         
@@ -322,11 +338,10 @@ impl SuffixArray {
             while self.s[lcp + pos_l] == self.s[lcp + pos_r] {
                 lcp += 1;
             }
-            lcpa[index] = lcp;
+            lcpa[index-1] = lcp;
 
             lcp = lcp.saturating_sub(1);
         }
-
         lcpa
     }
 }
