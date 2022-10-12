@@ -298,10 +298,6 @@ impl SuffixArray {
                 let c = s[sa[i]-1];
                 sa[char_start[c] + filled[c]] = sa[i] - 1;
                 filled[c] += 1;
-
-                if i != 0 && sa[i] != std::usize::MAX && types[sa[i]] != Type::L {
-                    sa[i] = std::usize::MAX;
-                }
             }
         }
 
