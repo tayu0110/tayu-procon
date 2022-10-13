@@ -1,53 +1,58 @@
-pub struct SegmentTree<T>
-where T: Clone + Copy + Sized {
-    sz: usize,
-    def_val: T,
-    update_func: fn(T, T) -> T,
-    tree: Vec<T>
+pub struct SegmentTree<M>
+where M: Clone {
+    size: usize,
+    e: M,
+    op: fn(&M, &M) -> M,
+    tree: Vec<M>
 }
 
-impl<T> SegmentTree<T>
-where T: Clone + Copy + Sized {
-    pub fn new(size: usize, def_val: T, update_func: fn(T, T) -> T) -> Self {
-        let mut sz = 1;
-        while sz < size {
-            sz <<= 1;
-        }
-        let tree = vec![def_val; sz * 2];
-        Self { sz, def_val, update_func, tree }
+impl<M> SegmentTree<M>
+where M: Clone {
+    #[inline]
+    pub fn new(size: usize, e: M, op: fn(&M, &M) -> M) -> Self {
+        let tree = vec![e.clone(); size << 1];
+        Self { size, e, op, tree }
     }
 
-    pub fn set(&mut self, index: usize, val: T) {
-        self.update_by(index, val, |_old, act| act);
+    #[inline]
+    pub fn set(&mut self, index: usize, val: M) {
+        self.update_by(index, val, |_, act| act.clone());
     }
 
-    pub fn update_by(&mut self, mut index: usize, val: T, f: fn(old: T, act: T) -> T) {
-        index += self.sz;
-        self.tree[index] = f(self.tree[index], val);
-        let update_func = &self.update_func;
+    pub fn update_by(&mut self, mut index: usize, val: M, f: fn(old: &M, act: &M) -> M) {
+        index += self.size;
+        self.tree[index] = f(&self.tree[index], &val);
         while index >> 1 > 0 {
             index >>= 1;
-            self.tree[index] = update_func(self.tree[index*2], self.tree[index*2+1]);
+            self.tree[index] = self.op(&self.tree[index<<1], &self.tree[index<<1|1]);
         }
-    }
-
-    fn get_sub(&self, left: usize, right: usize, now: usize, a: usize, b: usize) -> T {
-        if right <= a || b <= left {
-            return self.def_val;
-        }
-        if left <= a && b <= right {
-            return self.tree[now];
-        }
-        let update_func = &self.update_func;
-        let mut res = self.def_val;
-        res = update_func(res, self.get_sub(left, right, now*2  , a, (a+b) / 2));
-        res = update_func(res, self.get_sub(left, right, now*2+1, (a+b) / 2, b));
-        res
     }
     
-    pub fn get(&self, left: usize, right: usize) -> T {
-        self.get_sub(left, right, 1, 0, self.sz)
+    pub fn get(&self, left: usize, right: usize) -> M {
+        if left >= right {
+            return self.e.clone();
+        }
+
+        let (mut l, mut r) = (left + self.size, right + self.size);
+        let (mut res_l, mut res_r) = (self.e.clone(), self.e.clone());
+        while l < r {
+            if l & 1 != 0 {
+                res_l = self.op(&self.tree[l], &res_l);
+                l += 1;
+            }
+            if r & 1 != 0 {
+                r -= 1;
+                res_r = self.op(&res_r, &self.tree[r]);
+            }
+            l >>= 1;
+            r >>= 1;
+        }
+
+        self.op(&res_l, &res_r)
     }
+
+    #[inline]
+    fn op(&self, lhs: &M, rhs: &M) -> M { let op = self.op; op(&lhs, &rhs) }
 }
 
 pub struct LazySegtree<S, F> {
@@ -293,7 +298,7 @@ mod tests {
 
     #[test]
     fn segtree_test() {
-        let mut st = SegmentTree::new(10, 0, |l, r| l + r);
+        let mut st = SegmentTree::new(10, 0, |l, r| *l + *r);
 
         let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
         for (i, w) in v.into_iter().enumerate() {
