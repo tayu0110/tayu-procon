@@ -55,9 +55,9 @@ impl std::fmt::Display for AlreadySameGroupError {
 
 impl std::error::Error for AlreadySameGroupError { }
 
-/// par[i]    : the parent of node i
-/// rank[i]   : the distance of node i from root
-/// potential[i] : the potential of the edge between node i and i's parent
+/// par\[i\]       : the parent of node i
+/// rank\[i\]      : the distance of node i from root
+/// potential\[i\] : the potential of the edge between node i and i's parent
 pub struct WeightedUnionFind {
     par: Vec<usize>,
     rank: Vec<usize>,

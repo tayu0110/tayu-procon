@@ -8,9 +8,26 @@ where M: Clone {
 
 impl<M> SegmentTree<M>
 where M: Clone {
+    /// * `size` - Number of elements in the data array to be managed
+    /// * `e`    - Identity element of the monoid that the data represents
+    /// * `op`   - Operation applied to data (If the operation is to fold the data toward the right, op(a, b) must return b*a as the result)
     #[inline]
     pub fn new(size: usize, e: M, op: fn(&M, &M) -> M) -> Self {
         let tree = vec![e.clone(); size << 1];
+        Self { size, e, op, tree }
+    }
+
+    /// * `vec`  - Initial state of the data array to be managed
+    /// * `e`    - Identity element of the monoid that the data represents
+    /// * `op`   - Operation applied to data (If the operation is to fold the data toward the right, op(a, b) must return b*a as the result)
+    pub fn from_vec(vec: &Vec<M>, e: M, op: fn(&M, &M) -> M) -> Self {
+        let size = vec.len();
+        let mut tree = [vec![e.clone(); size], vec.clone()].concat();
+
+        for i in (0..(size<<1)-1).rev().step_by(2).take_while(|i| i>>1 > 0) {
+            tree[i>>1] = op(&tree[i], &tree[i|1]);
+        }
+
         Self { size, e, op, tree }
     }
 
@@ -24,11 +41,11 @@ where M: Clone {
         self.tree[index] = f(&self.tree[index], &val);
         while index >> 1 > 0 {
             index >>= 1;
-            self.tree[index] = self.op(&self.tree[index<<1], &self.tree[index<<1|1]);
+            self.tree[index] = self.op(&self.tree[index<<1], &self.tree[index<<1|1], false);
         }
     }
-    
-    pub fn get(&self, left: usize, right: usize) -> M {
+
+    fn fold(&self, left: usize, right: usize, fold_right: bool) -> M {
         if left >= right {
             return self.e.clone();
         }
@@ -37,22 +54,35 @@ where M: Clone {
         let (mut res_l, mut res_r) = (self.e.clone(), self.e.clone());
         while l < r {
             if l & 1 != 0 {
-                res_l = self.op(&self.tree[l], &res_l);
+                res_l = self.op(&self.tree[l], &res_l, fold_right);
                 l += 1;
             }
             if r & 1 != 0 {
-                r -= 1;
-                res_r = self.op(&res_r, &self.tree[r]);
+                res_r = self.op(&res_r, &self.tree[r-1], fold_right);
             }
             l >>= 1;
             r >>= 1;
         }
 
-        self.op(&res_l, &res_r)
+        self.op(&res_l, &res_r, false)
+    }
+    
+    /// Fold the operation in a leftward direction.
+    /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
+    #[inline]
+    pub fn foldl(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, false)
+    }
+
+    /// Fold the operation in a rightward direction.
+    /// That is, you obtain op(op(op(...op(t_{l}, t_{l+1}), t_{l+2}), ..., t_{r-2}), t_{r_1}) as a result.
+    #[inline]
+    pub fn foldr(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, true)
     }
 
     #[inline]
-    fn op(&self, lhs: &M, rhs: &M) -> M { let op = self.op; op(&lhs, &rhs) }
+    fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M { if !fold_right { (self.op)(&lhs, &rhs) } else { (self.op)(&rhs, &lhs) } }
 }
 
 pub struct LazySegtree<S, F> {
@@ -298,38 +328,41 @@ mod tests {
 
     #[test]
     fn segtree_test() {
-        let mut st = SegmentTree::new(10, 0, |l, r| *l + *r);
-
         let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
-        for (i, w) in v.into_iter().enumerate() {
-            st.set(i, w);
-        }
+        
+        let mut st = SegmentTree::from_vec(&v.to_vec(), 0, |l, r| *l + *r);
+        // The above code is same meaning as the following code.
+        // 
+        // let mut st = SegmentTree::new(10, 0, |l, r| *l + *r);
+        // for (i, w) in v.into_iter().enumerate() {
+        //     st.set(i, w);
+        // }
 
-        assert_eq!(st.get(0, 10), 62);
-        assert_eq!(st.get(5, 10), 33);
-        assert_eq!(st.get(0, 5), 29);
-        assert_eq!(st.get(3, 7), 30);
+        assert_eq!(st.foldl(0, 10), 62);
+        assert_eq!(st.foldl(5, 10), 33);
+        assert_eq!(st.foldl(0, 5), 29);
+        assert_eq!(st.foldl(3, 7), 30);
 
         st.set(4, -1);
 
-        assert_eq!(st.get(0, 10), 47);
-        assert_eq!(st.get(5, 10), 33);
-        assert_eq!(st.get(0, 5), 14);
-        assert_eq!(st.get(3, 7), 15);
+        assert_eq!(st.foldl(0, 10), 47);
+        assert_eq!(st.foldl(5, 10), 33);
+        assert_eq!(st.foldl(0, 5), 14);
+        assert_eq!(st.foldl(3, 7), 15);
 
         st.update_by(4, 15, |old, val| old + val);
 
-        assert_eq!(st.get(0, 10), 62);
-        assert_eq!(st.get(5, 10), 33);
-        assert_eq!(st.get(0, 5), 29);
-        assert_eq!(st.get(3, 7), 30);
+        assert_eq!(st.foldl(0, 10), 62);
+        assert_eq!(st.foldl(5, 10), 33);
+        assert_eq!(st.foldl(0, 5), 29);
+        assert_eq!(st.foldl(3, 7), 30);
 
         st.update_by(6, 3, |old, val| old * val);
 
-        assert_eq!(st.get(0, 10), 74);
-        assert_eq!(st.get(5, 10), 45);
-        assert_eq!(st.get(0, 5), 29);
-        assert_eq!(st.get(3, 7), 42);
+        assert_eq!(st.foldl(0, 10), 74);
+        assert_eq!(st.foldl(5, 10), 45);
+        assert_eq!(st.foldl(0, 5), 29);
+        assert_eq!(st.foldl(3, 7), 42);
     }
 
     #[test]
