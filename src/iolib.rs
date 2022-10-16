@@ -1,13 +1,12 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::io::{
-    Read, BufRead, Error
+    Read, BufRead,
+    Error
 };
 use std::str::SplitWhitespace;
 use std::thread_local;
 
 thread_local! {
-    static BUF: RefCell<VecDeque<String>> = RefCell::new(VecDeque::new());
     static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
 }
 
@@ -28,16 +27,16 @@ fn refill_buffer(interactive: bool) -> Result<(), Error> {
 }
 
 #[inline]
-pub fn scan_string(interactive: bool) -> String {
+pub fn scan_string(interactive: bool) -> &'static str {
     BUF_SPLIT_WHITESPACE.with(|buf_str| {
         if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
+            return s;
         }
 
         refill_buffer(interactive).unwrap();
 
         if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
+            return s;
         }
 
         unreachable!("Read Error: No input items.");

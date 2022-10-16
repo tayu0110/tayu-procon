@@ -48,6 +48,7 @@ use std::str::SplitWhitespace;
 use std::thread_local;
 
 thread_local! {
+    static STDIN_LOCK: RefCell<std::io::BufReader<std::io::StdinLock<'static>>> = RefCell::new(std::io::BufReader::new(std::io::stdin().lock()));
     static BUF: RefCell<VecDeque<String>> = RefCell::new(VecDeque::new());
     static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
 }
@@ -55,12 +56,19 @@ thread_local! {
 #[inline]
 fn refill_buffer(interactive: bool) -> Result<(), Error> {
     let mut s = String::new();
-    
-    if cfg!(debug_assertions) || interactive {
-        std::io::stdin().lock().read_line(&mut s)?;
-    } else {
-        std::io::stdin().lock().read_to_string(&mut s)?;
-    }
+
+    STDIN_LOCK.with(|stdin_lock| {
+        if cfg!(debug_assertions) || interactive {
+            stdin_lock.borrow_mut().read_line(&mut s)
+        } else {
+            stdin_lock.borrow_mut().read_to_string(&mut s)
+        }
+    })?;
+    // if cfg!(debug_assertions) || interactive {
+    //     // std::io::stdin().lock().read_line(&mut s)?;
+    // } else {
+    //     // std::io::stdin().lock().read_to_string(&mut s)?;
+    // }
 
     BUF_SPLIT_WHITESPACE.with(|buf_str| {
         *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
@@ -205,7 +213,8 @@ impl SuffixArray {
         let mut lms_prev = std::u32::MAX;
         let mut lms_next = vec![std::u32::MAX; s.len()];
         let mut types = vec![Type::S; s.len()];
-        let mut lms_indices = vec![vec![]; kinds];
+        // let mut lms_indices = vec![vec![]; kinds];
+        let mut lms_indices = vec![];
         let mut char_num = vec![0u32; kinds];
 
         for (i, c) in s.iter().enumerate().rev() {
@@ -221,7 +230,8 @@ impl SuffixArray {
             } else if c > nc {
                 if types[i+1] == Type::S {
                     types[i+1] = Type::LMS;
-                    lms_indices[*nc as usize].push(i as u32 + 1);
+                    // lms_indices[*nc as usize].push(i as u32 + 1);
+                    lms_indices.push(i as u32 + 1);
                     lms_next[i+1] = lms_prev;
                     lms_prev = i as u32 + 1;
                 }
@@ -234,11 +244,24 @@ impl SuffixArray {
         let char_start = vec![0].into_iter().chain(char_num.iter().scan(0, |s, n| { *s += n; Some(*s) })).collect::<Vec<_>>();
 
         // Calculate Pseudo SA
-        Self::induced_sort(&lms_indices.into_iter().flatten().collect::<Vec<_>>(), &char_start, &char_num, s, &types, sa);
+        // Self::induced_sort(&lms_indices.into_iter().flatten().collect::<Vec<_>>(), &char_start, &char_num, s, &types, sa);
+        let max_lms_num = Self::induced_sort(&lms_indices, &char_start, &char_num, s, &types, sa);
+
+        // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
+        // since the order of operations of the sort is unique since all elements except the last element are L-Types.
+        if lms_indices.len() == 1 && types[0] != Type::S {
+            return;
+        }
+        // If there is only one LMS-Type for each bucket per character type, then a second sort is not necessary
+        // because the order of the sorting operations is unique.
+        if max_lms_num == 1 {
+            return;
+        }
 
         let mut rank = 0;
         let mut lms_prev = (std::usize::MAX, std::usize::MAX);
         let mut lms_sorted = vec![];
+        Vec::reserve_exact(&mut lms_sorted, lms_indices.len());
         let mut lms_ranks = lms_next;
         for index in sa.iter().take(s.len()).filter(|index| types[**index as usize] == Type::LMS) {
             if lms_prev == (std::usize::MAX, std::usize::MAX) {
@@ -277,67 +300,113 @@ impl SuffixArray {
     }
 
     #[inline]
-    fn induced_sort(lms_indices: &[u32], char_start: &[u32], char_num: &[u32], s: &[u32], types: &[Type], sa: &mut [u32]) {
+    fn induced_sort(lms_indices: &[u32], char_start: &[u32], char_num: &[u32], s: &[u32], types: &[Type], sa: &mut [u32]) -> u32 {
         let kinds = char_start.len();
         sa[0] = s.len() as u32 - 1;
 
-        let mut backet_index = 1;
-        let mut checked = 1;
-        let mut filled = vec![0; kinds];
-        for (i, lms) in lms_indices.into_iter().enumerate() {
-            let c = s[*lms as usize] as usize;
-
-            if i > 0 && c != s[lms_indices[i-1] as usize] as usize {
-                let target = char_start[c] as usize + char_num[c] as usize - 1;
-
-                while checked < target {
-                    let mut rem = filled[backet_index];
-                    while rem > 0 {
-                        if sa[checked] != std::u32::MAX && sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
-                            let nc = s[sa[checked] as usize - 1] as usize;
-                            sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
-                            filled[nc] += 1;
-                            if nc == backet_index {
-                                rem += 1;
-                            }
-                        }
-                        rem -= 1;
-                        checked += 1;
-                    }
-
-                    checked = char_start[backet_index] as usize + char_num[backet_index] as usize;
-                    filled[backet_index] = 0;
-                    backet_index += 1;
-                }
-            }
-
-            if types[*lms as usize - 1] == Type::L {
-                let nc = s[*lms as usize - 1] as usize;
-                sa[(char_start[nc] + filled[nc]) as usize] = *lms - 1;
-                filled[nc] += 1;
-            }
+        let mut filled_lms = vec![0; kinds];
+        for (lms, c) in lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize] as usize)) {
+            sa[(char_start[c] + char_num[c] - 1 - filled_lms[c]) as usize] = lms;
+            filled_lms[c] += 1;
         }
 
-        while checked < s.len() {
+        let mut max_lms_num = 0;
+        let mut backet_index = 0;
+        let mut filled = vec![0; kinds];
+        while backet_index < kinds {
             let mut rem = filled[backet_index];
+            let mut checked = char_start[backet_index] as usize;
             while rem > 0 {
-                if sa[checked] != std::u32::MAX && sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
+                if sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
                     let nc = s[sa[checked] as usize - 1] as usize;
-                    sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
+                    sa[char_start[nc] as usize + filled[nc] as usize] = sa[checked] - 1;
                     filled[nc] += 1;
-                    if nc == backet_index {
+                    if backet_index == nc {
                         rem += 1;
                     }
                 }
-                
-                rem -= 1;
                 checked += 1;
+                rem -= 1;
             }
 
-            checked = char_start[backet_index] as usize + char_num[backet_index] as usize;
+            for lms_index in 0..filled_lms[backet_index] {
+                let lms = sa[(char_start[backet_index] + char_num[backet_index] - 1 - lms_index) as usize] as usize;
+                if lms > 0 && types[lms - 1] == Type::L {
+                    let nc = s[lms - 1] as usize;
+                    sa[char_start[nc] as usize + filled[nc] as usize] = lms as u32 - 1;
+                    filled[nc] += 1;
+                }
+                if backet_index != 0 {
+                    sa[(char_start[backet_index] + char_num[backet_index] - 1 - lms_index) as usize] = std::u32::MAX;
+                }
+            }
+
+            max_lms_num = std::cmp::max(max_lms_num, filled_lms[backet_index]);
             filled[backet_index] = 0;
             backet_index += 1;
         }
+
+        if lms_indices.len() == 1 && types[0] != Type::S {
+            return max_lms_num;
+        }
+
+        // let mut backet_index = 1;
+        // let mut checked = 1;
+        // let mut filled = vec![0; kinds];
+        // for (i, lms) in lms_indices.into_iter().enumerate() {
+        //     let c = s[*lms as usize] as usize;
+
+        //     if i > 0 && c != s[lms_indices[i-1] as usize] as usize {
+        //         let target = char_start[c] as usize + char_num[c] as usize - 1;
+
+        //         while checked < target {
+        //             let mut rem = filled[backet_index];
+        //             while rem > 0 {
+        //                 if sa[checked] != std::u32::MAX && sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
+        //                     let nc = s[sa[checked] as usize - 1] as usize;
+        //                     sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
+        //                     filled[nc] += 1;
+        //                     if nc == backet_index {
+        //                         rem += 1;
+        //                     }
+        //                 }
+        //                 rem -= 1;
+        //                 checked += 1;
+        //             }
+
+        //             checked = char_start[backet_index] as usize + char_num[backet_index] as usize;
+        //             filled[backet_index] = 0;
+        //             backet_index += 1;
+        //         }
+        //     }
+
+        //     if types[*lms as usize - 1] == Type::L {
+        //         let nc = s[*lms as usize - 1] as usize;
+        //         sa[(char_start[nc] + filled[nc]) as usize] = *lms - 1;
+        //         filled[nc] += 1;
+        //     }
+        // }
+
+        // while checked < s.len() {
+        //     let mut rem = filled[backet_index];
+        //     while rem > 0 {
+        //         if sa[checked] != std::u32::MAX && sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
+        //             let nc = s[sa[checked] as usize - 1] as usize;
+        //             sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
+        //             filled[nc] += 1;
+        //             if nc == backet_index {
+        //                 rem += 1;
+        //             }
+        //         }
+                
+        //         rem -= 1;
+        //         checked += 1;
+        //     }
+
+        //     checked = char_start[backet_index] as usize + char_num[backet_index] as usize;
+        //     filled[backet_index] = 0;
+        //     backet_index += 1;
+        // }
 
         for i in (0..s.len()).rev() {
             if sa[i] != std::u32::MAX && sa[i] > 0 && types[sa[i] as usize - 1] != Type::L {
@@ -346,6 +415,8 @@ impl SuffixArray {
                 filled[c as usize] += 1;
             }
         }
+
+        max_lms_num
     }
 
     pub fn get_sa(&self) -> &[u32] {

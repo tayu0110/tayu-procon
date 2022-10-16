@@ -1,9 +1,9 @@
-use tayu_procon::scani;
+use tayu_procon::scan;
 
 fn main() {
-    scani!(n: usize, z: [[(i64, i64); 2]; n]);
+    scan!(n: usize, z: [(i64, i64); n]);
 
-    for w in z {
-        println!("{:?}", w);
+    for (w, v) in z {
+        println!("{} {}", w, v);
     }
 }
