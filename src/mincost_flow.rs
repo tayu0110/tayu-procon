@@ -15,14 +15,14 @@ pub struct MinCostFlow {
 }
 
 impl MinCostFlow {
-    pub fn new(size: usize) -> Self {
+    pub const fn new(size: usize) -> Self {
         Self {
             size,
             edges: vec![]
         }
     }
 
-    pub fn edges(&self) -> &Vec<Edge> {
+    pub const fn edges(&self) -> &Vec<Edge> {
         &self.edges
     }
 

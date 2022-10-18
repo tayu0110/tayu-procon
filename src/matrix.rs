@@ -14,7 +14,7 @@ pub struct Matrix<T: Modulo> {
 impl<T: Modulo> Matrix<T> {
     #[inline]
     pub fn new(row: usize, column: usize) -> Self {
-        assert!(row > 0 && column > 0);
+        debug_assert!(row > 0 && column > 0);
         Matrix {
             row,
             column,
@@ -23,26 +23,26 @@ impl<T: Modulo> Matrix<T> {
     }
     
     #[inline]
-    fn row(&self) -> usize {
+    const fn row(&self) -> usize {
         self.row
     }
     
     #[inline]
-    fn column(&self) -> usize {
+    const fn column(&self) -> usize {
         self.column
     }
     
     #[inline]
     fn set(&mut self, row: usize, column: usize, val: Mint<T>) {
-        assert!(row < self.row() && column < self.column());
+        debug_assert!(row < self.row() && column < self.column());
         let c = self.column();
 
         self.matrix[c*row+column] = val;
     }
     
     #[inline]
-    fn get(&self, row: usize, column: usize) -> Mint<T> {
-        assert!(row < self.row() && column < self.column());
+    const fn get(&self, row: usize, column: usize) -> Mint<T> {
+        debug_assert!(row < self.row() && column < self.column());
 
         self.matrix[row*self.column() + column]
     }
@@ -64,7 +64,7 @@ impl<T: Modulo> Matrix<T> {
 
     #[inline]
     fn add(&self, rhs: &Self) -> Self {
-        assert!(self.row() == rhs.row() && self.column() == rhs.column());
+        debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
         
         let matrix = self.matrix
             .iter()
@@ -80,7 +80,7 @@ impl<T: Modulo> Matrix<T> {
 
     #[inline]
     fn sub(&self, rhs: &Self) -> Self {
-        assert!(self.row() == rhs.row() && self.column() == rhs.column());
+        debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
         let matrix = self.matrix
             .iter()
@@ -103,7 +103,7 @@ impl<T: Modulo> Matrix<T> {
     unsafe fn mul_sub(&self, rhs: &Self) -> Self {
         let (lrow, lcolumn, rrow, rcolumn) = (self.row(), self.column(), rhs.row(), rhs.column());
 
-        assert!(lcolumn == rrow);
+        debug_assert!(lcolumn == rrow);
         
         let mut matrix = (vec![Default::default(); lrow*rcolumn]).into_boxed_slice();
         for (s, t) in matrix
@@ -127,7 +127,7 @@ impl<T: Modulo> Matrix<T> {
     }
 
     fn pow(&self, mut n: usize) -> Self {
-        assert!(self.row() == self.column());
+        debug_assert!(self.row() == self.column());
 
         let (mut ret, mut now) = (Self::id(self.row()), self.clone());
         while n > 0 {

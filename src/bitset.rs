@@ -14,14 +14,14 @@ impl Bitset {
     }
 
     fn set(&mut self, idx: usize) {
-        assert!(idx < self.size);
+        debug_assert!(idx < self.size);
         
         let (idx, bit) = (idx / BIT_SIZE, idx % BIT_SIZE);
         self.bits[idx] |= 1 << bit;
     }
     
     fn drop(&mut self, idx: usize) {
-        assert!(idx < self.size);
+        debug_assert!(idx < self.size);
         
         let (idx, bit) = (idx / BIT_SIZE, idx % BIT_SIZE);
         self.bits[idx] ^= 1 << bit;

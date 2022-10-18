@@ -14,7 +14,7 @@ pub trait BinarySearch<T> {
     fn upper_bound_by(&self, _f: impl Fn(&T) -> bool) -> Option<Self::Output> { unimplemented!() }
 }
 
-impl<T: Clone + PartialEq + PartialOrd> BinarySearch<T> for &[T] {
+impl<T: Clone + PartialEq + PartialOrd> BinarySearch<T> for [T] {
     type Output = usize;
     fn lower_bound(&self, target: T) -> Option<Self::Output> {
         let (mut l, mut r) = (-1i32, self.len() as i32);
@@ -81,23 +81,6 @@ impl<T: Clone + PartialEq + PartialOrd> BinarySearch<T> for &[T] {
         }
     }
 }
-
-impl<T: Clone + PartialEq + PartialOrd> BinarySearch<T> for Vec<T> {
-    type Output = usize;
-    fn lower_bound(&self, target: T) -> Option<Self::Output> {
-        self.as_slice().lower_bound(target)
-    }
-    fn upper_bound(&self, target: T) -> Option<Self::Output> {
-        self.as_slice().upper_bound(target)
-    }
-    fn lower_bound_by(&self, f: impl Fn(&T) -> bool) -> Option<Self::Output> {
-        self.as_slice().lower_bound_by(f)
-    }
-    fn upper_bound_by(&self, f: impl Fn(&T) -> bool) -> Option<Self::Output> {
-        self.as_slice().upper_bound_by(f)
-    }
-}
-
 
 
 

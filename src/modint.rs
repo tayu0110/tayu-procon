@@ -39,18 +39,24 @@ impl<M: Modulo> Mint<M> {
     }
     
     #[inline]
+    #[cfg(debug_assertions)]
     pub fn raw(val: i64) -> Self {
-        assert!(0 <= val && val < M::modulo());
+        debug_assert!(0 <= val && val < M::modulo());
+        Mint { val, _p: marker::PhantomData }
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub const fn raw(val: i64) -> Self {
         Mint { val, _p: marker::PhantomData }
     }
     
     #[inline]
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Mint { val: 0i64, _p: marker::PhantomData }
     }
     
     #[inline]
-    pub fn one() -> Self {
+    pub const fn one() -> Self {
         Mint { val: 1i64, _p: marker::PhantomData }
     }
     
@@ -60,7 +66,7 @@ impl<M: Modulo> Mint<M> {
     }
     
     #[inline]
-    pub fn val(&self) -> i64 {
+    pub const fn val(&self) -> i64 {
         self.val
     }
     
@@ -83,33 +89,33 @@ impl<M: Modulo> Mint<M> {
     
     #[inline]
     pub fn nth_root(n: i64) -> Self {
-        assert!(n.abs() == 1 << n.abs().trailing_zeros());
-        assert!(M::modulo() - 1 + (M::modulo() - 1) / n >= 0);
+        debug_assert!(n.abs() == 1 << n.abs().trailing_zeros());
+        debug_assert!(M::modulo() - 1 + (M::modulo() - 1) / n >= 0);
 
         Mint::raw(M::primitive_root()).pow(M::modulo() - 1 + (M::modulo() - 1) / n)
     }
     
     #[inline]
     pub fn add_raw(&self, rhs: i64) -> Self {
-        assert!(0 <= rhs && rhs < M::modulo());
+        debug_assert!(0 <= rhs && rhs < M::modulo());
         Mint::new(self.val + rhs)
     }
     
     #[inline]
     pub fn sub_raw(&self, rhs: i64) -> Self {
-        assert!(0 <= rhs && rhs < M::modulo());
+        debug_assert!(0 <= rhs && rhs < M::modulo());
         Mint::new(self.val - rhs)
     }
     
     #[inline]
     pub fn mul_raw(&self, rhs: i64) -> Self {
-        assert!(0 <= rhs && rhs < M::modulo());
+        debug_assert!(0 <= rhs && rhs < M::modulo());
         Mint::new(self.val * rhs)
     }
     
     #[inline]
     pub fn div_raw(&self, rhs: i64) -> Self {
-        assert!(0 <= rhs && rhs < M::modulo());
+        debug_assert!(0 <= rhs && rhs < M::modulo());
         *self / Mint::raw(rhs)
     }
 }
@@ -174,14 +180,14 @@ impl<M: Modulo> MulAssign for Mint<M> {
 impl<M: Modulo> Div for Mint<M> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
-        assert!(rhs.val != 0);
+        debug_assert!(rhs.val != 0);
         self * rhs.inv()
     }
 }
 
 impl<M: Modulo> DivAssign for Mint<M> {
     fn div_assign(&mut self, rhs: Self) {
-        assert!(rhs.val != 0);
+        debug_assert!(rhs.val != 0);
         *self *= rhs.inv()
     }
 }

@@ -26,7 +26,7 @@ where Cap: Clone + Copy + Numeric {
 
 impl<Cap> Edge<Cap>
 where Cap: Clone + Copy + Numeric {
-    fn new(to: usize, cap: Cap, rev: usize) -> Self {
+    const fn new(to: usize, cap: Cap, rev: usize) -> Self {
         Self {
             to,
             cap,
