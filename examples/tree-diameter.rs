@@ -1,3 +1,178 @@
+// use tayu_procon::{
+//     scan,
+//     graph::{
+//         UnDirectedTree,
+//         dijkstra_heap
+//     }
+// };
+
+#![allow(dead_code)]
+
+use std::convert::TryFrom;
+use graph::{
+    UnDirectedTree, dijkstra_heap
+};
+
+fn main() {
+    use std::io::Write;
+    let out = std::io::stdout();
+    let mut out = std::io::BufWriter::new(out.lock());
+
+    scan!(n: usize, p: [(usize, usize, i64); n-1]);
+
+    let mut tree = UnDirectedTree::try_from(p).unwrap();
+    tree.reroot_with_diameter();
+
+    let root = tree.root();
+    let dist = dijkstra_heap(root, &tree.clone().into());
+    let max = dist.iter().max().unwrap();
+    let (mut now, _) = dist.iter().enumerate().filter(|(_, v)| v == &max).last().unwrap();
+
+    let mut res = vec![now];
+    while now != root {
+        for (to, w) in tree.edges(now) {
+            if dist[*to] + *w == dist[now] {
+                res.push(*to);
+                now = *to;
+                break;
+            }
+        }
+    }
+
+    writeln!(out, "{} {}", max, res.len()).unwrap();
+    for (i, v) in res.into_iter().rev().enumerate() {
+        if i > 0 {
+            write!(out, " {}", v).unwrap();
+        } else {
+            write!(out, "{}", v).unwrap();
+        }
+    }
+    writeln!(out, "").unwrap();
+}
+
+mod iolib {
+use std::cell::RefCell;
+use std::io::{
+    Read, BufRead,
+    Error
+};
+use std::str::SplitWhitespace;
+use std::thread_local;
+
+thread_local! {
+    static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
+}
+
+#[inline]
+fn refill_buffer(interactive: bool) -> Result<(), Error> {
+    let mut s = String::new();
+    
+    if cfg!(debug_assertions) || interactive {
+        std::io::stdin().lock().read_line(&mut s)?;
+    } else {
+        std::io::stdin().lock().read_to_string(&mut s)?;
+    }
+
+    BUF_SPLIT_WHITESPACE.with(|buf_str| {
+        *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
+        Ok(())
+    })
+}
+
+#[inline]
+pub fn scan_string(interactive: bool) -> &'static str {
+    BUF_SPLIT_WHITESPACE.with(|buf_str| {
+        if let Some(s) = buf_str.borrow_mut().next() {
+            return s;
+        }
+
+        refill_buffer(interactive).unwrap();
+
+        if let Some(s) = buf_str.borrow_mut().next() {
+            return s;
+        }
+
+        unreachable!("Read Error: No input items.");
+    })
+}
+
+#[macro_export]
+macro_rules! scan {
+    // Terminator
+    ( @interactive : $interactive:literal ) => {};
+    // Terminator
+    ( @interactive : $interactive:literal, ) => {};
+    // Vec<Vec<....>>
+    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ]) => {
+        let $v = {
+            let len = $len;
+            (0..len).fold(vec![], |mut v, _| {
+                $crate::scan!(@interactive: $interactive, w: [ $( $inner )+ ]);
+                v.push(w);
+                v
+            })
+        };
+    };
+    // Vec<Vec<....>>, ......
+    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] , $( $rest:tt )* ) => {
+        $crate::scan!(@interactive: $interactive, [ [ $( $inner )+ ] ; $len ]);
+        $crate::scan!(@interactive: $interactive, $( $rest )*);
+    };
+    // Vec<$t>
+    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ]) => {
+        let $v = {
+            let len = $len;
+            (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
+        };
+    };
+    // Vec<$t>, .....
+    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ] , $( $rest:tt )* ) => {
+        let $v = {
+            let len = $len;
+            (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
+        };
+        $crate::scan!(@interactive: $interactive, $( $rest )*);
+    };
+    // Expand tuple
+    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt )) => {
+        { let tmp = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap(); tmp }
+    };
+    // Expand tuple
+    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt $( , $rest:tt )* ) ) => {
+        (
+            $crate::scan!(@interactive: $interactive, @expandtuple, ( $t )),
+            $( $crate::scan!(@interactive: $interactive, @expandtuple, ( $rest )), )*
+        )
+    };
+    // let $v: ($t, $u, ....) = (.......)
+    ( @interactive : $interactive:literal, $v:ident : ( $( $rest:tt )* ) ) => {
+        let $v = $crate::scan!(@interactive: $interactive, @expandtuple, ( $( $rest )* ));
+    };
+    // let $v: $t = ......
+    ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {
+        let $v = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap();
+    };
+    // let $v: $t = ......, .......
+    ( @interactive : $interactive:literal, $v:ident : $t:ty, $( $rest:tt )+ ) => {
+        $crate::scan!(@interactive: $interactive, $v : $t);
+        $crate::scan!(@interactive: $interactive, $( $rest )+);
+    };
+    // ......
+    ( $( $rest:tt )* ) => {
+        $crate::scan!(@interactive: false, $( $rest )*);
+    };
+}
+
+#[macro_export]
+macro_rules! scani {
+    ( $( $rest:tt )* ) => {
+        $crate::scan!(@interactive: true, $( $rest )*);
+    };
+}
+}
+
+
+mod graph {
 pub trait Direction : Clone {
     fn is_directed() -> bool;
 }
@@ -114,8 +289,8 @@ impl<D: Direction> std::convert::From<Vec<(usize, usize)>> for Graph<D> {
         let mut max = 0;
 
         for (from, to) in from {
-            max = std::cmp::max(max, std::cmp::max(from, to));
-            if max >= graph.size {
+            if std::cmp::max(from, to) >= graph.size {
+                max = std::cmp::max(from, to);
                 graph.resize(std::cmp::max(from, to).next_power_of_two());
             }
 
@@ -134,8 +309,8 @@ impl<D: Direction> std::convert::From<Vec<(usize, usize, i64)>> for Graph<D> {
         let mut max = 0;
 
         for (from, to, weight) in from {
-            max = std::cmp::max(max, std::cmp::max(from, to));
-            if max >= graph.size {
+            if std::cmp::max(from, to) >= graph.size {
+                max = std::cmp::max(from, to);
                 graph.resize(std::cmp::max(from, to).next_power_of_two());
             }
 
@@ -494,54 +669,6 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
 }
 
 
-/// Detect cycles in a directed graph.
-/// If a cycle is successfully detected, return a vertex list for one of cycles.
-/// The vertex list is in topological order when one edge of the cycle is cut.
-pub fn cycle_detect(graph: &Graph<Directed>) -> Option<Vec<usize>> {
-    let size = graph.size;
-    // 0: not reached, 1: pending, 2: reached
-    let mut state = vec![0u8; size];
-    
-    for i in 0..size {
-        if state[i] != 2 {
-            let mut res = vec![];
-            if let Some(_) = dfs_for_cycle_detect(i, &mut state, &mut res, &graph) {
-                res.reverse();
-                return Some(res);
-            }
-        }
-    }
-
-    None
-}
-fn dfs_for_cycle_detect(now: usize, state: &mut [u8], stack: &mut Vec<usize>, graph: &Graph<Directed>) -> Option<usize> {
-    state[now] = 1;
-
-    for to in graph.neighbors(now) {
-        if state[*to] == 2 {
-            continue;
-        }
-        if state[*to] == 1 {
-            stack.push(now);
-            return Some(*to);
-        }
-
-        if let Some(mut res) = dfs_for_cycle_detect(*to, state, stack, graph) {
-            if res != std::usize::MAX {
-                stack.push(now);
-            }
-            if res == now {
-                res = std::usize::MAX;
-            }
-            return Some(res);
-        }
-    }
-
-    state[now] = 2;
-    None
-}
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InvalidTree;
 impl std::fmt::Display for InvalidTree {
@@ -866,298 +993,4 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
         doubling[0][l]
     }
 }
-
-
-/// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
-pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, InvalidTree> {
-    use crate::unionfind::UnionFind;
-
-    let mut nt = std::collections::BinaryHeap::new();
-    for from in 0..graph.size {
-        for (to, weight) in graph.edges(from) {
-            nt.push(std::cmp::Reverse((*weight, from, *to)));
-        }
-    }
-
-    let mut uf = UnionFind::new(graph.size);
-    let mut edges = vec![];
-    while let Some(std::cmp::Reverse((w, f, t))) = nt.pop() {
-        if !uf.is_same(f, t) {
-            edges.push((f, t, w));
-            uf.merge(f, t);
-        }
-    }
-
-    Tree::<UnDirected>::from_weighted_edges(edges)
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::super::graph::{
-        DirectedGraph, UnDirectedGraph,
-        dijkstra_heap, dijkstra_v2, bellman_ford, warshall_floyd, scc, low_link, topological_sort
-    };
-
-    #[test]
-    fn graph_test() {
-        // 9     1 --> 8 --> 4 --> 6     (0, 1, 3)           , (1, 8, 5)
-        // ^     ^     |     |           (2, 0, 1), (2, 5, 9), (3, 0, 7), (3, 9, 3)
-        // |     |     v     v           (4, 5, 4), (4, 6, 2), 
-        // 3 --> 0 <-- 2 --> 5           (7, 0, 8)           , (8, 2, 6), (8, 4, 1)      
-        //       ^ 
-        //       |
-        //       7
-        let weighted_edges = vec![
-            (0, 1, 3),
-            (1, 8, 5),
-            (2, 0, 1), (2, 5, 9),
-            (3, 0, 7), (3, 9, 3),
-            (4, 6, 2), (4, 5, 4),
-            (7, 0, 8),
-            (8, 2, 6), (8, 4, 1)
-        ];
-        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
-
-        let dist = dijkstra_heap(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
-
-        let dist = dijkstra_v2(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
-
-        let dists = warshall_floyd(&dir);
-        assert_eq!(dists,
-            vec![
-                vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX],
-                vec![12, 0, 11, std::i64::MAX, 6, 10, 8, std::i64::MAX, 5, std::i64::MAX],
-                vec![1, 4, 0, std::i64::MAX, 10, 9, 12, std::i64::MAX, 9, std::i64::MAX],
-                vec![7, 10, 21, 0, 16, 20, 18, std::i64::MAX, 15, 3],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, 4, 2, std::i64::MAX, std::i64::MAX, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, std::i64::MAX, std::i64::MAX, std::i64::MAX],
-                vec![8, 11, 22, std::i64::MAX, 17, 21, 19, 0, 16, std::i64::MAX],
-                vec![7, 10, 6, std::i64::MAX, 1, 5, 3, std::i64::MAX, 0, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0]
-            ]);
-        
-        let groups = scc(&dir);
-        let groups = groups
-            .into_iter()
-            .enumerate()
-            .fold(vec![0; 10], |mut v, (i, g)| {
-                g.into_iter()
-                 .for_each(|w| v[w] = i);
-                v
-            });
-        assert_eq!(groups[0], groups[1]);
-        assert_eq!(groups[0], groups[2]);
-        assert_eq!(groups[0], groups[8]);
-        assert_ne!(groups[0], groups[3]);
-        assert_ne!(groups[0], groups[4]);
-        assert!(groups[3] < groups[0]);
-        assert!(groups[3] < groups[9]);
-        assert!(groups[4] < groups[5]);
-        assert!(groups[7] < groups[0]);
-
-        // 0 --> 1 --> 2 --> 5 <-- 8    (0, 1, 1),              (1, 2, 2)
-        //       ^     |     |     ^    (2, 3, -3), (2, 5, -6), (3, 4, 4)
-        //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
-        //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
-        //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, 2),
-            (2, 3, -3), (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4)
-        ];
-        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
-
-        let dist = bellman_ford(0, &dir).unwrap();
-        assert_eq!(dist, vec![0, 1, 3, 0, 4, -3, 0, 7, -2]);
-
-
-        // 0 --> 1 --> 2 --> 5 --> 8    (0, 1), (1, 2), (1, 4), (2, 3), (2, 5),
-        //       |     |     |     ^    (4, 3), (5, 6), (5, 8), (6, 7), (7, 8)
-        //       v     v     v     |
-        //       4 --> 3     6 --> 7
-        let edges = vec![
-            (0, 1),
-            (1, 2), (1, 4),
-            (2, 3), (2, 5),
-            (4, 3),
-            (5, 6), (5, 8),
-            (6, 7),
-            (7, 8)
-        ];
-        let dir: DirectedGraph = DirectedGraph::from_edges(9, edges);
-        let list = topological_sort(&dir)
-            .unwrap()
-            .into_iter()
-            .enumerate()
-            .fold(vec![0; 9], |mut v, (i, s)| {
-                v[s] = i;
-                v
-            });
-        eprintln!("list: {:?}", list);
-        assert!(list[0] < list[1]);
-        assert!(list[1] < list[4]);
-        assert!(list[2] < list[5]);
-        assert!(list[0] < list[5]);
-        assert!(list[5] < list[7]);
-
-        // 0 --- 1 --- 2 --- 5 --- 8    (0, 1), (1, 2), (1, 4), (2, 3), (2, 5),
-        //       |     |     |     |    (3, 4), (5, 6), (5, 8), (6, 7), (7, 8)
-        //       4 --- 3     6 --- 7
-        let edges = vec![
-            (0, 1),
-            (1, 2), (1, 4),
-            (2, 3), (2, 5),
-            (3, 4),
-            (5, 6), (5, 8),
-            (6, 7),
-            (7, 8)
-        ];
-        let undir: UnDirectedGraph = UnDirectedGraph::from_edges(9, edges);
-        let mut links = low_link(&undir);
-        links.sort();
-        assert_eq!(links, vec![(0, 1), (2, 5)]);
-    }
-
-    use super::super::graph::{
-        Edge,
-        UnDirectedTree,
-        nth_ancestor, lca, spanning_tree
-    };
-
-    #[test]
-    fn tree_test() {
-        // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        // |idx| 0| 1| 2| 3| 4| 5| 6| 7| 8| 9|10|11|
-        // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        // |par|NA| 0| 0| 1| 1| 2| 3| 4| 4| 5| 7| 9|
-        // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        let mut undir = UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9]).unwrap();
-
-        let anc = nth_ancestor(&mut undir);
-        assert_eq!(anc(6, 2), 1);
-        assert_eq!(anc(1, 1), 0);
-        assert_eq!(anc(3, 100000), std::usize::MAX);
-        assert_eq!(anc(11, 3), 2);
-        assert_eq!(anc(0, 1), std::usize::MAX);
-
-        let lca = lca(&mut undir);
-        assert_eq!(lca(10, 8), 4);
-        assert_eq!(lca(11, 6), 0);
-        assert_eq!(lca(2, 9), 2);
-        assert_eq!(lca(0, 7), 0);
-        assert_eq!(lca(3, 10), 1);
-
-        // 9 --- 1 --- 8 --- 4 --- 6     (0, 1, 3), (0, 2, 1), (0, 3, 7), (0, 7, 8),
-        // |     |     |     |           (1, 8, 5), (1, 9, 4),
-        // |     |     |     |           (2, 5, 9), (2, 8, 6),
-        // 3 --- 0 --- 2 --- 5           (3, 9, 3),
-        //       |                       (4, 5, 4), (4, 6, 2), (4, 8, 1)
-        //       |
-        //       7
-        let edges = vec![
-            (0, 1, 3), (0, 2, 1), (0, 3, 7), (0, 7, 8),
-            (1, 8, 5), (1, 9, 4),
-            (2, 5, 9), (2, 8, 6),
-            (3, 9, 3),
-            (4, 5, 4), (4, 6, 2), (4, 8, 1)
-        ];
-        let undir = UnDirectedGraph::from_weighted_edges(10, edges);
-        let tree = spanning_tree(&undir).unwrap();
-        let set = (0..tree.size)
-            .map(|i| tree.graph[i]
-                                .iter()
-                                .map(|Edge { to, weight: _ }| 
-                                        (std::cmp::min(i, *to), std::cmp::max(i, *to)))
-                                .collect::<Vec<(_, _)>>())
-            .flatten()
-            .collect::<std::collections::BTreeSet<(_, _)>>()
-            .iter()
-            .map(|(f, t)| (*f, *t))
-            .collect::<Vec<(_, _)>>();
-        assert_eq!(set, vec![(0, 1), (0, 2), (0, 7), (1, 8), (1, 9), (3, 9), (4, 5), (4, 6), (4, 8)]);
-    }
-
-    #[test]
-    #[should_panic]
-    fn bellmanford_negative_cycle_detection() {
-        // 0 --> 1 --> 2 --> 5 <-- 8    (0, 1, 1),              (1, 2, -5)
-        //       ^     |     |     ^    (2, 3, -3), (2, 5, -6), (3, 4, 4)
-        //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
-        //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
-        //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, -5),
-            (2, 3, -3), (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4)
-        ];
-        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
-
-        // Panic!!!
-        let _ = bellman_ford(0, &dir).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn topologicalsort_cycle_detection() {
-        // This graph has tow cycles.
-        // 0 --> 1 --> 2 --> 5 <-- 8    (0, 1, 1),              (1, 2, -5)
-        //       ^     |     |     ^    (2, 3, -3), (2, 5, -6), (3, 4, 4)
-        //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
-        //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
-        //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, -5),
-            (2, 3, -3), (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4)
-        ];
-        let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
-
-        // Panic!!!
-        let _ = topological_sort(&dir).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn gen_invalid_tree_gen() {
-        // Forget to fix to 0-index.
-        // 10    2     9 --- 6 --- 7     (1, 2, 3), (1, 3, 1), (1, 5, 7), (1, 8, 8),
-        // |     |           |           (3, 4, 9),
-        // |     |           |           (4, 6, 3),
-        // 5 --- 1 --- 3 --- 4           (5, 10, 4),
-        //       |                       (6, 7, 4), (6, 9, 1)
-        //       |
-        //       8
-        let edges = vec![
-            (1, 2, 3), (1, 3, 1), (1, 5, 7), (1, 8, 8),
-            (3, 4, 9),
-            (4, 6, 3),
-            (5, 10, 4),
-            (6, 7, 4), (6, 9, 1)
-        ];
-
-        // Panic!!!
-        let _ = UnDirectedTree::from_weighted_edges(edges).unwrap();
-    }
 }
