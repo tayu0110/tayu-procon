@@ -33,7 +33,7 @@ pub trait Numeric
 
 pub trait Integer
         : Numeric + Rem<Self, Output = Self> + RemAssign
-          + Shl + Shr + ShlAssign + ShrAssign
+          + Shl<Self, Output = Self> + Shr<Self, Output = Self> + ShlAssign + ShrAssign
           + std::hash::Hash + Eq + Ord {
 }
 
@@ -360,10 +360,68 @@ pub fn ext_gcd<T: Integer>(a: T, x: &mut T, b: T, y: &mut T) -> T {
 }
 
 
+/// Using p as the modulus, calculate a^n.
+pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
+    let mut res = 1;
+    let mut pow = a;
+    while n != 0 {
+        if n & 1 != 0 {
+            res = (res as i128 * pow as i128 % p as i128) as i64;
+        }
+        pow = (pow as i128 * pow as i128 % p as i128) as i64;
+        n >>= 1;
+    }
+    res
+}
+
+
+/// The given number is determined to be prime or not prime using the Miller-Rabin primality test.
+pub fn miller_rabin_test(p: i64) -> bool {
+    if p == 1 || p & 1 == 0 {
+        return p == 2;
+    }
+
+    let s = (p-1).trailing_zeros();
+    let t = (p-1) >> s;
+
+    let check = |a| {
+        let mut at = mod_pow(a, t, p);
+        // a^t = 1 (mod p) or a^t = -1 (mod p)
+        if at == 1 || at == p-1 {
+            return true;
+        }
+
+        for _ in 1..s {
+            at = (at as i128 * at as i128 % p as i128) as i64;
+
+            // found i satisfying a^((2^i)*t) = -1 (mod p)
+            if at == p-1 {
+                return true;
+            }
+        }
+
+        false
+    };
+
+    for a in [2, 325, 9375, 28178, 450775, 9780504, 1795265022] {
+        if a % p == 0 {
+            break;
+        }
+
+        if !check(a) {
+            return false;
+        }
+    }
+
+    true
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::{
-        gcd, lcm, ext_gcd
+        gcd, lcm, ext_gcd,
+        miller_rabin_test
     };
 
     #[test]
@@ -386,5 +444,23 @@ mod tests {
         assert_eq!(g, 3);
         assert_eq!(x, 3);
         assert_eq!(y, -11);
+    }
+
+    #[test]
+    fn miller_rabin_test_test() {
+        const MAX: usize = 100_000;
+        let mut p = vec![std::usize::MAX; MAX];
+
+        for i in 2..MAX {
+            if p[i] == std::usize::MAX {
+                for j in (2..MAX).take_while(|j| i * *j < MAX) {
+                    p[i*j] = i;
+                }
+                assert!(miller_rabin_test(i as i64));
+            } else {
+                eprintln!("i: {}", i);
+                assert!(!miller_rabin_test(i as i64));
+            }
+        }
     }
 }
