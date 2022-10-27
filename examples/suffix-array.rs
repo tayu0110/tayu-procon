@@ -39,36 +39,28 @@ fn main() {
     writeln!(out, "").ok();
 }
 
+mod iolib {
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::io::{
-    Read, BufRead, Error
+    Read, BufRead,
+    Error
 };
 use std::str::SplitWhitespace;
 use std::thread_local;
 
 thread_local! {
-    static STDIN_LOCK: RefCell<std::io::BufReader<std::io::StdinLock<'static>>> = RefCell::new(std::io::BufReader::new(std::io::stdin().lock()));
-    static BUF: RefCell<VecDeque<String>> = RefCell::new(VecDeque::new());
     static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
 }
 
 #[inline]
 fn refill_buffer(interactive: bool) -> Result<(), Error> {
     let mut s = String::new();
-
-    STDIN_LOCK.with(|stdin_lock| {
-        if cfg!(debug_assertions) || interactive {
-            stdin_lock.borrow_mut().read_line(&mut s)
-        } else {
-            stdin_lock.borrow_mut().read_to_string(&mut s)
-        }
-    })?;
-    // if cfg!(debug_assertions) || interactive {
-    //     // std::io::stdin().lock().read_line(&mut s)?;
-    // } else {
-    //     // std::io::stdin().lock().read_to_string(&mut s)?;
-    // }
+    
+    if cfg!(debug_assertions) || interactive {
+        std::io::stdin().lock().read_line(&mut s)?;
+    } else {
+        std::io::stdin().lock().read_to_string(&mut s)?;
+    }
 
     BUF_SPLIT_WHITESPACE.with(|buf_str| {
         *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
@@ -77,16 +69,16 @@ fn refill_buffer(interactive: bool) -> Result<(), Error> {
 }
 
 #[inline]
-pub fn scan_string(interactive: bool) -> String {
+pub fn scan_string(interactive: bool) -> &'static str {
     BUF_SPLIT_WHITESPACE.with(|buf_str| {
         if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
+            return s;
         }
 
         refill_buffer(interactive).unwrap();
 
         if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
+            return s;
         }
 
         unreachable!("Read Error: No input items.");
@@ -147,7 +139,7 @@ macro_rules! scan {
     };
     // let $v: $t = ......
     ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {
-        let $v = $crate::scan_string($interactive).parse::<$t>().unwrap();
+        let $v = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap();
     };
     // let $v: $t = ......, .......
     ( @interactive : $interactive:literal, $v:ident : $t:ty, $( $rest:tt )+ ) => {
@@ -165,6 +157,8 @@ macro_rules! scani {
     ( $( $rest:tt )* ) => {
         $crate::scan!(@interactive: true, $( $rest )*);
     };
+}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

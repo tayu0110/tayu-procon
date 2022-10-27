@@ -314,9 +314,8 @@ impl SuffixArray {
         }
 
         let mut max_lms_num = 0;
-        let mut backet_index = 0;
         let mut filled = vec![0; kinds];
-        while backet_index < kinds {
+        for backet_index in 0..kinds {
             let mut rem = filled[backet_index];
             let mut checked = char_start[backet_index] as usize;
             while rem > 0 {
@@ -346,7 +345,6 @@ impl SuffixArray {
 
             max_lms_num = std::cmp::max(max_lms_num, filled_lms[backet_index]);
             filled[backet_index] = 0;
-            backet_index += 1;
         }
 
         if lms_indices.len() == 1 && types[0] != Type::S {

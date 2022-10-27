@@ -375,45 +375,133 @@ pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
 }
 
 
+use crate::modint::MontgomeryOperator;
+
 /// The given number is determined to be prime or not prime using the Miller-Rabin primality test.
-pub fn miller_rabin_test(p: i64) -> bool {
+pub fn miller_rabin_test(p: u64) -> bool {
     if p == 1 || p & 1 == 0 {
         return p == 2;
     }
 
     let s = (p-1).trailing_zeros();
     let t = (p-1) >> s;
+    let mont = MontgomeryOperator::new(p as u64);
 
-    let check = |a| {
-        let mut at = mod_pow(a, t, p);
+    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().filter(|a| *a % p != 0).all(|a| {
+        let a = if *a < p { *a } else { *a % p };
+        let at = mont.pow(mont.ar(a as u64), t as u64);
         // a^t = 1 (mod p) or a^t = -1 (mod p)
-        if at == 1 || at == p-1 {
+        if at == mont.r || at == mont.neg_r {
             return true;
         }
 
-        for _ in 1..s {
-            at = (at as i128 * at as i128 % p as i128) as i64;
-
+        (1..s).scan(at, |at, _| {
+            *at = mont.mul(*at, *at);
+            Some(*at)
+        }).any(|at|
             // found i satisfying a^((2^i)*t) = -1 (mod p)
-            if at == p-1 {
-                return true;
-            }
-        }
+            at == mont.neg_r
+        )
+    })
+}
 
-        false
+
+/// Returns the result of prime factorization of integer n.
+pub fn factorize(mut n: u64) -> Vec<u64> {
+    if n == 1 {
+        return vec![];
+    }
+    
+    let mut res = if n & 1 == 0 {
+        let tz = n.trailing_zeros();
+        n >>= tz;
+        (0..tz).map(|_| 2).collect()
+    } else {
+        vec![]
     };
 
-    for a in [2, 325, 9375, 28178, 450775, 9780504, 1795265022] {
-        if a % p == 0 {
-            break;
-        }
-
-        if !check(a) {
-            return false;
-        }
+    while let Some(g) = pollard_rho(n) {
+        res.push(g);
+        n /= g;
     }
 
-    true
+    if n != 1 {
+        res.push(n);
+    }
+
+    res
+}
+/// Find non-trival prime factors of integer n by Pollard's rho algorithm.
+/// If found, return this; If not found, return None.
+fn pollard_rho(n: u64) -> Option<u64> {
+    // 1 is trival prime factor. So return None.
+    if n <= 1 {
+        return None;
+    }
+
+    if n & 1 == 0 {
+        return Some(2);
+    }
+
+    // If n is prime number, n has no divisors of ifself.
+    // So return None.
+    if miller_rabin_test(n) {
+        return None;
+    }
+    
+    let m = (n as f64).powf(0.125).round() as i64 + 1;
+    let mont = MontgomeryOperator::new(n);
+    let mut res_g = 0;
+
+    for c in 1..n {
+        let f = |ar| mont.add(mont.mul(ar, ar), c);
+        let mut x = 0;
+        let (mut y, mut ys) = (mont.mr(0), 0);
+        let (mut g, mut q, mut r) = (1, 1, 1);
+        let mut k = 0;
+
+        while g == 1 {
+            x = y;
+            while k < (3 * r) >> 2 {
+                y = f(mont.mr(y));
+                k += 1;
+            }
+            while k < r && g == 1 {
+                ys = y;
+                for _ in 0..std::cmp::min(m, r-k) {
+                    y = f(mont.mr(y));
+                    q = mont.mul(mont.mr(q), mont.mr(std::cmp::max(x, y) - std::cmp::min(x, y)));
+                }
+                g = gcd(q as i64, n as i64);
+                k += m;
+            }
+            k = r;
+            r <<= 1;
+        }
+        if g == n as i64 {
+            g = 1;
+            y = ys;
+            while g == 1 {
+                y = f(mont.mr(y));
+                g = gcd(std::cmp::max(x, y) as i64 - std::cmp::min(x, y) as i64, n as i64);
+            }
+        }
+        if g == n as i64 {
+            continue;
+        }
+
+        res_g = g;
+        break;
+    }
+
+    if miller_rabin_test(res_g as u64) {
+        return Some(res_g as u64);
+    }
+    if miller_rabin_test(n / res_g as u64) {
+        return Some(n / res_g as u64);
+    }
+
+    pollard_rho(res_g as u64)
 }
 
 
@@ -421,7 +509,8 @@ pub fn miller_rabin_test(p: i64) -> bool {
 mod tests {
     use super::{
         gcd, lcm, ext_gcd,
-        miller_rabin_test
+        miller_rabin_test,
+        factorize
     };
 
     #[test]
@@ -448,19 +537,33 @@ mod tests {
 
     #[test]
     fn miller_rabin_test_test() {
-        const MAX: usize = 100_000;
-        let mut p = vec![std::usize::MAX; MAX];
+        const MAX: u64 = 100_000;
+        let mut p = vec![std::u64::MAX; MAX as usize];
 
         for i in 2..MAX {
-            if p[i] == std::usize::MAX {
+            if p[i as usize] == std::u64::MAX {
                 for j in (2..MAX).take_while(|j| i * *j < MAX) {
-                    p[i*j] = i;
+                    p[(i*j) as usize] = i;
                 }
-                assert!(miller_rabin_test(i as i64));
+                assert!(miller_rabin_test(i));
             } else {
-                eprintln!("i: {}", i);
-                assert!(!miller_rabin_test(i as i64));
+                assert!(!miller_rabin_test(i));
             }
         }
+    }
+
+    #[test]
+    fn factorize_test() {
+        let mut f = factorize(115940);
+        f.sort();
+
+        assert_eq!(f, vec![2, 2, 5, 11, 17, 31]);
+
+        let f = factorize(998244353);
+        assert_eq!(f, vec![998244353]);
+
+        let mut f = factorize(999381247093216751);
+        f.sort();
+        assert_eq!(f, vec![999665081, 999716071]);
     }
 }
