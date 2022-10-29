@@ -6,12 +6,11 @@ fn main() {
     let mut file = std::io::BufWriter::new(file);
     let mut rng = rand::thread_rng();
 
-    const N: usize = 1000_000_0;
-    writeln!(file, "{}", N).unwrap();
+    const N: usize = 1000;
 
     for _ in 0..N {
-        let (w, v): (i64, i64) = (rng.gen(), rng.gen());
-
-        writeln!(file, "{} {}", w, v).unwrap();
+        let c: u8 = rng.gen_range(b'a'..=b'z');
+        write!(file, "{}", c as char).unwrap();
     }
+    writeln!(file, "").unwrap();
 }
