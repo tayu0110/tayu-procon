@@ -3,10 +3,8 @@
 version = 3
 
 [[package]]
-name = "autocfg"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+name = "bitset"
+version = "0.1.0"
 
 [[package]]
 name = "cfg-if"
@@ -15,15 +13,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "complex"
+version = "0.1.0"
+
+[[package]]
+name = "convolution"
+version = "0.1.0"
+dependencies = [
+ "modint",
+]
+
+[[package]]
+name = "fenwick-tree"
+version = "0.1.0"
+
+[[package]]
+name = "flow"
+version = "0.1.0"
+
+[[package]]
+name = "geometry"
+version = "0.1.0"
+dependencies = [
+ "numeric",
+]
+
+[[package]]
 name = "getrandom"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eb1a864a501629691edf6c15a593b7a51eebaa1e8468e9ddc623de7c9b58ec6"
+checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
  "libc",
  "wasi",
 ]
+
+[[package]]
+name = "iolib"
+version = "0.1.0"
 
 [[package]]
 name = "lazy_static"
@@ -33,85 +61,30 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.132"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
-name = "num"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
+name = "matrix"
+version = "0.1.0"
 dependencies = [
- "num-bigint",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
+ "modint",
 ]
 
 [[package]]
-name = "num-bigint"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "090c7f9998ee0ff65aa5b723e4009f7b217707f1fb5ea551329cc4d6231fb304"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
+name = "mincost-flow"
+version = "0.1.0"
 
 [[package]]
-name = "num-complex"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
-dependencies = [
- "autocfg",
- "num-traits",
-]
+name = "modint"
+version = "0.1.0"
 
 [[package]]
-name = "num-integer"
-version = "0.1.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
+name = "numeric"
+version = "0.1.0"
 dependencies = [
- "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg",
- "num-bigint",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-traits"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
-dependencies = [
- "autocfg",
+ "modint",
 ]
 
 [[package]]
@@ -152,21 +125,61 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
 ]
 
 [[package]]
+name = "segtree"
+version = "0.1.0"
+
+[[package]]
+name = "string"
+version = "0.1.0"
+
+[[package]]
+name = "suffix-array"
+version = "0.1.0"
+
+[[package]]
 name = "tayu-procon"
 version = "0.1.0"
 dependencies = [
- "num",
+ "bitset",
+ "complex",
+ "convolution",
+ "fenwick-tree",
+ "flow",
+ "geometry",
+ "iolib",
+ "matrix",
+ "mincost-flow",
+ "modint",
+ "numeric",
  "proconio",
  "rand",
+ "segtree",
+ "string",
+ "suffix-array",
+ "trie",
+ "unionfind",
+ "utility",
 ]
+
+[[package]]
+name = "trie"
+version = "0.1.0"
+
+[[package]]
+name = "unionfind"
+version = "0.1.0"
+
+[[package]]
+name = "utility"
+version = "0.1.0"
 
 [[package]]
 name = "wasi"

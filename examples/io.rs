@@ -1,4 +1,4 @@
-use tayu_procon::scan;
+use iolib::scan;
 
 fn main() {
     scan!(n: usize, z: [(i64, i64); n]);
