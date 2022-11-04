@@ -13,4 +13,4 @@ license = "MIT"
 iolib = { package = "iolib", path = "../iolib" }
 
 [profile.release]
-debug = true
+# debug = true

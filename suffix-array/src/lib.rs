@@ -39,12 +39,12 @@ impl SuffixArray {
         sa[0..s.len()].sort_by_key(|i| &s[*i as usize..]);
     }
 
-    #[inline(always)]
+    #[inline]
     const fn decode_type(index: usize, types: &[u8]) -> u8 {
         (types[index >> 3] & Self::TYPE_DECODE_MASK[index & 0b111]) >> (index & 0b111)
     }
 
-    #[inline(always)]
+    #[inline]
     const fn is_lms(index: usize, types: &[u8]) -> bool {
         index > 0 && Self::decode_type(index, &types) == Self::S_TYPE && Self::decode_type(index-1, &types) == Self::L_TYPE
     }
@@ -66,7 +66,7 @@ impl SuffixArray {
         for (i, cv) in s.chunks(8).enumerate().rev() {
             let ni = i << 3;
             let mut type_collect = 0;
-            let mut prev_type = Self::decode_type(std::cmp::min(i << 6, s.len() - 1), &types);
+            let mut prev_type = Self::decode_type(std::cmp::min((i+1) << 3, s.len() - 1), &types);
             for (j, c) in cv.iter().enumerate().rev() {
                 let nj = ni | j;
                 char_start[(*c).into() as usize + 1] += 1;
@@ -151,10 +151,10 @@ impl SuffixArray {
         sa[0] = s.len() as u32 - 1;
 
         let mut filled_lms = vec![0; kinds];
-        for (lms, c) in lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize].into())) {
+        lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize].into())).for_each(|(lms, c)| {
             sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
             filled_lms[c as usize] += 1;
-        }
+        });
 
         let mut max_lms_num = 0;
         let mut filled = vec![0; kinds];
