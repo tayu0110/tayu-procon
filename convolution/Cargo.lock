@@ -3,9 +3,17 @@
 version = 3
 
 [[package]]
+name = "complex"
+version = "0.1.0"
+dependencies = [
+ "numeric",
+]
+
+[[package]]
 name = "convolution"
 version = "0.1.0"
 dependencies = [
+ "complex",
  "iolib",
  "modint",
 ]
@@ -17,3 +25,10 @@ version = "0.1.0"
 [[package]]
 name = "modint"
 version = "0.1.0"
+
+[[package]]
+name = "numeric"
+version = "0.1.0"
+dependencies = [
+ "modint",
+]

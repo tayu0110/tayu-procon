@@ -3,12 +3,19 @@
 version = 3
 
 [[package]]
-name = "iolib"
+name = "complex"
+version = "0.1.0"
+dependencies = [
+ "numeric",
+]
+
+[[package]]
+name = "modint"
 version = "0.1.0"
 
 [[package]]
-name = "suffix-array"
+name = "numeric"
 version = "0.1.0"
 dependencies = [
- "iolib",
+ "modint",
 ]

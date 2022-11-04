@@ -1,13 +1,15 @@
+pub mod float;
+pub mod integer;
+
 use std::ops::{
-    Add, Sub, Mul, Div, Rem, Neg,
-    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign,
-    Shl, Shr,
-    ShlAssign, ShrAssign
+    Add, Sub, Mul, Div, Neg,
+    AddAssign, SubAssign, MulAssign, DivAssign
 };
 use std::convert::{
     From, Into,
     TryInto
 };
+use integer::*;
 
 #[derive(Debug)]
 pub struct Error(&'static str);
@@ -21,20 +23,13 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error { }
 
 pub trait Numeric
-        : Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Div<Self, Output = Self> + Neg<Output = Self> 
+        : Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Div<Self, Output = Self>
             + AddAssign + SubAssign + MulAssign + DivAssign
             + std::fmt::Debug + std::fmt::Display + Clone + Copy + PartialEq + PartialOrd + Default {
     fn one() -> Self;
     fn zero() -> Self;
     fn max_value() -> Self;
     fn min_value() -> Self;
-    fn abs(self) -> Self;
-}
-
-pub trait Integer
-        : Numeric + Rem<Self, Output = Self> + RemAssign
-          + Shl<Self, Output = Self> + Shr<Self, Output = Self> + ShlAssign + ShrAssign
-          + std::hash::Hash + Eq + Ord {
 }
 
 pub trait IntoFloat : Numeric {
@@ -42,18 +37,6 @@ pub trait IntoFloat : Numeric {
     fn as_f32(self) -> f32;
 }
 
-//////////////////////////////////////////////////////////////////////////////////
-// Implement Numeric, Integer and IntoFloat for i64
-//////////////////////////////////////////////////////////////////////////////////
-impl Numeric for i64 {
-    fn one() -> Self { 1 }
-    fn zero() -> Self { 0 }
-    fn max_value() -> Self { std::i64::MAX }
-    fn min_value() -> Self { std::i64::MIN }
-    fn abs(self) -> Self { self.abs() }
-}
-impl Integer for i64 {
-}
 impl IntoFloat for i64 {
     fn as_f64(self) -> f64 {
         self as f64
@@ -102,6 +85,13 @@ impl Rational {
 
     pub fn is_nan(&self) -> bool {
         self.denominator == 0
+    }
+
+    pub fn abs(self) -> Self {
+        Self {
+            numerator: self.numerator.abs(),
+            denominator: self.denominator
+        }
     }
 }
 
@@ -266,12 +256,6 @@ impl Numeric for Rational {
         Self {
             numerator: i64::min_value(),
             denominator: 1
-        }
-    }
-    fn abs(self) -> Self {
-        Self {
-            numerator: self.numerator.abs(),
-            denominator: self.denominator
         }
     }
 }
@@ -525,7 +509,7 @@ mod tests {
         assert_eq!(lcm(8, 12), 24);
         assert_eq!(lcm(0, 12), 0);
 
-        assert_eq!(lcm(1000_000_000_000_000_000, 2000_000_000_000_000_000), 2000_000_000_000_000_000);
+        assert_eq!(lcm(1000_000_000_000_000_000i64, 2000_000_000_000_000_000i64), 2000_000_000_000_000_000i64);
 
         let (mut x, mut y) = (0, 0);
         let g = ext_gcd(111, &mut x, 30, &mut y);

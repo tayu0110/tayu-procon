@@ -1,4 +1,8 @@
-type Mint = modint::Mint<modint::Mod998244353>;
+use complex::Complex;
+
+fn fft(a: &[Complex<f64>]) -> Vec<Complex<f64>> {
+
+}
 
 // const COMPLEX_ONE: num::Complex<f64> = num::Complex::new(1f64, 0f64);
 // const PI2: f64 = std::f64::consts::PI * 2f64;
@@ -10,7 +14,7 @@ type Mint = modint::Mint<modint::Mod998244353>;
 //     if inv {
 //         r = r.inv();
 //     }
-    
+
 //     let b = &mut vec![num::Complex::default(); n];
 //     for i in (0..n.trailing_zeros()).map(|v| 1usize << v).rev() {
 //         let z = r.powu(i as u32);
@@ -29,8 +33,9 @@ type Mint = modint::Mint<modint::Mod998244353>;
 //         a.iter_mut().for_each(|now| *now /= num::Complex::new(n as f64, 0f64));
 //     }
 // }
+                        
+type Mint = modint::Mint<modint::Mod998244353>;
 
-#[allow(dead_code)]
 // Only usable 998244353 for modulo.
 fn ntt(a: &mut Vec<Mint>, inv: bool) {
     let n = a.len();
@@ -57,7 +62,6 @@ fn ntt(a: &mut Vec<Mint>, inv: bool) {
     }
 }
 
-#[allow(dead_code)]
 pub fn convolution(a: &Vec<Mint>, b: &Vec<Mint>) -> Vec<Mint> {
     let mut n = 1;
     let deg = a.len() + b.len() - 1;

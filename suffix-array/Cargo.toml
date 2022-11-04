@@ -7,3 +7,10 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+
+[dev-dependencies]
+iolib = { package = "iolib", path = "../iolib" }
+
+[profile.release]
+debug = true
