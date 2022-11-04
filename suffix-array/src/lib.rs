@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Suffix Array
 ////////////////////////////////////////////////////////////////////////////////
-pub struct SuffixArray {
-    s: Vec<u32>,
+pub struct SuffixArray<T = u8> {
+    s: Vec<T>,
     sa: Vec<u32>
 }
 
@@ -18,15 +18,23 @@ impl SuffixArray {
     const TYPE_DECODE_MASK: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
     pub fn new(s: impl Into<String>) -> Self {
-        let s = s.into().bytes().map(|b| b as u32).chain(vec![0].into_iter()).collect::<Vec<_>>();
+        let mut s: String = s.into();
+        s.push('\0');
+        let s = s.as_bytes();
         let mut sa = vec![std::u32::MAX; s.len()];
+
+        if sa.len() <= Self::THRESHOLD_NAIVE {
+            Self::sa_naive(s, &mut sa);
+            return Self { s: s.to_vec(), sa };
+        }
+
         Self::sa_is(Self::CHARS, &s, &mut sa, &mut vec![]);
 
-        Self { s, sa }
+        Self { s: s.to_vec(), sa }
     }
 
     #[inline]
-    fn sa_naive(s: &[u32], sa: &mut [u32]) {
+    fn sa_naive<T: Ord>(s: &[T], sa: &mut [u32]) {
         sa.iter_mut().take(s.len()).enumerate().for_each(|(i, v)| *v = i as u32);
         sa[0..s.len()].sort_by_key(|i| &s[*i as usize..]);
     }
@@ -37,22 +45,11 @@ impl SuffixArray {
     }
 
     #[inline(always)]
-    fn write_type(index: usize, ls: u8, types: &mut [u8]) {
-        if ls == Self::S_TYPE {
-            // types[index >> 3] |= ls << (index & 0b111);
-            types[index >> 3] &= !Self::TYPE_DECODE_MASK[index & 0b111];
-        } else {
-            // types[index >> 3] ^= ls << (index & 0b111);
-            types[index >> 3] |= Self::TYPE_DECODE_MASK[index & 0b111];
-        }
-    }
-
-    #[inline(always)]
     const fn is_lms(index: usize, types: &[u8]) -> bool {
         index > 0 && Self::decode_type(index, &types) == Self::S_TYPE && Self::decode_type(index-1, &types) == Self::L_TYPE
     }
 
-    fn sa_is(kinds: usize, s: &[u32], sa: &mut [u32], lms_next: &mut Vec<u32>) {
+    fn sa_is<T: Clone + Copy + Ord + std::convert::Into<u32>>(kinds: usize, s: &[T], sa: &mut [u32], lms_next: &mut Vec<u32>) {
         if s.len() <= Self::THRESHOLD_NAIVE {
             Self::sa_naive(s, sa);
             return;
@@ -66,28 +63,36 @@ impl SuffixArray {
         let mut lms_indices = vec![];
         let mut char_start = vec![0u32; kinds+1];
 
-        for (i, c) in s.iter().enumerate().rev() {
-            char_start[*c as usize + 1] += 1;
-            lms_next[i] = std::u32::MAX;
-
-            if i == s.len() - 1 {
-                continue;
-            }
-            
-            let nc = &s[i+1];
-            let t = if c < nc {
-                Self::S_TYPE
-            } else if c > nc {
-                if Self::decode_type(i+1, &types) == Self::S_TYPE {
-                    lms_indices.push(i as u32 + 1);
-                    lms_next[i+1] = lms_prev;
-                    lms_prev = i as u32 + 1;
+        for (i, cv) in s.chunks(8).enumerate().rev() {
+            let ni = i << 3;
+            let mut type_collect = 0;
+            let mut prev_type = Self::decode_type(std::cmp::min(i << 6, s.len() - 1), &types);
+            for (j, c) in cv.iter().enumerate().rev() {
+                let nj = ni | j;
+                char_start[(*c).into() as usize + 1] += 1;
+                lms_next[nj] = std::u32::MAX;
+    
+                if nj == s.len() - 1 {
+                    continue;
                 }
-                Self::L_TYPE
-            } else {
-                Self::decode_type(i+1, &types)
-            };
-            Self::write_type(i, t, &mut types);
+                
+                let nc = &s[nj+1];
+                let t = if c < nc {
+                    Self::S_TYPE
+                } else if c > nc {
+                    if prev_type == Self::S_TYPE {
+                        lms_indices.push(nj as u32 + 1);
+                        lms_next[nj+1] = lms_prev;
+                        lms_prev = nj as u32 + 1;
+                    }
+                    Self::L_TYPE
+                } else {
+                    prev_type
+                };
+                type_collect = (type_collect << 1) | t;
+                prev_type = t;
+            }
+            types[i] = type_collect;
         }
 
         for i in 0..kinds {
@@ -141,14 +146,14 @@ impl SuffixArray {
     }
 
     #[inline]
-    fn induced_sort(lms_indices: &[u32], char_start: &[u32], s: &[u32], types: &[u8], sa: &mut [u32]) -> u32 {    
+    fn induced_sort<T: Clone + Copy + Ord + std::convert::Into<u32>>(lms_indices: &[u32], char_start: &[u32], s: &[T], types: &[u8], sa: &mut [u32]) -> u32 {    
         let kinds = char_start.len() - 1;
         sa[0] = s.len() as u32 - 1;
 
         let mut filled_lms = vec![0; kinds];
-        for (lms, c) in lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize] as usize)) {
-            sa[(char_start[c+1] - 1 - filled_lms[c]) as usize] = lms;
-            filled_lms[c] += 1;
+        for (lms, c) in lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize].into())) {
+            sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
+            filled_lms[c as usize] += 1;
         }
 
         let mut max_lms_num = 0;
@@ -158,10 +163,10 @@ impl SuffixArray {
             let mut checked = char_start[backet_index] as usize;
             while rem > 0 {
                 if sa[checked] > 0 && Self::decode_type(sa[checked] as usize - 1, &types) == Self::L_TYPE {
-                    let nc = s[sa[checked] as usize - 1] as usize;
-                    sa[(char_start[nc]  + filled[nc]) as usize] = sa[checked] - 1;
-                    filled[nc] += 1;
-                    if backet_index == nc {
+                    let nc = s[sa[checked] as usize - 1].into();
+                    sa[(char_start[nc as usize]  + filled[nc as usize]) as usize] = sa[checked] - 1;
+                    filled[nc as usize] += 1;
+                    if backet_index == nc as usize {
                         rem += 1;
                     }
                 }
@@ -172,9 +177,9 @@ impl SuffixArray {
             for lms_index in 0..filled_lms[backet_index] {
                 let lms = sa[(char_start[backet_index+1] - 1 - lms_index) as usize] as usize;
                 if lms > 0 && Self::decode_type(lms - 1, &types) == Self::L_TYPE {
-                    let nc = s[lms - 1] as usize;
-                    sa[(char_start[nc] + filled[nc]) as usize] = lms as u32 - 1;
-                    filled[nc] += 1;
+                    let nc = s[lms - 1].into();
+                    sa[(char_start[nc as usize] + filled[nc as usize]) as usize] = lms as u32 - 1;
+                    filled[nc as usize] += 1;
                 }
                 if backet_index != 0 {
                     sa[(char_start[backet_index+1] - 1 - lms_index) as usize] = std::u32::MAX;
@@ -193,7 +198,7 @@ impl SuffixArray {
 
         for i in (0..s.len()).rev() {
             if sa[i] != std::u32::MAX && sa[i] > 0 && Self::decode_type(sa[i] as usize - 1, &types) != Self::L_TYPE {
-                let c = s[sa[i] as usize - 1];
+                let c: u32 = s[sa[i] as usize - 1].into();
                 sa[(char_start[c as usize + 1] - 1 - filled[c as usize]) as usize] = sa[i] - 1;
                 filled[c as usize] += 1;
             }
