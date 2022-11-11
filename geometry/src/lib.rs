@@ -8,25 +8,26 @@ use std::convert::{
     TryFrom
 };
 use numeric::{
-    Numeric, IntoFloat
+    Numeric, IntoFloat,
+    signed::Signed
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-struct Vector<T: Numeric + IntoFloat>(T, T);
+struct Vector<T: Numeric + Signed + IntoFloat>(T, T);
 
-impl<T: Numeric + IntoFloat> From<(T, T)> for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> From<(T, T)> for Vector<T> {
     fn from(from: (T, T)) -> Self {
         Self(from.0, from.1)
     }
 }
 
-impl<T: Numeric + IntoFloat> From<[T; 2]> for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> From<[T; 2]> for Vector<T> {
     fn from(from: [T; 2]) -> Self {
         Self(from[0], from[1])
     }
 }
 
-impl<T: Numeric + IntoFloat> TryFrom<Vec<T>> for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> TryFrom<Vec<T>> for Vector<T> {
     type Error = Error;
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         match value.len() {
@@ -37,7 +38,7 @@ impl<T: Numeric + IntoFloat> TryFrom<Vec<T>> for Vector<T> {
 }
 
 #[allow(dead_code)]
-impl<T: Numeric + IntoFloat> Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> Vector<T> {
     fn new(from: [T; 2], to: [T; 2]) -> Self {
         Self(to[0] - from[0], to[1] - from[1])
     }
@@ -68,35 +69,35 @@ impl<T: Numeric + IntoFloat> Vector<T> {
     }
 }
 
-impl<T: Numeric + IntoFloat> Add for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> Add for Vector<T> {
     type Output = Vector<T>;
     fn add(self, rhs: Self) -> Self::Output {
         Self(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
 
-impl<T: Numeric + IntoFloat> Sub for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> Sub for Vector<T> {
     type Output = Vector<T>;
     fn sub(self, rhs: Self) -> Self::Output {
         Self(self.0 - rhs.0, self.1 - rhs.1)
     }
 }
 
-impl<T: Numeric + IntoFloat> Neg for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> Neg for Vector<T> {
     type Output = Vector<T>;
     fn neg(self) -> Self::Output {
         Self(-self.0, -self.1)
     }
 }
 
-impl<T: Numeric + IntoFloat> AddAssign for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> AddAssign for Vector<T> {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
         self.1 += rhs.1;
     }
 }
 
-impl<T: Numeric + IntoFloat> SubAssign for Vector<T> {
+impl<T: Numeric + Signed + IntoFloat> SubAssign for Vector<T> {
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0;
         self.1 -= rhs.1;
@@ -115,7 +116,7 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error { }
 
 // 凸包の構成点をx座標が最も小さいものから時計回りに返す
-pub fn convex_hull<T: Numeric + IntoFloat>(mut points: Vec<(T, T)>) -> Vec<(T, T)> {
+pub fn convex_hull<T: Numeric + Signed + IntoFloat>(mut points: Vec<(T, T)>) -> Vec<(T, T)> {
     if points.len() < 2 {
         return points;
     }
@@ -155,7 +156,7 @@ pub fn convex_hull<T: Numeric + IntoFloat>(mut points: Vec<(T, T)>) -> Vec<(T, T
 }
 
 // points(周上の順番であることが必要)に含まれる点を結んだ線を周とする多角形の面積求める
-pub fn points_to_area<T: Numeric>(points: &Vec<(T, T)>) -> T {
+pub fn points_to_area<T: Numeric + Signed>(points: &Vec<(T, T)>) -> T {
     let len = points.len();
     let mut res = T::zero();
     for (i, (x, y)) in points.into_iter().enumerate() {
@@ -163,7 +164,10 @@ pub fn points_to_area<T: Numeric>(points: &Vec<(T, T)>) -> T {
         res += (*x - nx) * (*y + ny);
     }
     
-    res.abs() / (T::one() + T::one())
+    if res < T::zero() {
+        res = -res;
+    }
+    res / (T::one() + T::one())
 }
 
 pub fn sort_by_arg<T: Numeric>(mut points: Vec<(T, T)>) -> Vec<(T, T)> {

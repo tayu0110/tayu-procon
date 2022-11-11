@@ -1,11 +1,15 @@
 pub mod float;
 pub mod integer;
+pub mod signed;
+
+pub use float::Float;
+pub use integer::Integer;
+pub use signed::Signed;
 
 use std::ops::{
     Add, Sub, Mul, Div,
     AddAssign, SubAssign, MulAssign, DivAssign
 };
-use integer::*;
 
 #[derive(Debug)]
 pub struct Error(pub &'static str);
