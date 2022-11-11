@@ -6,17 +6,28 @@
 
 use std::ops::{
     Add, Sub, Mul, Div,
+    AddAssign, SubAssign, MulAssign, DivAssign
 };
+use std::convert::From;
 use numeric::float::Float;
 
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub struct Complex<T: Float = f64> {
     re: T,
     im: T
 }
 
 impl<T: Float> Complex<T> {
-    pub const fn new(re: T, im: T) -> Self {
+    pub fn new(re: T, im: T) -> Self {
         Self { re, im }
+    }
+
+    pub fn real(&self) -> T {
+        self.re
+    }
+
+    pub fn imag(&self) -> T {
+        self.im
     }
 
     pub fn norm_sq(&self) -> T {
@@ -37,6 +48,10 @@ impl<T: Float> Complex<T> {
 
     pub fn to_polar(&self) -> PolarFormComplex<T> {
         PolarFormComplex::new(self.norm(), self.arg())
+    }
+
+    pub fn conjugate(&self) -> Self {
+        Self { re: self.re, im: -self.im }
     }
 }
 
@@ -64,19 +79,53 @@ impl<T: Float> Mul for Complex<T> {
 impl<T: Float> Div for Complex<T> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
-        let c = self * Self::new(rhs.re, -rhs.re);
+        let c = self * Self::new(rhs.re, -rhs.im);
         let norm2 = rhs.re * rhs.re + rhs.im * rhs.im;
         Self::new(c.re / norm2, c.im / norm2)
     }
 }
 
+impl<T: Float> AddAssign for Complex<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
+impl<T: Float> SubAssign for Complex<T> {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
+impl<T: Float> MulAssign for Complex<T> {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
+}
+
+impl<T: Float> DivAssign for Complex<T> {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl<T: Float> From<T> for Complex<T> {
+    fn from(from: T) -> Self {
+        Self::new(from, T::zero())
+    }
+}
+
+
+//////////////////////////////////////////////////////////
+/// Polar Form Complex
+//////////////////////////////////////////////////////////
 pub struct PolarFormComplex<T: Float = f64> {
     norm: T,
     arg: T
 }
 
 impl<T: Float> PolarFormComplex<T> {
-    pub const fn new(norm: T, arg: T) -> Self {
+    pub fn new(norm: T, arg: T) -> Self {
         Self { norm, arg }
     }
 }
@@ -92,5 +141,70 @@ impl<T: Float> Div for PolarFormComplex<T> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         Self::new(self.norm / rhs.norm, self.arg - rhs.arg)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Complex
+    };
+
+    fn abs_diff(a: &Complex, b: &Complex) -> (f64, f64) {
+        ((a.real() - b.real()).abs(), (a.imag() - b.imag()).abs())
+    }
+
+    #[test]
+    fn complex_basic_operation_test() {
+        // Add operation
+        let res = Complex::new(1.0, 3.0) + Complex::new(2.0, 4.5);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(3.0, 7.5));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+
+        let res = Complex::new(1.0, 0.0) + Complex::new(3.4, 0.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(4.4, 0.0));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+
+        // Sub operation
+        let res = Complex::new(1.0, 3.0) - Complex::new(2.0, 4.5);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(-1.0, -1.5));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+        
+        let res = Complex::new(1.0, 0.0) - Complex::new(3.4, 0.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(-2.4, 0.0));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+
+        // Mul operation
+        let res = Complex::new(1.0, 3.0) * Complex::new(2.0, 4.5);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(-11.5, 10.5));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+        
+        let res = Complex::new(1.0, 0.0) * Complex::new(3.4, 0.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(3.4, 0.0));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+
+        // Div operation
+        let res = Complex::new(1.0, 4.0) / Complex::new(2.0, 2.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(1.25, 0.75));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+        
+        let res = Complex::new(1.0, 3.5) / Complex::new(4.0, 0.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(0.25, 0.875));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+
+        let res = Complex::new(10.0, 0.0) / Complex::new(4.0, 0.0);
+        let (diff_re, diff_im) = abs_diff(&res, &Complex::new(2.5, 0.0));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
+    }
+
+    #[test]
+    fn complex_polar_form_transform_test() {
+        let c = Complex::new(3.0, 1.5);
+        let c = c.to_polar();
+
+        let c = Complex::from_polar(c.norm, c.arg);
+        let (diff_re, diff_im) = abs_diff(&c, &Complex::new(3.0, 1.5));
+        assert!(diff_re < 1e-10 && diff_im < 1e-10);
     }
 }

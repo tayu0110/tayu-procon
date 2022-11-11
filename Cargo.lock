@@ -25,6 +25,7 @@ version = "0.1.0"
 dependencies = [
  "complex",
  "modint",
+ "numeric",
 ]
 
 [[package]]
@@ -51,6 +52,13 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "graph"
+version = "0.1.0"
+dependencies = [
+ "unionfind",
 ]
 
 [[package]]
@@ -137,6 +145,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rational"
+version = "0.1.0"
+dependencies = [
+ "numeric",
+]
+
+[[package]]
 name = "segtree"
 version = "0.1.0"
 
@@ -158,6 +173,7 @@ dependencies = [
  "fenwick-tree",
  "flow",
  "geometry",
+ "graph",
  "iolib",
  "matrix",
  "mincost-flow",
@@ -165,6 +181,7 @@ dependencies = [
  "numeric",
  "proconio",
  "rand",
+ "rational",
  "segtree",
  "string",
  "suffix-array",

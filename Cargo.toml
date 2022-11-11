@@ -12,11 +12,13 @@ convolution = { path = "./convolution" }
 fenwick-tree = { path = "./fenwick-tree" }
 flow = { path = "./flow" }
 geometry = { path = "./geometry" }
+graph = { path = "./graph" }
 iolib = { path = "./iolib" }
 matrix = { path = "./matrix" }
 mincost-flow = { path = "./mincost-flow" }
 modint = { path = "./modint" }
 numeric = { path = "./numeric" }
+rational = { path = "./rational" }
 segtree = { path = "./segtree" }
 string = { path = "./string" }
 suffix-array = { path = "./suffix-array" }

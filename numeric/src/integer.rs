@@ -63,7 +63,7 @@ macro_rules! impl_integer_trait {
             fn count_ones(self) -> u32 { self.count_ones() }
             fn count_zeros(self) -> u32 { self.count_zeros() }
             fn div_euclid(self, rhs: Self) -> Self { self.div_euclid(rhs) }
-            fn leading_ones(self) -> u32 { self.leading_ones() }
+            fn leading_ones(self) -> u32 { (!self).leading_zeros() }
             fn leading_zeros(self) -> u32 { self.leading_zeros() }
             fn pow(self, exp: u32) -> Self { self.pow(exp) }
             fn rem_euclid(self, rhs: Self) -> Self { self.rem_euclid(rhs) }
@@ -71,7 +71,7 @@ macro_rules! impl_integer_trait {
             fn rotate_left(self, n: u32) -> Self { self.rotate_left(n) }
             fn rotate_right(self, n: u32) -> Self { self.rotate_right(n) }
             fn swap_bytes(self) -> Self { self.swap_bytes() }
-            fn trailing_ones(self) -> u32 { self.trailing_ones() }
+            fn trailing_ones(self) -> u32 { (!self).trailing_zeros() }
             fn trailing_zeros(self) -> u32 { self.trailing_zeros() }
         }
     };
