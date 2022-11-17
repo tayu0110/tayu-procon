@@ -11,7 +11,7 @@ use std::ops::{
 use std::convert::From;
 use numeric::float::Float;
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Complex<T: Float = f64> {
     re: T,
     im: T
@@ -85,6 +85,62 @@ impl<T: Float> Div for Complex<T> {
     }
 }
 
+impl Add<f64> for Complex<f64> {
+    type Output = Complex<f64>;
+    fn add(self, rhs: f64) -> Self::Output {
+        Self::new(self.real() + rhs, self.imag())
+    }
+}
+
+impl Sub<f64> for Complex<f64> {
+    type Output = Complex<f64>;
+    fn sub(self, rhs: f64) -> Self::Output {
+        Self::new(self.real() - rhs, self.imag())
+    }
+}
+
+impl Mul<f64> for Complex<f64> {
+    type Output = Complex<f64>;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self::new(self.real() * rhs, self.imag() * rhs)
+    }
+}
+
+impl Div<f64> for Complex<f64> {
+    type Output = Complex<f64>;
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::new(self.real() / rhs, self.imag() / rhs)
+    }
+}
+
+impl Add<f32> for Complex<f32> {
+    type Output = Complex<f32>;
+    fn add(self, rhs: f32) -> Self::Output {
+        Self::new(self.real() + rhs, self.imag())
+    }
+}
+
+impl Sub<f32> for Complex<f32> {
+    type Output = Complex<f32>;
+    fn sub(self, rhs: f32) -> Self::Output {
+        Self::new(self.real() - rhs, self.imag())
+    }
+}
+
+impl Mul<f32> for Complex<f32> {
+    type Output = Complex<f32>;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self::new(self.real() * rhs, self.imag() * rhs)
+    }
+}
+
+impl Div<f32> for Complex<f32> {
+    type Output = Complex<f32>;
+    fn div(self, rhs: f32) -> Self::Output {
+        Self::new(self.real() / rhs, self.imag() / rhs)
+    }
+}
+
 impl<T: Float> AddAssign for Complex<T> {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
@@ -112,6 +168,68 @@ impl<T: Float> DivAssign for Complex<T> {
 impl<T: Float> From<T> for Complex<T> {
     fn from(from: T) -> Self {
         Self::new(from, T::zero())
+    }
+}
+
+impl AddAssign<f64> for Complex<f64> {
+    fn add_assign(&mut self, rhs: f64) {
+        self.re += rhs;
+    }
+}
+
+impl SubAssign<f64> for Complex<f64> {
+    fn sub_assign(&mut self, rhs: f64) {
+        self.re -= rhs;
+    }
+}
+
+impl MulAssign<f64> for Complex<f64> {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.re *= rhs;
+        self.im *= rhs;
+    }
+}
+
+impl DivAssign<f64> for Complex<f64> {
+    fn div_assign(&mut self, rhs: f64) {
+        self.re /= rhs;
+        self.im /= rhs;
+    }
+}
+
+impl AddAssign<f32> for Complex<f32> {
+    fn add_assign(&mut self, rhs: f32) {
+        self.re += rhs;
+    }
+}
+
+impl SubAssign<f32> for Complex<f32> {
+    fn sub_assign(&mut self, rhs: f32) {
+        self.re -= rhs;
+    }
+}
+
+impl MulAssign<f32> for Complex<f32> {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.re *= rhs;
+        self.im *= rhs;
+    }
+}
+
+impl DivAssign<f32> for Complex<f32> {
+    fn div_assign(&mut self, rhs: f32) {
+        self.re /= rhs;
+        self.im /= rhs;
+    }
+}
+
+impl std::fmt::Debug for Complex<f64> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = format!("{}", self.real());
+        if self.imag().abs() > 1e-20 {
+            s += format!("{:+}i", self.imag()).as_str();
+        }
+        write!(f, "{}", s)
     }
 }
 
