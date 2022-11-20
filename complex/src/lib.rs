@@ -18,38 +18,52 @@ pub struct Complex<T: Float = f64> {
 }
 
 impl<T: Float> Complex<T> {
+    #[inline]
     pub fn new(re: T, im: T) -> Self {
         Self { re, im }
     }
 
+    #[inline]
+    pub fn zero() -> Self {
+        Self { re: T::zero(), im: T::zero() }
+    }
+
+    #[inline]
+    pub fn one() -> Self {
+        Self { re: T::one(), im: T::zero() }
+    }
+
+    #[inline]
     pub fn real(&self) -> T {
         self.re
     }
 
+    #[inline]
     pub fn imag(&self) -> T {
         self.im
     }
 
+    #[inline]
     pub fn norm_sq(&self) -> T {
         self.re * self.re + self.im * self.im
     }
 
+    #[inline]
     pub fn norm(&self) -> T {
         self.norm_sq().sqrt()
     }
 
+    #[inline]
     pub fn arg(&self) -> T {
         self.im.atan2(self.re)
     }
 
+    #[inline]
     pub fn from_polar(norm: T, arg: T) -> Self {
         Self { re: norm * arg.cos(), im: norm * arg.sin() }
     }
 
-    pub fn to_polar(&self) -> PolarFormComplex<T> {
-        PolarFormComplex::new(self.norm(), self.arg())
-    }
-
+    #[inline]
     pub fn conjugate(&self) -> Self {
         Self { re: self.re, im: -self.im }
     }
@@ -85,61 +99,6 @@ impl<T: Float> Div for Complex<T> {
     }
 }
 
-impl Add<f64> for Complex<f64> {
-    type Output = Complex<f64>;
-    fn add(self, rhs: f64) -> Self::Output {
-        Self::new(self.real() + rhs, self.imag())
-    }
-}
-
-impl Sub<f64> for Complex<f64> {
-    type Output = Complex<f64>;
-    fn sub(self, rhs: f64) -> Self::Output {
-        Self::new(self.real() - rhs, self.imag())
-    }
-}
-
-impl Mul<f64> for Complex<f64> {
-    type Output = Complex<f64>;
-    fn mul(self, rhs: f64) -> Self::Output {
-        Self::new(self.real() * rhs, self.imag() * rhs)
-    }
-}
-
-impl Div<f64> for Complex<f64> {
-    type Output = Complex<f64>;
-    fn div(self, rhs: f64) -> Self::Output {
-        Self::new(self.real() / rhs, self.imag() / rhs)
-    }
-}
-
-impl Add<f32> for Complex<f32> {
-    type Output = Complex<f32>;
-    fn add(self, rhs: f32) -> Self::Output {
-        Self::new(self.real() + rhs, self.imag())
-    }
-}
-
-impl Sub<f32> for Complex<f32> {
-    type Output = Complex<f32>;
-    fn sub(self, rhs: f32) -> Self::Output {
-        Self::new(self.real() - rhs, self.imag())
-    }
-}
-
-impl Mul<f32> for Complex<f32> {
-    type Output = Complex<f32>;
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self::new(self.real() * rhs, self.imag() * rhs)
-    }
-}
-
-impl Div<f32> for Complex<f32> {
-    type Output = Complex<f32>;
-    fn div(self, rhs: f32) -> Self::Output {
-        Self::new(self.real() / rhs, self.imag() / rhs)
-    }
-}
 
 impl<T: Float> AddAssign for Complex<T> {
     fn add_assign(&mut self, rhs: Self) {
@@ -171,58 +130,6 @@ impl<T: Float> From<T> for Complex<T> {
     }
 }
 
-impl AddAssign<f64> for Complex<f64> {
-    fn add_assign(&mut self, rhs: f64) {
-        self.re += rhs;
-    }
-}
-
-impl SubAssign<f64> for Complex<f64> {
-    fn sub_assign(&mut self, rhs: f64) {
-        self.re -= rhs;
-    }
-}
-
-impl MulAssign<f64> for Complex<f64> {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.re *= rhs;
-        self.im *= rhs;
-    }
-}
-
-impl DivAssign<f64> for Complex<f64> {
-    fn div_assign(&mut self, rhs: f64) {
-        self.re /= rhs;
-        self.im /= rhs;
-    }
-}
-
-impl AddAssign<f32> for Complex<f32> {
-    fn add_assign(&mut self, rhs: f32) {
-        self.re += rhs;
-    }
-}
-
-impl SubAssign<f32> for Complex<f32> {
-    fn sub_assign(&mut self, rhs: f32) {
-        self.re -= rhs;
-    }
-}
-
-impl MulAssign<f32> for Complex<f32> {
-    fn mul_assign(&mut self, rhs: f32) {
-        self.re *= rhs;
-        self.im *= rhs;
-    }
-}
-
-impl DivAssign<f32> for Complex<f32> {
-    fn div_assign(&mut self, rhs: f32) {
-        self.re /= rhs;
-        self.im /= rhs;
-    }
-}
-
 impl std::fmt::Debug for Complex<f64> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = format!("{}", self.real());
@@ -233,34 +140,66 @@ impl std::fmt::Debug for Complex<f64> {
     }
 }
 
+macro_rules! impl_basic_operation_with_float_number {
+    ( $t:ty ) => {
+        impl Add<$t> for Complex<$t> {
+            type Output = Complex<$t>;
+            fn add(self, rhs: $t) -> Self::Output {
+                Self::new(self.real() + rhs, self.imag())
+            }
+        }
+        
+        impl Sub<$t> for Complex<$t> {
+            type Output = Complex<$t>;
+            fn sub(self, rhs: $t) -> Self::Output {
+                Self::new(self.real() - rhs, self.imag())
+            }
+        }
+        
+        impl Mul<$t> for Complex<$t> {
+            type Output = Complex<$t>;
+            fn mul(self, rhs: $t) -> Self::Output {
+                Self::new(self.real() * rhs, self.imag() * rhs)
+            }
+        }
+        
+        impl Div<$t> for Complex<$t> {
+            type Output = Complex<$t>;
+            fn div(self, rhs: $t) -> Self::Output {
+                Self::new(self.real() / rhs, self.imag() / rhs)
+            }
+        }
 
-//////////////////////////////////////////////////////////
-/// Polar Form Complex
-//////////////////////////////////////////////////////////
-pub struct PolarFormComplex<T: Float = f64> {
-    norm: T,
-    arg: T
+        impl AddAssign<$t> for Complex<$t> {
+            fn add_assign(&mut self, rhs: $t) {
+                self.re += rhs;
+            }
+        }
+        
+        impl SubAssign<$t> for Complex<$t> {
+            fn sub_assign(&mut self, rhs: $t) {
+                self.re -= rhs;
+            }
+        }
+        
+        impl MulAssign<$t> for Complex<$t> {
+            fn mul_assign(&mut self, rhs: $t) {
+                self.re *= rhs;
+                self.im *= rhs;
+            }
+        }
+        
+        impl DivAssign<$t> for Complex<$t> {
+            fn div_assign(&mut self, rhs: $t) {
+                self.re /= rhs;
+                self.im /= rhs;
+            }
+        }
+    };
 }
 
-impl<T: Float> PolarFormComplex<T> {
-    pub fn new(norm: T, arg: T) -> Self {
-        Self { norm, arg }
-    }
-}
-
-impl<T: Float> Mul for PolarFormComplex<T> {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::new(self.norm * rhs.norm, self.arg + rhs.arg)
-    }
-}
-
-impl<T: Float> Div for PolarFormComplex<T> {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        Self::new(self.norm / rhs.norm, self.arg - rhs.arg)
-    }
-}
+impl_basic_operation_with_float_number!(f64);
+impl_basic_operation_with_float_number!(f32);
 
 
 #[cfg(test)]
@@ -313,16 +252,6 @@ mod tests {
 
         let res = Complex::new(10.0, 0.0) / Complex::new(4.0, 0.0);
         let (diff_re, diff_im) = abs_diff(&res, &Complex::new(2.5, 0.0));
-        assert!(diff_re < 1e-10 && diff_im < 1e-10);
-    }
-
-    #[test]
-    fn complex_polar_form_transform_test() {
-        let c = Complex::new(3.0, 1.5);
-        let c = c.to_polar();
-
-        let c = Complex::from_polar(c.norm, c.arg);
-        let (diff_re, diff_im) = abs_diff(&c, &Complex::new(3.0, 1.5));
         assert!(diff_re < 1e-10 && diff_im < 1e-10);
     }
 }

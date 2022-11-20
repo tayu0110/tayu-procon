@@ -76,10 +76,11 @@ pub trait Float : Numeric + Neg<Output = Self> {
     fn tanh(self) -> Self;
     fn to_radians(self) -> Self;
     fn trunc(self) -> Self;
+    fn pi() -> Self;
 }
 
 macro_rules! impl_float_trait {
-    ( $t:ty ) => {
+    ( $t:tt ) => {
         impl Float for $t {
             fn abs(self) -> Self { self.abs() }
             fn acos(self) -> Self { self.acos() }
@@ -130,6 +131,7 @@ macro_rules! impl_float_trait {
             fn tanh(self) -> Self { self.tanh() }
             fn to_radians(self) -> Self { self.to_radians() }
             fn trunc(self) -> Self { self.trunc() }
+            fn pi() -> Self { std::$t::consts::PI }
         }
     };
 }

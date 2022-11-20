@@ -297,7 +297,7 @@ impl MontgomeryOperator {
 
 #[cfg(test)]
 mod tests {
-    use super::super::modint::{
+    use super::{
         Mint, combination,
         Mod998244353, Mod1000000007,
         Modulo
@@ -322,6 +322,7 @@ mod tests {
         assert_eq!(a.div_raw(B).val(),                              748159151);
         assert_eq!(a.pow(B).val(),                                  860108694);
         assert_eq!(Mint::<Mod998244353>::nth_root(1 << 20).val(),   565042129);
+        assert_eq!(Mint::<Mod998244353>::nth_root(4).pow(4),        Mint::one());
     }
 
     #[test]
