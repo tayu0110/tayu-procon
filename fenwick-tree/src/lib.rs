@@ -1,23 +1,21 @@
-use std::ops::{
-    AddAssign,
-    Sub,
-    SubAssign
-};
+use std::ops::{AddAssign, Sub, SubAssign};
 
 pub struct FenwickTree<T> {
     size: usize,
     def_val: T,
-    tree: Vec<T>
+    tree: Vec<T>,
 }
 
 #[allow(dead_code)]
 impl<T> FenwickTree<T>
-where T: Sized + Clone + Copy + Default + AddAssign + Sub<Output = T> + SubAssign + PartialOrd {
+where
+    T: Sized + Clone + Copy + Default + AddAssign + Sub<Output = T> + SubAssign + PartialOrd,
+{
     fn new(size: usize, def_val: T) -> Self {
         Self {
-            size: size+1,
+            size: size + 1,
             def_val,
-            tree: vec![def_val; size+1]
+            tree: vec![def_val; size + 1],
         }
     }
 
@@ -29,7 +27,7 @@ where T: Sized + Clone + Copy + Default + AddAssign + Sub<Output = T> + SubAssig
             idx += idx & -idx;
         }
     }
-    
+
     fn get_sum_sub(&self, r: usize) -> T {
         let mut r = r as i64;
         if (r as usize) >= self.size {
@@ -46,7 +44,7 @@ where T: Sized + Clone + Copy + Default + AddAssign + Sub<Output = T> + SubAssig
     fn get_sum(&self, l: usize, r: usize) -> T {
         self.get_sum_sub(r) - self.get_sum_sub(l)
     }
-    
+
     fn lower_bound(&self, mut val: T) -> usize {
         let mut now = 0;
         let mut n = 1;

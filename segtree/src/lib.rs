@@ -1,13 +1,11 @@
-pub struct SegmentTree<M>
-where M: Clone {
+pub struct SegmentTree<M: Clone> {
     size: usize,
     e: M,
     op: fn(&M, &M) -> M,
-    tree: Vec<M>
+    tree: Vec<M>,
 }
 
-impl<M> SegmentTree<M>
-where M: Clone {
+impl<M: Clone> SegmentTree<M> {
     /// * `size` - Number of elements in the data array to be managed
     /// * `e`    - Identity element of the monoid that the data represents
     /// * `op`   - Operation applied to data (If the operation is to fold the data toward the right, op(a, b) must return b*a as the result)
@@ -24,8 +22,12 @@ where M: Clone {
         let size = vec.len();
         let mut tree = [vec![e.clone(); size], vec.clone()].concat();
 
-        for i in (0..(size<<1)-1).rev().step_by(2).take_while(|i| i>>1 > 0) {
-            tree[i>>1] = op(&tree[i], &tree[i|1]);
+        for i in (0..(size << 1) - 1)
+            .rev()
+            .step_by(2)
+            .take_while(|i| i >> 1 > 0)
+        {
+            tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
 
         Self { size, e, op, tree }
@@ -41,7 +43,7 @@ where M: Clone {
         self.tree[index] = f(&self.tree[index], &val);
         while index >> 1 > 0 {
             index >>= 1;
-            self.tree[index] = self.op(&self.tree[index<<1], &self.tree[index<<1|1], false);
+            self.tree[index] = self.op(&self.tree[index << 1], &self.tree[index << 1 | 1], false);
         }
     }
 
@@ -58,7 +60,7 @@ where M: Clone {
                 l += 1;
             }
             if r & 1 != 0 {
-                res_r = self.op(&res_r, &self.tree[r-1], fold_right);
+                res_r = self.op(&res_r, &self.tree[r - 1], fold_right);
             }
             l >>= 1;
             r >>= 1;
@@ -66,7 +68,7 @@ where M: Clone {
 
         self.op(&res_l, &res_r, false)
     }
-    
+
     /// Fold the operation in a leftward direction.
     /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
     #[inline]
@@ -82,7 +84,13 @@ where M: Clone {
     }
 
     #[inline]
-    fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M { if !fold_right { (self.op)(&lhs, &rhs) } else { (self.op)(&rhs, &lhs) } }
+    fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M {
+        if !fold_right {
+            (self.op)(&lhs, &rhs)
+        } else {
+            (self.op)(&rhs, &lhs)
+        }
+    }
 }
 
 pub struct LazySegtree<S, F> {
@@ -95,46 +103,62 @@ pub struct LazySegtree<S, F> {
     e: fn() -> S,
     id: fn() -> F,
     mapping: fn(F, S) -> S,
-    composition: fn(F, F) -> F
+    composition: fn(F, F) -> F,
 }
 
 impl<S, F> LazySegtree<S, F>
 where
     S: Copy + Clone + Sized,
-    F: Copy + Clone + Sized
+    F: Copy + Clone + Sized,
 {
     pub fn new(
-            size: usize,
-            op: fn(S, S) -> S,
-            e: fn() -> S,
-            id: fn() -> F,
-            mapping: fn(F, S) -> S,
-            composition: fn(F, F) -> F) -> Self {
+        size: usize,
+        op: fn(S, S) -> S,
+        e: fn() -> S,
+        id: fn() -> F,
+        mapping: fn(F, S) -> S,
+        composition: fn(F, F) -> F,
+    ) -> Self {
         LazySegtree::from_vec(&vec![e(); size], op, e, id, mapping, composition)
     }
 
     pub fn from_vec(
-            v: &Vec<S>,
-            op: fn(S, S) -> S,
-            e: fn() -> S,
-            id: fn() -> F,
-            mapping: fn(F, S) -> S,
-            composition: fn(F, F) -> F) -> Self {
+        v: &Vec<S>,
+        op: fn(S, S) -> S,
+        e: fn() -> S,
+        id: fn() -> F,
+        mapping: fn(F, S) -> S,
+        composition: fn(F, F) -> F,
+    ) -> Self {
         let n = v.len();
         let size = n.next_power_of_two();
         let log = size.trailing_zeros() as usize;
         let mut tree = vec![e(); size * 2];
         let lazy = vec![id(); size * 2];
-        tree.iter_mut().skip(size).zip(v.iter()).for_each(|(t, w)| *t = *w);
+        tree.iter_mut()
+            .skip(size)
+            .zip(v.iter())
+            .for_each(|(t, w)| *t = *w);
         for i in (1..size).rev() {
-            tree[i] = op(tree[i*2], tree[i*2 + 1]);
+            tree[i] = op(tree[i * 2], tree[i * 2 + 1]);
         }
-        Self { n, size, log, tree, lazy, op, e, id, mapping, composition }
+        Self {
+            n,
+            size,
+            log,
+            tree,
+            lazy,
+            op,
+            e,
+            id,
+            mapping,
+            composition,
+        }
     }
     pub fn set(&mut self, idx: usize, val: S) {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx] = val;
@@ -146,7 +170,7 @@ where
     pub fn get(&mut self, idx: usize) -> S {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx]
@@ -158,7 +182,7 @@ where
             return self.e();
         }
         let (mut l, mut r) = (l + self.size, r + self.size);
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             if ((l >> i) << i) != l {
                 self.push(l >> i);
             }
@@ -176,7 +200,8 @@ where
                 r -= 1;
                 smr = self.op(self.tree[r], smr);
             }
-            l >>= 1; r >>= 1;
+            l >>= 1;
+            r >>= 1;
         }
         self.op(sml, smr)
     }
@@ -187,7 +212,7 @@ where
     pub fn apply(&mut self, idx: usize, val: F) {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx] = self.mapping(val, self.tree[idx]);
@@ -202,12 +227,12 @@ where
             return;
         }
         let (l, r) = (l + self.size, r + self.size);
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             if ((l >> i) << i) != l {
                 self.push(l >> i);
             }
             if ((r >> i) << i) != r {
-                self.push((r-1) >> i);
+                self.push((r - 1) >> i);
             }
         }
         let (mut a, mut b) = (l, r);
@@ -220,19 +245,20 @@ where
                 b -= 1;
                 self.all_apply(b, val);
             }
-            a >>= 1; b >>= 1;
+            a >>= 1;
+            b >>= 1;
         }
         for i in 1..=self.log {
             if ((l >> i) << i) != l {
                 self.update(l >> i);
             }
             if ((r >> i) << i) != r {
-                self.update((r-1) >> i);
+                self.update((r - 1) >> i);
             }
         }
     }
     fn update(&mut self, idx: usize) {
-        self.tree[idx] = self.op(self.tree[idx*2], self.tree[idx*2+1]);
+        self.tree[idx] = self.op(self.tree[idx * 2], self.tree[idx * 2 + 1]);
     }
     fn all_apply(&mut self, idx: usize, val: F) {
         let mapping = self.mapping;
@@ -242,12 +268,13 @@ where
         }
     }
     fn push(&mut self, idx: usize) {
-        self.all_apply(idx*2, self.lazy[idx]);
-        self.all_apply(idx*2 + 1, self.lazy[idx]);
+        self.all_apply(idx * 2, self.lazy[idx]);
+        self.all_apply(idx * 2 + 1, self.lazy[idx]);
         self.lazy[idx] = self.id();
     }
     fn op(&self, l: S, r: S) -> S {
-        let op = self.op; op(l, r)
+        let op = self.op;
+        op(l, r)
     }
     fn e(&self) -> S {
         let e = self.e;
@@ -269,7 +296,7 @@ where
 impl<S, F> std::fmt::Debug for LazySegtree<S, F>
 where
     S: Copy + Clone + std::fmt::Debug,
-    F: Copy + Clone + std::fmt::Debug
+    F: Copy + Clone + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (mut tree, mut lazy, mut l, mut r) = (vec![], vec![], 1, 2);
@@ -291,11 +318,12 @@ where
 pub fn range_add_range_sum_query(size: usize) -> LazySegtree<(i64, i64), i64> {
     LazySegtree::from_vec(
         &vec![(0i64, 1i64); size],
-        |l, r| (l.0+r.0, l.1+r.1),
+        |l, r| (l.0 + r.0, l.1 + r.1),
         || (0, 0),
         || 0i64,
-        |f, x| (x.0+f*x.1, x.1),
-        |f, g| f + g)
+        |f, x| (x.0 + f * x.1, x.1),
+        |f, g| f + g,
+    )
 }
 
 pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {
@@ -305,7 +333,8 @@ pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {
         || std::i64::MIN,
         || 0i64,
         |f, x| f + x,
-        |f, g| f + g)
+        |f, g| f + g,
+    )
 }
 
 pub fn range_add_range_minimum_query(size: usize) -> LazySegtree<i64, i64> {
@@ -315,24 +344,24 @@ pub fn range_add_range_minimum_query(size: usize) -> LazySegtree<i64, i64> {
         || std::i64::MAX,
         || 0i64,
         |f, x| f + x,
-        |f, g| f + g)
+        |f, g| f + g,
+    )
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::{
+        range_add_range_maximum_query, range_add_range_minimum_query, range_add_range_sum_query,
         SegmentTree,
-        range_add_range_maximum_query, range_add_range_minimum_query, range_add_range_sum_query
     };
 
     #[test]
     fn segtree_test() {
         let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
-        
+
         let mut st = SegmentTree::from_vec(&v.to_vec(), 0, |l, r| *l + *r);
         // The above code is same meaning as the following code.
-        // 
+        //
         // let mut st = SegmentTree::new(10, 0, |l, r| *l + *r);
         // for (i, w) in v.into_iter().enumerate() {
         //     st.set(i, w);
@@ -378,7 +407,7 @@ mod tests {
         assert_eq!(st.prod(5, 10), 11);
         assert_eq!(st.prod(0, 5), 14);
         assert_eq!(st.prod(5, 8), 6);
-        
+
         let mut st = range_add_range_minimum_query(10);
         for (i, w) in v.iter().enumerate() {
             st.apply(i, *w);
@@ -388,7 +417,7 @@ mod tests {
         assert_eq!(st.prod(5, 10), 3);
         assert_eq!(st.prod(0, 5), 1);
         assert_eq!(st.prod(2, 5), 4);
-        
+
         let mut st = range_add_range_sum_query(10);
         for (i, w) in v.iter().enumerate() {
             st.apply(i, *w);

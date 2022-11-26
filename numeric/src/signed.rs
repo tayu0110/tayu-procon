@@ -1,6 +1,6 @@
 use std::ops::Neg;
 
-pub trait Signed : Neg<Output = Self> + std::marker::Sized {
+pub trait Signed: Neg<Output = Self> + std::marker::Sized {
     fn is_negative(self) -> bool;
     fn is_positive(self) -> bool;
 }
@@ -8,8 +8,12 @@ pub trait Signed : Neg<Output = Self> + std::marker::Sized {
 macro_rules! impl_integer_trait {
     ( $t:ty ) => {
         impl Signed for $t {
-            fn is_negative(self) -> bool { self.is_negative() }
-            fn is_positive(self) -> bool { self.is_positive() }
+            fn is_negative(self) -> bool {
+                self.is_negative()
+            }
+            fn is_positive(self) -> bool {
+                self.is_positive()
+            }
         }
     };
 }

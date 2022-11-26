@@ -6,19 +6,19 @@ pub struct Edge {
     pub to: usize,
     pub rev: usize,
     pub cap: i64,
-    pub cost: i64
+    pub cost: i64,
 }
 
 pub struct MinCostFlow {
     size: usize,
-    edges: Vec<Edge>
+    edges: Vec<Edge>,
 }
 
 impl MinCostFlow {
     pub const fn new(size: usize) -> Self {
         Self {
             size,
-            edges: vec![]
+            edges: vec![],
         }
     }
 
@@ -29,20 +29,20 @@ impl MinCostFlow {
     pub fn add_edge(&mut self, from: usize, to: usize, cap: i64, cost: i64) {
         assert!(from < self.size && to < self.size);
 
-        let (pos, rpos) = (self.edges.len(), self.edges.len()+1);
+        let (pos, rpos) = (self.edges.len(), self.edges.len() + 1);
         self.edges.push(Edge {
             from,
             to,
             rev: rpos,
             cap,
-            cost
+            cost,
         });
         self.edges.push(Edge {
             from: to,
             to: from,
             rev: pos,
             cap: 0,
-            cost: -cost
+            cost: -cost,
         });
     }
 
@@ -71,9 +71,19 @@ impl MinCostFlow {
         let mut before = vec![(INF as usize, INF as usize); self.size];
         costs[from] = (INF, 0);
 
-        for i in 0..self.size*2 {
+        for i in 0..self.size * 2 {
             let mut updated = false;
-            for (j, Edge { from, to, rev: _, cap, cost }) in self.edges.iter().enumerate() {
+            for (
+                j,
+                Edge {
+                    from,
+                    to,
+                    rev: _,
+                    cap,
+                    cost,
+                },
+            ) in self.edges.iter().enumerate()
+            {
                 if *cap > 0 && costs[*from].1 < INF {
                     let (ncap, ncost) = costs[*from];
                     let (_, tcost) = costs[*to];

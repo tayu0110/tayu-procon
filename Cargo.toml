@@ -14,6 +14,7 @@ flow = { path = "./flow" }
 geometry = { path = "./geometry" }
 graph = { path = "./graph" }
 iolib = { path = "./iolib" }
+math = { path = "./math" }
 matrix = { path = "./matrix" }
 mincost-flow = { path = "./mincost-flow" }
 modint = { path = "./modint" }

@@ -1,8 +1,5 @@
 use std::cell::RefCell;
-use std::io::{
-    Read, BufRead,
-    Error
-};
+use std::io::{BufRead, Error, Read};
 use std::str::SplitWhitespace;
 use std::thread_local;
 
@@ -13,7 +10,7 @@ thread_local! {
 #[inline]
 fn refill_buffer(interactive: bool) -> Result<(), Error> {
     let mut s = String::new();
-    
+
     if cfg!(debug_assertions) || interactive {
         std::io::stdin().lock().read_line(&mut s)?;
     } else {

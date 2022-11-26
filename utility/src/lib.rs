@@ -4,14 +4,22 @@
 
 pub trait BinarySearch<T> {
     type Output;
-    fn lower_bound(&self, _target: T) -> Option<Self::Output> { unimplemented!() }
-    fn upper_bound(&self, _target: T) -> Option<Self::Output> { unimplemented!() }
+    fn lower_bound(&self, _target: T) -> Option<Self::Output> {
+        unimplemented!()
+    }
+    fn upper_bound(&self, _target: T) -> Option<Self::Output> {
+        unimplemented!()
+    }
     /// Return the following 'l'. (If need the following 'r', use upper_bound_by().)  
     ///     L <------  f()=true  ------> lr <------  f()=false  ------> R
-    fn lower_bound_by(&self, _f: impl Fn(&T) -> bool) -> Option<Self::Output> { unimplemented!() }
+    fn lower_bound_by(&self, _f: impl Fn(&T) -> bool) -> Option<Self::Output> {
+        unimplemented!()
+    }
     /// Return the following 'r'. (If need the following 'l', use lower_bound_by().)  
     ///     L <------  f()=true  ------> lr <------  f()=false  ------> R
-    fn upper_bound_by(&self, _f: impl Fn(&T) -> bool) -> Option<Self::Output> { unimplemented!() }
+    fn upper_bound_by(&self, _f: impl Fn(&T) -> bool) -> Option<Self::Output> {
+        unimplemented!()
+    }
 }
 
 impl<T: Clone + PartialEq + PartialOrd> BinarySearch<T> for [T] {

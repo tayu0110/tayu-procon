@@ -3,9 +3,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 pub struct SuffixArray<'a, T = u8> {
     s: &'a [T],
-    sa: Vec<u32>
+    sa: Vec<u32>,
 }
-    
+
 // impl SuffixArray {
 impl<'a> SuffixArray<'a> {
     // s[i] := A suffix of the string 's' that begins from i-th element. (0 <= i < s.len()-1)
@@ -34,7 +34,10 @@ impl<'a> SuffixArray<'a> {
 
     #[inline]
     fn sa_naive<T: Ord>(s: &[T], sa: &mut [u32]) {
-        sa.iter_mut().take(s.len()).enumerate().for_each(|(i, v)| *v = i as u32);
+        sa.iter_mut()
+            .take(s.len())
+            .enumerate()
+            .for_each(|(i, v)| *v = i as u32);
         sa[0..s.len()].sort_by_key(|i| &s[*i as usize..]);
     }
 
@@ -45,10 +48,17 @@ impl<'a> SuffixArray<'a> {
 
     #[inline]
     fn is_lms(index: usize, types: &[u8]) -> bool {
-        index > 0 && Self::decode_type(index, &types) == Self::S_TYPE && Self::decode_type(index-1, &types) == Self::L_TYPE
+        index > 0
+            && Self::decode_type(index, &types) == Self::S_TYPE
+            && Self::decode_type(index - 1, &types) == Self::L_TYPE
     }
 
-    fn sa_is<T: Clone + Copy + Ord + std::convert::Into<u32>>(kinds: usize, s: &[T], sa: &mut [u32], lms_next: &mut Vec<u32>) {
+    fn sa_is<T: Clone + Copy + Ord + std::convert::Into<u32>>(
+        kinds: usize,
+        s: &[T],
+        sa: &mut [u32],
+        lms_next: &mut Vec<u32>,
+    ) {
         if s.len() <= Self::THRESHOLD_NAIVE {
             Self::sa_naive(s, sa);
             return;
@@ -60,30 +70,30 @@ impl<'a> SuffixArray<'a> {
         }
         let mut types = vec![Self::S_TYPE; (s.len() + 7) >> 3];
         let mut lms_indices = vec![];
-        let mut char_start = vec![0u32; kinds+1];
+        let mut char_start = vec![0u32; kinds + 1];
 
         for (i, cv) in s.chunks(8).enumerate().rev() {
             let ni = i << 3;
             let mut type_collect = 0;
-            let mut prev_type = Self::decode_type(std::cmp::min((i+1) << 3, s.len() - 1), &types);
+            let mut prev_type = Self::decode_type(std::cmp::min((i + 1) << 3, s.len() - 1), &types);
             for (j, c) in cv.iter().enumerate().rev() {
                 let nj = ni | j;
                 char_start[(*c).into() as usize + 1] += 1;
                 lms_next[nj] = std::u32::MAX;
-    
+
                 if nj == s.len() - 1 {
                     type_collect = Self::L_TYPE;
                     prev_type = Self::L_TYPE;
                     continue;
                 }
-                
-                let nc = &s[nj+1];
+
+                let nc = &s[nj + 1];
                 let t = if c < nc {
                     Self::S_TYPE
                 } else if c > nc {
                     if prev_type == Self::S_TYPE {
                         lms_indices.push(nj as u32 + 1);
-                        lms_next[nj+1] = lms_prev;
+                        lms_next[nj + 1] = lms_prev;
                         lms_prev = nj as u32 + 1;
                     }
                     Self::L_TYPE
@@ -97,7 +107,7 @@ impl<'a> SuffixArray<'a> {
         }
 
         for i in 0..kinds {
-            char_start[i+1] += char_start[i];
+            char_start[i + 1] += char_start[i];
         }
 
         // Calculate Pseudo SA
@@ -117,11 +127,16 @@ impl<'a> SuffixArray<'a> {
         let mut rank = 0;
         let mut lms_prev = (std::usize::MAX, std::usize::MAX);
         let lms_ranks = lms_next;
-        for (i, index) in sa.iter().take(s.len()).filter(|index| Self::is_lms(**index as usize, &types)).enumerate() {
+        for (i, index) in sa
+            .iter()
+            .take(s.len())
+            .filter(|index| Self::is_lms(**index as usize, &types))
+            .enumerate()
+        {
             lms_indices[i] = *index;
             let (l, r) = (*index as usize, lms_ranks[*index as usize] as usize);
             let (pl, pr) = lms_prev;
-            if pr - pl != r - l || s[pl..pr+1] != s[l..r+1] {
+            if pr - pl != r - l || s[pl..pr + 1] != s[l..r + 1] {
                 rank += 1;
                 lms_prev = (l, r);
             }
@@ -130,12 +145,12 @@ impl<'a> SuffixArray<'a> {
 
         if lms_indices.len() as u32 != rank + 1 {
             let (restore_index, new_s) = lms_ranks
-                    .iter()
-                    .take(s.len())
-                    .enumerate()
-                    .filter(|(_, c)| c != &&std::u32::MAX)
-                    .map(|(i, c)| (i as u32, *c))
-                    .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
+                .iter()
+                .take(s.len())
+                .enumerate()
+                .filter(|(_, c)| c != &&std::u32::MAX)
+                .map(|(i, c)| (i as u32, *c))
+                .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
             Self::sa_is(rank as usize + 1, &new_s, sa, lms_ranks);
             lms_indices
                 .iter_mut()
@@ -147,14 +162,23 @@ impl<'a> SuffixArray<'a> {
     }
 
     #[inline]
-    fn induced_sort<T: Clone + Copy + Ord + std::convert::Into<u32>>(lms_indices: &[u32], char_start: &[u32], s: &[T], types: &[u8], sa: &mut [u32]) -> u32 {    
+    fn induced_sort<T: Clone + Copy + Ord + std::convert::Into<u32>>(
+        lms_indices: &[u32],
+        char_start: &[u32],
+        s: &[T],
+        types: &[u8],
+        sa: &mut [u32],
+    ) -> u32 {
         let kinds = char_start.len() - 1;
 
         let mut filled_lms = vec![0; kinds];
-        lms_indices.into_iter().map(|lms| (*lms, s[*lms as usize].into())).for_each(|(lms, c)| {
-            sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
-            filled_lms[c as usize] += 1;
-        });
+        lms_indices
+            .into_iter()
+            .map(|lms| (*lms, s[*lms as usize].into()))
+            .for_each(|(lms, c)| {
+                sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
+                filled_lms[c as usize] += 1;
+            });
 
         let mut max_lms_num = 0;
         let mut filled = vec![0; kinds];
@@ -168,9 +192,11 @@ impl<'a> SuffixArray<'a> {
             let mut rem = filled[backet_index];
             let mut checked = char_start[backet_index] as usize;
             while rem > 0 {
-                if sa[checked] > 0 && Self::decode_type(sa[checked] as usize - 1, &types) == Self::L_TYPE {
+                if sa[checked] > 0
+                    && Self::decode_type(sa[checked] as usize - 1, &types) == Self::L_TYPE
+                {
                     let nc = s[sa[checked] as usize - 1].into();
-                    sa[(char_start[nc as usize]  + filled[nc as usize]) as usize] = sa[checked] - 1;
+                    sa[(char_start[nc as usize] + filled[nc as usize]) as usize] = sa[checked] - 1;
                     filled[nc as usize] += 1;
                     if backet_index == nc as usize {
                         rem += 1;
@@ -181,7 +207,7 @@ impl<'a> SuffixArray<'a> {
             }
 
             for lms_index in 0..filled_lms[backet_index] {
-                let lms = sa[(char_start[backet_index+1] - 1 - lms_index) as usize] as usize;
+                let lms = sa[(char_start[backet_index + 1] - 1 - lms_index) as usize] as usize;
                 if lms > 0 && Self::decode_type(lms - 1, &types) == Self::L_TYPE {
                     let nc = s[lms - 1].into();
                     sa[(char_start[nc as usize] + filled[nc as usize]) as usize] = lms as u32 - 1;
@@ -200,7 +226,10 @@ impl<'a> SuffixArray<'a> {
         }
 
         for i in (0..s.len()).rev() {
-            if sa[i] != std::u32::MAX && sa[i] > 0 && Self::decode_type(sa[i] as usize - 1, &types) != Self::L_TYPE {
+            if sa[i] != std::u32::MAX
+                && sa[i] > 0
+                && Self::decode_type(sa[i] as usize - 1, &types) != Self::L_TYPE
+            {
                 let c: u32 = s[sa[i] as usize - 1].into();
                 sa[(char_start[c as usize + 1] - 1 - filled[c as usize]) as usize] = sa[i] - 1;
                 filled[c as usize] += 1;
@@ -223,16 +252,19 @@ impl<'a> SuffixArray<'a> {
         }
 
         let mut lcp = 0;
-        let mut lcpa = vec![0; self.sa.len()-1];
+        let mut lcpa = vec![0; self.sa.len() - 1];
         for index in rank {
             if index == self.sa.len() - 1 {
                 lcp = 0;
                 continue;
             }
-        
-            let (pos_l, pos_r) = (self.sa[index], self.sa[index+1]);
-            while (lcp + pos_l as usize) < self.s.len() && (lcp + pos_r as usize) < self.s.len() && self.s[lcp + pos_l as usize] == self.s[lcp + pos_r as usize] {
-                    lcp += 1;
+
+            let (pos_l, pos_r) = (self.sa[index], self.sa[index + 1]);
+            while (lcp + pos_l as usize) < self.s.len()
+                && (lcp + pos_r as usize) < self.s.len()
+                && self.s[lcp + pos_l as usize] == self.s[lcp + pos_r as usize]
+            {
+                lcp += 1;
             }
             lcpa[index] = lcp;
 
@@ -252,7 +284,10 @@ mod tests {
     fn suffix_array_test() {
         let sample: &'static str = "mmiissiissiippii";
         let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![15, 14, 10, 6, 2, 11, 7, 3, 1, 0, 13, 12, 9, 5, 8, 4]);
+        assert_eq!(
+            sa.sa,
+            vec![15, 14, 10, 6, 2, 11, 7, 3, 1, 0, 13, 12, 9, 5, 8, 4]
+        );
         let lcpa = sa.lcp_array();
         assert_eq!(lcpa, vec![1, 2, 2, 6, 1, 1, 5, 0, 1, 0, 1, 0, 3, 1, 4]);
 
@@ -272,10 +307,19 @@ mod tests {
 
         let sample: &'static str = "caamclyoemcpxfzhdixt";
         let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![1, 2, 0, 4, 10, 16, 8, 13, 15, 17, 5, 3, 9, 7, 11, 19, 12, 18, 6, 14]);
+        assert_eq!(
+            sa.sa,
+            vec![1, 2, 0, 4, 10, 16, 8, 13, 15, 17, 5, 3, 9, 7, 11, 19, 12, 18, 6, 14]
+        );
 
         let sample: &'static str = "kamyucteqzhrvqcbnanikykphkjolv";
         let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![1, 17, 15, 14, 5, 7, 24, 10, 19, 26, 0, 25, 22, 20, 28, 2, 16, 18, 27, 23, 13, 8, 11, 6, 4, 29, 12, 21, 3, 9])
+        assert_eq!(
+            sa.sa,
+            vec![
+                1, 17, 15, 14, 5, 7, 24, 10, 19, 26, 0, 25, 22, 20, 28, 2, 16, 18, 27, 23, 13, 8,
+                11, 6, 4, 29, 12, 21, 3, 9
+            ]
+        )
     }
 }

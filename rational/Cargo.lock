@@ -3,6 +3,14 @@
 version = 3
 
 [[package]]
+name = "math"
+version = "0.1.0"
+dependencies = [
+ "modint",
+ "numeric",
+]
+
+[[package]]
 name = "modint"
 version = "0.1.0"
 
@@ -17,5 +25,6 @@ dependencies = [
 name = "rational"
 version = "0.1.0"
 dependencies = [
+ "math",
  "numeric",
 ]

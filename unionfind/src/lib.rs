@@ -1,10 +1,12 @@
 pub struct UnionFind {
-    tree: Vec<i32>
+    tree: Vec<i32>,
 }
 
 impl UnionFind {
     pub fn new(size: usize) -> Self {
-        UnionFind { tree: vec![-1; size] }
+        UnionFind {
+            tree: vec![-1; size],
+        }
     }
 
     pub fn root(&mut self, index: usize) -> usize {
@@ -39,7 +41,6 @@ impl UnionFind {
     }
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////
 /// Weighted UnionFind Tree
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -49,11 +50,15 @@ pub struct AlreadySameGroupError(usize, usize);
 
 impl std::fmt::Display for AlreadySameGroupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node {} and Node {} are already belong to the same group.", self.0, self.1)
+        write!(
+            f,
+            "Node {} and Node {} are already belong to the same group.",
+            self.0, self.1
+        )
     }
 }
 
-impl std::error::Error for AlreadySameGroupError { }
+impl std::error::Error for AlreadySameGroupError {}
 
 /// par\[i\]       : the parent of node i
 /// rank\[i\]      : the distance of node i from root
@@ -61,7 +66,7 @@ impl std::error::Error for AlreadySameGroupError { }
 pub struct WeightedUnionFind {
     par: Vec<usize>,
     rank: Vec<usize>,
-    potential: Vec<i64>
+    potential: Vec<i64>,
 }
 
 impl WeightedUnionFind {
@@ -69,7 +74,7 @@ impl WeightedUnionFind {
         Self {
             par: (0..size).collect(),
             rank: vec![0; size],
-            potential: vec![0; size]
+            potential: vec![0; size],
         }
     }
 
@@ -88,7 +93,12 @@ impl WeightedUnionFind {
         self.root(l) == self.root(r)
     }
 
-    pub fn merge(&mut self, l: usize, r: usize, mut weight: i64) -> Result<(), AlreadySameGroupError> {
+    pub fn merge(
+        &mut self,
+        l: usize,
+        r: usize,
+        mut weight: i64,
+    ) -> Result<(), AlreadySameGroupError> {
         if self.is_same(l, r) {
             return Err(AlreadySameGroupError(l, r));
         }
@@ -121,7 +131,6 @@ impl WeightedUnionFind {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::UnionFind;
@@ -145,7 +154,5 @@ mod tests {
     }
 
     #[test]
-    fn weighted_unionfind_test() {
-
-    }
+    fn weighted_unionfind_test() {}
 }

@@ -5,30 +5,28 @@
 #[derive(Clone)]
 struct Node {
     terminal: usize,
-    next: Vec<usize>
+    next: Vec<usize>,
 }
 
 pub struct Trie {
-    node: Vec<Node>
+    node: Vec<Node>,
 }
 
 impl Trie {
     /// Generate an empty Trie tree.
     pub fn new() -> Self {
         Self {
-            node: vec![
-                Node {
-                    terminal: 0,
-                    next: vec![std::usize::MAX; 26]
-                }
-            ]
+            node: vec![Node {
+                terminal: 0,
+                next: vec![std::usize::MAX; 26],
+            }],
         }
     }
 
     /// Insert a string to Trie tree.
     pub fn insert(&mut self, s: &str) {
         let mut now = 0;
-        
+
         for c in s.chars() {
             let idx = c as usize - b'a' as usize;
 
@@ -37,7 +35,7 @@ impl Trie {
                 now = self.node.len();
                 self.node.push(Node {
                     terminal: 0,
-                    next: vec![std::usize::MAX; 26]
+                    next: vec![std::usize::MAX; 26],
                 });
             } else {
                 now = self.node[now].next[idx];
@@ -67,7 +65,7 @@ impl Trie {
     /// Determine if there is strings that prefixes the given string.
     pub fn match_as_prefix(&self, s: &str) -> bool {
         let mut now = 0;
-        
+
         for c in s.chars() {
             let idx = c as usize - b'a' as usize;
 
@@ -81,8 +79,6 @@ impl Trie {
         true
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

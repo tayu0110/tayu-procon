@@ -33,13 +33,13 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "modint"
 version = "0.1.0"
+dependencies = [
+ "numeric",
+]
 
 [[package]]
 name = "numeric"
 version = "0.1.0"
-dependencies = [
- "modint",
-]
 
 [[package]]
 name = "proc-macro2"

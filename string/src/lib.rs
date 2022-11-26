@@ -63,7 +63,7 @@ pub fn zalgorithm(s: impl Into<String>) -> Vec<usize> {
 
     let (mut i, mut j) = (1, 0);
     while i < s.len() {
-        while i + j < s.len() && &s[j..j+1] == &s[i+j..i+j+1] {
+        while i + j < s.len() && &s[j..j + 1] == &s[i + j..i + j + 1] {
             j += 1;
         }
         z[i] = j;
@@ -75,7 +75,7 @@ pub fn zalgorithm(s: impl Into<String>) -> Vec<usize> {
 
         let mut k = 1;
         while i + k < s.len() && k + z[k] < j {
-            z[i+k] = z[k];
+            z[i + k] = z[k];
             k += 1;
         }
 

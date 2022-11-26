@@ -1,4 +1,4 @@
-pub trait Direction : Clone {
+pub trait Direction: Clone {
     fn is_directed() -> bool;
 }
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -16,13 +16,11 @@ impl Direction for Directed {
     }
 }
 
-
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Edge {
     pub to: usize,
     pub weight: i64,
 }
-
 
 pub type DirectedGraph = Graph<Directed>;
 pub type UnDirectedGraph = Graph<UnDirected>;
@@ -31,13 +29,17 @@ pub type UnDirectedGraph = Graph<UnDirected>;
 pub struct Graph<D: Direction> {
     size: usize,
     graph: Vec<Vec<Edge>>,
-    _d: std::marker::PhantomData<D>
+    _d: std::marker::PhantomData<D>,
 }
 
 impl<'a, D: Direction> Graph<D> {
     #[inline]
     pub fn new(size: usize) -> Self {
-        Self { size, graph: vec![vec![]; size], _d: std::marker::PhantomData }
+        Self {
+            size,
+            graph: vec![vec![]; size],
+            _d: std::marker::PhantomData,
+        }
     }
 
     #[inline]
@@ -49,7 +51,7 @@ impl<'a, D: Direction> Graph<D> {
                 g
             })
     }
-    
+
     #[inline]
     pub fn from_edges(size: usize, edges: Vec<(usize, usize)>) -> Self {
         edges
@@ -81,17 +83,23 @@ impl<'a, D: Direction> Graph<D> {
 
     #[inline]
     pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> {
-        Neighbors { inner: self.graph[index].iter() }
+        Neighbors {
+            inner: self.graph[index].iter(),
+        }
     }
-    
+
     #[inline]
     pub fn edges(&'a self, index: usize) -> Edges<'a> {
-        Edges { inner: self.graph[index].iter() }
+        Edges {
+            inner: self.graph[index].iter(),
+        }
     }
-    
+
     #[inline]
     pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
-        EdgesMut { inner: self.graph[index].iter_mut() }
+        EdgesMut {
+            inner: self.graph[index].iter_mut(),
+        }
     }
 
     pub fn rev_graph(&self) -> Self {
@@ -99,13 +107,19 @@ impl<'a, D: Direction> Graph<D> {
 
         for from in 0..self.size {
             for Edge { to, weight } in &self.graph[from] {
-                graph[*to].push(Edge { to: from, weight: *weight });
+                graph[*to].push(Edge {
+                    to: from,
+                    weight: *weight,
+                });
             }
         }
 
-        Self { size: self.size, graph, _d: std::marker::PhantomData }
+        Self {
+            size: self.size,
+            graph,
+            _d: std::marker::PhantomData,
+        }
     }
-
 }
 
 impl<D: Direction> std::convert::From<Vec<(usize, usize)>> for Graph<D> {
@@ -122,7 +136,7 @@ impl<D: Direction> std::convert::From<Vec<(usize, usize)>> for Graph<D> {
             graph.set_edge(from, to);
         }
 
-        graph.resize(max+1);
+        graph.resize(max + 1);
 
         graph
     }
@@ -142,7 +156,7 @@ impl<D: Direction> std::convert::From<Vec<(usize, usize, i64)>> for Graph<D> {
             graph.set_weighted_edge(from, to, weight);
         }
 
-        graph.resize(max+1);
+        graph.resize(max + 1);
 
         graph
     }
@@ -151,23 +165,24 @@ impl<D: Direction> std::convert::From<Vec<(usize, usize, i64)>> for Graph<D> {
 impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Graph<D> {
     fn from(from: Vec<Vec<usize>>) -> Self {
         let size = from.len();
-        let edges = 
-        if D::is_directed() {
-            from
-                .into_iter()
+        let edges = if D::is_directed() {
+            from.into_iter()
                 .enumerate()
                 .map(|(from, v)| v.into_iter().map(move |to| (from, to)))
                 .flatten()
                 .collect()
         } else {
-            from
-                .into_iter()
+            from.into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().filter(move |to| from <= *to).map(move |to| (from, to)))
+                .map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |to| from <= *to)
+                        .map(move |to| (from, to))
+                })
                 .flatten()
                 .collect()
         };
-        
+
         Graph::<D>::from_edges(size, edges)
     }
 }
@@ -175,30 +190,30 @@ impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Graph<D> {
 impl<D: Direction> std::convert::From<Vec<Vec<(usize, i64)>>> for Graph<D> {
     fn from(from: Vec<Vec<(usize, i64)>>) -> Self {
         let size = from.len();
-        let edges = 
-            if D::is_directed() {
-                from
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
-                    .flatten()
-                    .collect()
-            } else {
-                from
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
-                    .flatten()
-                    .collect()
-            };
-        
+        let edges = if D::is_directed() {
+            from.into_iter()
+                .enumerate()
+                .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
+                .flatten()
+                .collect()
+        } else {
+            from.into_iter()
+                .enumerate()
+                .map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |(to, _)| from <= *to)
+                        .map(move |(to, weight)| (from, to, weight))
+                })
+                .flatten()
+                .collect()
+        };
+
         Graph::<D>::from_weighted_edges(size, edges)
     }
 }
 
-
 pub struct Neighbors<'a> {
-    inner: std::slice::Iter<'a, Edge>
+    inner: std::slice::Iter<'a, Edge>,
 }
 
 impl<'a> Iterator for Neighbors<'a> {
@@ -209,7 +224,7 @@ impl<'a> Iterator for Neighbors<'a> {
 }
 
 pub struct Edges<'a> {
-    inner: std::slice::Iter<'a, Edge>
+    inner: std::slice::Iter<'a, Edge>,
 }
 
 impl<'a> Iterator for Edges<'a> {
@@ -219,9 +234,8 @@ impl<'a> Iterator for Edges<'a> {
     }
 }
 
-
 pub struct EdgesMut<'a> {
-    inner: std::slice::IterMut<'a, Edge>
+    inner: std::slice::IterMut<'a, Edge>,
 }
 
 impl<'a> Iterator for EdgesMut<'a> {
@@ -231,13 +245,12 @@ impl<'a> Iterator for EdgesMut<'a> {
     }
 }
 
-
 /// Find the single starting point shortest path by Dijkstra's algorithm.  
 /// The computational complexity is O(ElogV), where E is the number of edges and V is the number of vertices, because a BinaryHeap is used.  
 /// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
 pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size];
-    
+
     let mut nt = std::collections::BinaryHeap::new();
     nt.push(std::cmp::Reverse((0, from)));
 
@@ -257,7 +270,6 @@ pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
     res
 }
 
-
 /// Find the single starting point shortest path by Dijkstra's algorithm.  
 /// The computational complexity is O(V^2), where V is the number of vertices.  
 /// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
@@ -272,7 +284,7 @@ pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
         for (to, weight) in graph.edges(now) {
             res[*to] = std::cmp::min(res[*to], res[now] + *weight);
         }
-        let mut new = (std::i64::MAX, graph.size+1);
+        let mut new = (std::i64::MAX, graph.size + 1);
         for next in 0..graph.size {
             if !checked[next] {
                 new = std::cmp::min(new, (res[next], next));
@@ -287,7 +299,6 @@ pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
     res
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NegativeCycleError;
 impl std::fmt::Display for NegativeCycleError {
@@ -297,21 +308,23 @@ impl std::fmt::Display for NegativeCycleError {
 }
 impl std::error::Error for NegativeCycleError {}
 
-
 /// Find the single starting point shortest path by Bellman-Ford's algorithm.  
 /// If the graph has negative cycle, return NegativeCycleError and the solution updated with std::i64::MIN for the cost of the vertices affected by the negative cycle.  
-pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D>) -> Result<Vec<i64>, (NegativeCycleError, Vec<i64>)> {
+pub fn bellman_ford<D: Direction>(
+    from: usize,
+    graph: &Graph<D>,
+) -> Result<Vec<i64>, (NegativeCycleError, Vec<i64>)> {
     const INF: i64 = std::i64::MAX;
     let mut res = vec![INF; graph.size];
     res[from] = 0;
 
     let mut negative_cycle = false;
-    for i in 0..graph.size*2 {
+    for i in 0..graph.size * 2 {
         let mut updated = false;
         for from in 0..graph.size {
             for (to, weight) in graph.edges(from) {
                 if res[*to] > res[from] + *weight {
-                    if i < graph.size-1 {
+                    if i < graph.size - 1 {
                         res[*to] = res[from] + *weight;
                     } else {
                         res[*to] = std::i64::MIN;
@@ -332,7 +345,6 @@ pub fn bellman_ford<D: Direction>(from: usize, graph: &Graph<D>) -> Result<Vec<i
         Ok(res)
     }
 }
-
 
 pub fn warshall_floyd<D: Direction>(graph: &Graph<D>) -> Vec<Vec<i64>> {
     let mut res = vec![vec![std::i64::MAX; graph.size]; graph.size];
@@ -355,12 +367,11 @@ pub fn warshall_floyd<D: Direction>(graph: &Graph<D>) -> Vec<Vec<i64>> {
     res
 }
 
-
 /// Perform strongly connected component decomposition of a directed graph by Losaraju's algorithm.  
 /// The decomposed strongly connected components are ordered topologically and returned as two-dimensional vectors.  
 pub fn scc(graph: &Graph<Directed>) -> Vec<Vec<usize>> {
     let rev_graph = graph.rev_graph();
-    
+
     let mut used = vec![false; graph.size];
     let mut order = vec![];
     for start in 0..graph.size {
@@ -368,7 +379,7 @@ pub fn scc(graph: &Graph<Directed>) -> Vec<Vec<usize>> {
             dfs_for_scc(start, &mut used, &mut order, &graph);
         }
     }
-    
+
     let mut group = 0;
     let mut groups = vec![-1; graph.size];
     let mut res = vec![];
@@ -392,7 +403,13 @@ fn dfs_for_scc(now: usize, used: &mut Vec<bool>, order: &mut Vec<usize>, graph: 
     }
     order.push(now);
 }
-fn rdfs_for_scc(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<usize>, graph: &Graph<Directed>) {
+fn rdfs_for_scc(
+    now: usize,
+    group: i32,
+    groups: &mut Vec<i32>,
+    list: &mut Vec<usize>,
+    graph: &Graph<Directed>,
+) {
     groups[now] = group;
     for Edge { to, weight: _ } in &graph.graph[now] {
         if groups[*to] < 0 {
@@ -401,7 +418,6 @@ fn rdfs_for_scc(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<us
     }
     list.push(now);
 }
-
 
 /// Detect bridges in the graph.  
 /// The detected bridges are returned as a list of tuples of vertices at both ends.  
@@ -414,15 +430,31 @@ pub fn low_link<D: Direction>(graph: &Graph<D>) -> Vec<(usize, usize)> {
     let mut res = vec![];
     for start in 0..graph.size {
         if ord[start] == std::usize::MAX {
-            next_ord = dfs_for_lowlink(start, std::usize::MAX, next_ord, &mut ord, &mut low, &mut res, &graph);
+            next_ord = dfs_for_lowlink(
+                start,
+                std::usize::MAX,
+                next_ord,
+                &mut ord,
+                &mut low,
+                &mut res,
+                &graph,
+            );
         }
     }
     res
 }
-fn dfs_for_lowlink<D: Direction>(now: usize, par: usize, now_ord: usize, ord: &mut Vec<usize>, low: &mut Vec<usize>, res: &mut Vec<(usize, usize)>, graph: &Graph<D>) -> usize {
+fn dfs_for_lowlink<D: Direction>(
+    now: usize,
+    par: usize,
+    now_ord: usize,
+    ord: &mut Vec<usize>,
+    low: &mut Vec<usize>,
+    res: &mut Vec<(usize, usize)>,
+    graph: &Graph<D>,
+) -> usize {
     ord[now] = now_ord;
     low[now] = ord[now];
-    
+
     let mut next_ord = now_ord + 1;
     for Edge { to, weight: _ } in &graph.graph[now] {
         if ord[*to] == std::usize::MAX {
@@ -440,7 +472,6 @@ fn dfs_for_lowlink<D: Direction>(now: usize, par: usize, now_ord: usize, ord: &m
     next_ord
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CycleDetectionError;
 impl std::fmt::Display for CycleDetectionError {
@@ -449,7 +480,6 @@ impl std::fmt::Display for CycleDetectionError {
     }
 }
 impl std::error::Error for CycleDetectionError {}
-
 
 /// Returns the topological sort of a directed graph.  
 /// If a cycle is detected, a topological sort cannot be defined, so CycleDetectionError is returned.  
@@ -464,11 +494,11 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
     }
 
     let mut nt = ins
-            .iter()
-            .enumerate()
-            .filter(|(_, v)| **v == 0)
-            .map(|(i, _)| i)
-            .collect::<std::collections::VecDeque<_>>();
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| **v == 0)
+        .map(|(i, _)| i)
+        .collect::<std::collections::VecDeque<_>>();
     while let Some(now) = nt.pop_front() {
         if ins[now] < 0 {
             continue;
@@ -493,7 +523,6 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
     }
 }
 
-
 /// Detect cycles in a directed graph.
 /// If a cycle is successfully detected, return a vertex list for one of cycles.
 /// The vertex list is in topological order when one edge of the cycle is cut.
@@ -501,7 +530,7 @@ pub fn cycle_detect(graph: &Graph<Directed>) -> Option<Vec<usize>> {
     let size = graph.size;
     // 0: not reached, 1: pending, 2: reached
     let mut state = vec![0u8; size];
-    
+
     for i in 0..size {
         if state[i] != 2 {
             let mut res = vec![];
@@ -514,7 +543,12 @@ pub fn cycle_detect(graph: &Graph<Directed>) -> Option<Vec<usize>> {
 
     None
 }
-fn dfs_for_cycle_detect(now: usize, state: &mut [u8], stack: &mut Vec<usize>, graph: &Graph<Directed>) -> Option<usize> {
+fn dfs_for_cycle_detect(
+    now: usize,
+    state: &mut [u8],
+    stack: &mut Vec<usize>,
+    graph: &Graph<Directed>,
+) -> Option<usize> {
     state[now] = 1;
 
     for to in graph.neighbors(now) {
@@ -541,7 +575,6 @@ fn dfs_for_cycle_detect(now: usize, state: &mut [u8], stack: &mut Vec<usize>, gr
     None
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InvalidTree;
 impl std::fmt::Display for InvalidTree {
@@ -550,7 +583,6 @@ impl std::fmt::Display for InvalidTree {
     }
 }
 impl std::error::Error for InvalidTree {}
-
 
 pub type DirectedTree = Tree<Directed>;
 pub type UnDirectedTree = Tree<UnDirected>;
@@ -561,7 +593,7 @@ pub struct Tree<D: Direction> {
     root: usize,
     par: Vec<usize>,
     graph: Vec<Vec<Edge>>,
-    _d: std::marker::PhantomData<D>
+    _d: std::marker::PhantomData<D>,
 }
 
 impl<'a, D: Direction> Tree<D> {
@@ -602,15 +634,18 @@ impl<'a, D: Direction> Tree<D> {
             }
         }
 
-        Ok(Tree { size, root: 0, par, graph, _d: std::marker::PhantomData })
+        Ok(Tree {
+            size,
+            root: 0,
+            par,
+            graph,
+            _d: std::marker::PhantomData,
+        })
     }
 
     #[inline]
     pub fn from_edges(edges: Vec<(usize, usize)>) -> Result<Self, InvalidTree> {
-        let edges = edges
-                .into_iter()
-                .map(|(from, to)| (from, to, 1))
-                .collect();
+        let edges = edges.into_iter().map(|(from, to)| (from, to, 1)).collect();
         Self::from_weighted_edges(edges)
     }
 
@@ -618,27 +653,33 @@ impl<'a, D: Direction> Tree<D> {
     #[inline]
     pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
         let edges = pars
-                .into_iter()
-                .enumerate()
-                .filter(|v| v.1 != std::usize::MAX)
-                .map(|(i, par)| (par, i, 1))
-                .collect();
+            .into_iter()
+            .enumerate()
+            .filter(|v| v.1 != std::usize::MAX)
+            .map(|(i, par)| (par, i, 1))
+            .collect();
         Self::from_weighted_edges(edges)
     }
 
     #[inline]
     pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> {
-        Neighbors { inner: self.graph[index].iter() }
+        Neighbors {
+            inner: self.graph[index].iter(),
+        }
     }
 
     #[inline]
     pub fn edges(&'a self, index: usize) -> Edges<'a> {
-        Edges { inner: self.graph[index].iter() }
+        Edges {
+            inner: self.graph[index].iter(),
+        }
     }
 
     #[inline]
     pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
-        EdgesMut { inner: self.graph[index].iter_mut() }
+        EdgesMut {
+            inner: self.graph[index].iter_mut(),
+        }
     }
 
     #[inline]
@@ -695,7 +736,6 @@ impl<'a, D: Direction> Tree<D> {
     }
 }
 
-
 impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize)>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<(usize, usize)>) -> Result<Self, Self::Error> {
@@ -713,22 +753,25 @@ impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
 impl<D: Direction> std::convert::TryFrom<Vec<Vec<usize>>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<Vec<usize>>) -> Result<Self, Self::Error> {
-        let edges = 
-            if D::is_directed() {
-                value
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().map(move |to| (from, to)))
-                    .flatten()
-                    .collect()
-            } else {
-                value
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().filter(move |to| from <= *to).map(move |to| (from, to)))
-                    .flatten()
-                    .collect()
-            };
+        let edges = if D::is_directed() {
+            value
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| v.into_iter().map(move |to| (from, to)))
+                .flatten()
+                .collect()
+        } else {
+            value
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |to| from <= *to)
+                        .map(move |to| (from, to))
+                })
+                .flatten()
+                .collect()
+        };
         Self::from_edges(edges)
     }
 }
@@ -736,32 +779,38 @@ impl<D: Direction> std::convert::TryFrom<Vec<Vec<usize>>> for Tree<D> {
 impl<D: Direction> std::convert::TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<Vec<(usize, i64)>>) -> Result<Self, Self::Error> {
-        let edges = 
-            if D::is_directed() {
-                value
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
-                    .flatten()
-                    .collect()
-            } else {
-                value
-                    .into_iter()
-                    .enumerate()
-                    .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
-                    .flatten()
-                    .collect()
-            };
+        let edges = if D::is_directed() {
+            value
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
+                .flatten()
+                .collect()
+        } else {
+            value
+                .into_iter()
+                .enumerate()
+                .map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |(to, _)| from <= *to)
+                        .map(move |(to, weight)| (from, to, weight))
+                })
+                .flatten()
+                .collect()
+        };
         Self::from_weighted_edges(edges)
     }
 }
 
 impl<D: Direction> std::convert::From<Tree<D>> for Graph<D> {
     fn from(from: Tree<D>) -> Self {
-        Graph { size: from.size, graph: from.graph, _d: from._d }
+        Graph {
+            size: from.size,
+            graph: from.graph,
+            _d: from._d,
+        }
     }
 }
-
 
 /// If an ancestor earlier than its own rank is searched, std::usize::MAX is returned.  
 pub fn nth_ancestor<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
@@ -777,9 +826,9 @@ pub fn nth_ancestor<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -
             if log == 0 {
                 doubling[log][now] = tree.par[now];
             } else {
-                let to = doubling[log-1][now];
+                let to = doubling[log - 1][now];
                 if to != std::usize::MAX {
-                    doubling[log][now] = doubling[log-1][to];
+                    doubling[log][now] = doubling[log - 1][to];
                 }
             }
         }
@@ -799,7 +848,6 @@ pub fn nth_ancestor<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -
         now
     }
 }
-
 
 /// Returns a closure that finds the Lowest Common Ancestor of the two vertices belonging to the tree.
 pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
@@ -831,9 +879,9 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
             if log == 0 {
                 doubling[log][now] = tree.par[now];
             } else {
-                let to = doubling[log-1][now];
+                let to = doubling[log - 1][now];
                 if to != std::usize::MAX {
-                    doubling[log][now] = doubling[log-1][to];
+                    doubling[log][now] = doubling[log - 1][to];
                 }
             }
         }
@@ -867,7 +915,6 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     }
 }
 
-
 /// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
 pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, InvalidTree> {
     use unionfind::UnionFind;
@@ -891,62 +938,182 @@ pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, Inva
     Tree::<UnDirected>::from_weighted_edges(edges)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{
+        bellman_ford, dijkstra_heap, dijkstra_v2, low_link, scc, topological_sort, warshall_floyd,
         DirectedGraph, UnDirectedGraph,
-        dijkstra_heap, dijkstra_v2, bellman_ford, warshall_floyd, scc, low_link, topological_sort
     };
 
     #[test]
     fn graph_test() {
         // 9     1 --> 8 --> 4 --> 6     (0, 1, 3)           , (1, 8, 5)
         // ^     ^     |     |           (2, 0, 1), (2, 5, 9), (3, 0, 7), (3, 9, 3)
-        // |     |     v     v           (4, 5, 4), (4, 6, 2), 
-        // 3 --> 0 <-- 2 --> 5           (7, 0, 8)           , (8, 2, 6), (8, 4, 1)      
-        //       ^ 
+        // |     |     v     v           (4, 5, 4), (4, 6, 2),
+        // 3 --> 0 <-- 2 --> 5           (7, 0, 8)           , (8, 2, 6), (8, 4, 1)
+        //       ^
         //       |
         //       7
         let weighted_edges = vec![
             (0, 1, 3),
             (1, 8, 5),
-            (2, 0, 1), (2, 5, 9),
-            (3, 0, 7), (3, 9, 3),
-            (4, 6, 2), (4, 5, 4),
+            (2, 0, 1),
+            (2, 5, 9),
+            (3, 0, 7),
+            (3, 9, 3),
+            (4, 6, 2),
+            (4, 5, 4),
             (7, 0, 8),
-            (8, 2, 6), (8, 4, 1)
+            (8, 2, 6),
+            (8, 4, 1),
         ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
 
         let dist = dijkstra_heap(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
+        assert_eq!(
+            dist,
+            vec![
+                0,
+                3,
+                14,
+                std::i64::MAX,
+                9,
+                13,
+                11,
+                std::i64::MAX,
+                8,
+                std::i64::MAX
+            ]
+        );
 
         let dist = dijkstra_v2(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
+        assert_eq!(
+            dist,
+            vec![
+                0,
+                3,
+                14,
+                std::i64::MAX,
+                9,
+                13,
+                11,
+                std::i64::MAX,
+                8,
+                std::i64::MAX
+            ]
+        );
 
         let dists = warshall_floyd(&dir);
-        assert_eq!(dists,
+        assert_eq!(
+            dists,
             vec![
-                vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX],
-                vec![12, 0, 11, std::i64::MAX, 6, 10, 8, std::i64::MAX, 5, std::i64::MAX],
-                vec![1, 4, 0, std::i64::MAX, 10, 9, 12, std::i64::MAX, 9, std::i64::MAX],
+                vec![
+                    0,
+                    3,
+                    14,
+                    std::i64::MAX,
+                    9,
+                    13,
+                    11,
+                    std::i64::MAX,
+                    8,
+                    std::i64::MAX
+                ],
+                vec![
+                    12,
+                    0,
+                    11,
+                    std::i64::MAX,
+                    6,
+                    10,
+                    8,
+                    std::i64::MAX,
+                    5,
+                    std::i64::MAX
+                ],
+                vec![
+                    1,
+                    4,
+                    0,
+                    std::i64::MAX,
+                    10,
+                    9,
+                    12,
+                    std::i64::MAX,
+                    9,
+                    std::i64::MAX
+                ],
                 vec![7, 10, 21, 0, 16, 20, 18, std::i64::MAX, 15, 3],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, 4, 2, std::i64::MAX, std::i64::MAX, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0, std::i64::MAX, std::i64::MAX, std::i64::MAX],
+                vec![
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    0,
+                    4,
+                    2,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX
+                ],
+                vec![
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    0,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX
+                ],
+                vec![
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    0,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX
+                ],
                 vec![8, 11, 22, std::i64::MAX, 17, 21, 19, 0, 16, std::i64::MAX],
-                vec![7, 10, 6, std::i64::MAX, 1, 5, 3, std::i64::MAX, 0, std::i64::MAX],
-                vec![std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, std::i64::MAX, 0]
-            ]);
-        
+                vec![
+                    7,
+                    10,
+                    6,
+                    std::i64::MAX,
+                    1,
+                    5,
+                    3,
+                    std::i64::MAX,
+                    0,
+                    std::i64::MAX
+                ],
+                vec![
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    std::i64::MAX,
+                    0
+                ]
+            ]
+        );
+
         let groups = scc(&dir);
         let groups = groups
             .into_iter()
             .enumerate()
             .fold(vec![0; 10], |mut v, (i, g)| {
-                g.into_iter()
-                 .for_each(|w| v[w] = i);
+                g.into_iter().for_each(|w| v[w] = i);
                 v
             });
         assert_eq!(groups[0], groups[1]);
@@ -967,19 +1134,19 @@ mod tests {
         let signed_weighted_edges = vec![
             (0, 1, 1),
             (1, 2, 2),
-            (2, 3, -3), (2, 5, -6),
+            (2, 3, -3),
+            (2, 5, -6),
             (3, 4, 4),
             (4, 1, 1),
             (5, 6, 3),
             (6, 7, 7),
             (7, 8, -9),
-            (8, 5, 4)
+            (8, 5, 4),
         ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         let dist = bellman_ford(0, &dir).unwrap();
         assert_eq!(dist, vec![0, 1, 3, 0, 4, -3, 0, 7, -2]);
-
 
         // 0 --> 1 --> 2 --> 5 --> 8    (0, 1), (1, 2), (1, 4), (2, 3), (2, 5),
         //       |     |     |     ^    (4, 3), (5, 6), (5, 8), (6, 7), (7, 8)
@@ -987,12 +1154,15 @@ mod tests {
         //       4 --> 3     6 --> 7
         let edges = vec![
             (0, 1),
-            (1, 2), (1, 4),
-            (2, 3), (2, 5),
+            (1, 2),
+            (1, 4),
+            (2, 3),
+            (2, 5),
             (4, 3),
-            (5, 6), (5, 8),
+            (5, 6),
+            (5, 8),
             (6, 7),
-            (7, 8)
+            (7, 8),
         ];
         let dir: DirectedGraph = DirectedGraph::from_edges(9, edges);
         let list = topological_sort(&dir)
@@ -1015,12 +1185,15 @@ mod tests {
         //       4 --- 3     6 --- 7
         let edges = vec![
             (0, 1),
-            (1, 2), (1, 4),
-            (2, 3), (2, 5),
+            (1, 2),
+            (1, 4),
+            (2, 3),
+            (2, 5),
             (3, 4),
-            (5, 6), (5, 8),
+            (5, 6),
+            (5, 8),
             (6, 7),
-            (7, 8)
+            (7, 8),
         ];
         let undir: UnDirectedGraph = UnDirectedGraph::from_edges(9, edges);
         let mut links = low_link(&undir);
@@ -1028,11 +1201,7 @@ mod tests {
         assert_eq!(links, vec![(0, 1), (2, 5)]);
     }
 
-    use super::{
-        Edge,
-        UnDirectedTree,
-        nth_ancestor, lca, spanning_tree
-    };
+    use super::{lca, nth_ancestor, spanning_tree, Edge, UnDirectedTree};
 
     #[test]
     fn tree_test() {
@@ -1041,7 +1210,9 @@ mod tests {
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
         // |par|NA| 0| 0| 1| 1| 2| 3| 4| 4| 5| 7| 9|
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        let mut undir = UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9]).unwrap();
+        let mut undir =
+            UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9])
+                .unwrap();
 
         let anc = nth_ancestor(&mut undir);
         assert_eq!(anc(6, 2), 1);
@@ -1065,26 +1236,47 @@ mod tests {
         //       |
         //       7
         let edges = vec![
-            (0, 1, 3), (0, 2, 1), (0, 3, 7), (0, 7, 8),
-            (1, 8, 5), (1, 9, 4),
-            (2, 5, 9), (2, 8, 6),
+            (0, 1, 3),
+            (0, 2, 1),
+            (0, 3, 7),
+            (0, 7, 8),
+            (1, 8, 5),
+            (1, 9, 4),
+            (2, 5, 9),
+            (2, 8, 6),
             (3, 9, 3),
-            (4, 5, 4), (4, 6, 2), (4, 8, 1)
+            (4, 5, 4),
+            (4, 6, 2),
+            (4, 8, 1),
         ];
         let undir = UnDirectedGraph::from_weighted_edges(10, edges);
         let tree = spanning_tree(&undir).unwrap();
         let set = (0..tree.size)
-            .map(|i| tree.graph[i]
-                                .iter()
-                                .map(|Edge { to, weight: _ }| 
-                                        (std::cmp::min(i, *to), std::cmp::max(i, *to)))
-                                .collect::<Vec<(_, _)>>())
+            .map(|i| {
+                tree.graph[i]
+                    .iter()
+                    .map(|Edge { to, weight: _ }| (std::cmp::min(i, *to), std::cmp::max(i, *to)))
+                    .collect::<Vec<(_, _)>>()
+            })
             .flatten()
             .collect::<std::collections::BTreeSet<(_, _)>>()
             .iter()
             .map(|(f, t)| (*f, *t))
             .collect::<Vec<(_, _)>>();
-        assert_eq!(set, vec![(0, 1), (0, 2), (0, 7), (1, 8), (1, 9), (3, 9), (4, 5), (4, 6), (4, 8)]);
+        assert_eq!(
+            set,
+            vec![
+                (0, 1),
+                (0, 2),
+                (0, 7),
+                (1, 8),
+                (1, 9),
+                (3, 9),
+                (4, 5),
+                (4, 6),
+                (4, 8)
+            ]
+        );
     }
 
     #[test]
@@ -1098,13 +1290,14 @@ mod tests {
         let signed_weighted_edges = vec![
             (0, 1, 1),
             (1, 2, -5),
-            (2, 3, -3), (2, 5, -6),
+            (2, 3, -3),
+            (2, 5, -6),
             (3, 4, 4),
             (4, 1, 1),
             (5, 6, 3),
             (6, 7, 7),
             (7, 8, -9),
-            (8, 5, 4)
+            (8, 5, 4),
         ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
@@ -1124,13 +1317,14 @@ mod tests {
         let signed_weighted_edges = vec![
             (0, 1, 1),
             (1, 2, -5),
-            (2, 3, -3), (2, 5, -6),
+            (2, 3, -3),
+            (2, 5, -6),
             (3, 4, 4),
             (4, 1, 1),
             (5, 6, 3),
             (6, 7, 7),
             (7, 8, -9),
-            (8, 5, 4)
+            (8, 5, 4),
         ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
@@ -1150,11 +1344,15 @@ mod tests {
         //       |
         //       8
         let edges = vec![
-            (1, 2, 3), (1, 3, 1), (1, 5, 7), (1, 8, 8),
+            (1, 2, 3),
+            (1, 3, 1),
+            (1, 5, 7),
+            (1, 8, 8),
             (3, 4, 9),
             (4, 6, 3),
             (5, 10, 4),
-            (6, 7, 4), (6, 9, 1)
+            (6, 7, 4),
+            (6, 9, 1),
         ];
 
         // Panic!!!

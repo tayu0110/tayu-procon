@@ -78,10 +78,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
+name = "math"
+version = "0.1.0"
+dependencies = [
+ "modint",
+ "numeric",
+]
+
+[[package]]
 name = "matrix"
 version = "0.1.0"
 dependencies = [
  "modint",
+ "numeric",
 ]
 
 [[package]]
@@ -91,13 +100,13 @@ version = "0.1.0"
 [[package]]
 name = "modint"
 version = "0.1.0"
+dependencies = [
+ "numeric",
+]
 
 [[package]]
 name = "numeric"
 version = "0.1.0"
-dependencies = [
- "modint",
-]
 
 [[package]]
 name = "ppv-lite86"
@@ -148,6 +157,7 @@ dependencies = [
 name = "rational"
 version = "0.1.0"
 dependencies = [
+ "math",
  "numeric",
 ]
 
@@ -175,6 +185,7 @@ dependencies = [
  "geometry",
  "graph",
  "iolib",
+ "math",
  "matrix",
  "mincost-flow",
  "modint",

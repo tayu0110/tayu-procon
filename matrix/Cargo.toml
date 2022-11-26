@@ -8,3 +8,4 @@ license = "MIT"
 
 [dependencies]
 modint = { path = "../modint" }
+numeric = { package = "numeric", path = "../numeric" }

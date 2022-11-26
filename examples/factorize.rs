@@ -1,5 +1,5 @@
 use iolib::scan;
-use numeric::factorize;
+use math::factorize;
 
 fn main() {
     use std::io::Write;

@@ -53,13 +53,13 @@
 //             graph: vec![vec![]; size]
 //         }
 //     }
-    
+
 //     pub fn set_edge(&mut self, from: usize, to: usize, cap: Cap) {
 //         let (rev_from, rev_to) = (self.graph[to].len(), self.graph[from].len());
 //         self.graph[from].push(Edge::new(to, cap, rev_from));
 //         self.graph[to].push(Edge::new(from, Cap::zero(), rev_to));
 //     }
-    
+
 //     fn bfs(&mut self, start: usize) {
 //         self.level = vec![-1; self.size];
 //         let mut nt: std::collections::VecDeque<(usize, i32)> = std::collections::VecDeque::new();
@@ -69,7 +69,7 @@
 //             self.level[now] = nd;
 //             self.graph[now]
 //                 .iter()
-//                 .for_each(|e| 
+//                 .for_each(|e|
 //                     if e.cap > Cap::zero() && self.level[e.to] < 0 {
 //                         nt.push_back((e.to, nd+1))
 //                     }
@@ -81,12 +81,12 @@
 //         if now == target {
 //             return f;
 //         }
-        
+
 //         let mut i = self.iter[now];
 //         while i < self.graph[now].len() {
 //             let e = self.graph[now][i];
 //             if e.cap > Cap::zero() && self.level[now] < self.level[e.to] {
-//                 let nf = 
+//                 let nf =
 //                     if f < e.cap {
 //                         f
 //                     } else {
