@@ -3,7 +3,7 @@ use convolution::convolution;
 use modint::{Mod998244353, MontgomeryModint};
 use proconio::{fastout, input};
 
-type Mint998244353 = MontgomeryModint<Mod998244353>;
+type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
 
 #[fastout]
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     let mut a = Vec::with_capacity(n);
     let mut b = Vec::with_capacity(n);
     for _ in 0..n {
-        input! {na: i64, nb: i64}
+        input! {na: u32, nb: u32}
         a.push(Mint998244353::new(na));
         b.push(Mint998244353::new(nb));
     }

@@ -1,7 +1,7 @@
 use super::common::{complex_prim_root, complex_prim_root_f32};
 use complex::Complex;
-use modint::{Mint, Modulo, MontgomeryModint};
-use numeric::Zero;
+use modint::{Modulo, MontgomeryModint, MontgomeryMultiplication};
+use numeric::Integer;
 
 pub struct FftCache<T>
 where
@@ -56,40 +56,17 @@ impl FftCache<Complex<f32>> {
     }
 }
 
-impl<M: Modulo> FftCache<Mint<M>> {
+impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> FftCache<MontgomeryModint<M, T>> {
     #[inline]
     pub fn new(size: usize) -> Self {
-        debug_assert!(size <= (M::modulo() - 1).trailing_zeros() as usize);
-
-        let size = std::cmp::max(size, 3);
-
-        let mut prim_roots = vec![Mint::zero(); size + 1];
-        prim_roots[size] = Mint::<M>::nth_root(1 << size);
-        let mut prim_roots_inv = vec![Mint::zero(); size + 1];
-        prim_roots_inv[size] = Mint::<M>::nth_root(-(1 << size));
-        for i in (0..size).rev() {
-            prim_roots[i] = prim_roots[i + 1] * prim_roots[i + 1];
-            prim_roots_inv[i] = prim_roots_inv[i + 1] * prim_roots_inv[i + 1];
-        }
-
-        Self {
-            prim_roots,
-            prim_roots_inv,
-        }
-    }
-}
-
-impl<M: Modulo> FftCache<MontgomeryModint<M>> {
-    #[inline]
-    pub fn new(size: usize) -> Self {
-        debug_assert!(size <= (M::modulo() - 1).trailing_zeros() as usize);
+        debug_assert!(size <= (M::modulo() - T::one()).trailing_zeros() as usize);
 
         let size = std::cmp::max(size, 3);
 
         let mut prim_roots = vec![MontgomeryModint::zero(); size + 1];
-        prim_roots[size] = MontgomeryModint::<M>::nth_root(1 << size);
+        prim_roots[size] = MontgomeryModint::<M, T>::nth_root(T::one() << size);
         let mut prim_roots_inv = vec![MontgomeryModint::zero(); size + 1];
-        prim_roots_inv[size] = MontgomeryModint::<M>::nth_root(-(1 << size));
+        prim_roots_inv[size] = prim_roots[size].inv();
         for i in (0..size).rev() {
             prim_roots[i] = prim_roots[i + 1] * prim_roots[i + 1];
             prim_roots_inv[i] = prim_roots_inv[i + 1] * prim_roots_inv[i + 1];

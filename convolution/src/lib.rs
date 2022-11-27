@@ -76,7 +76,7 @@ pub fn convolution_f32(a: &Vec<f32>, b: &Vec<f32>) -> Vec<f32> {
         .collect()
 }
 
-type Mint998244353 = MontgomeryModint<Mod998244353>;
+type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
 
 pub fn convolution(mut a: Vec<Mint998244353>, mut b: Vec<Mint998244353>) -> Vec<Mint998244353> {
     let deg = a.len() + b.len() - 1;
@@ -95,7 +95,7 @@ pub fn convolution(mut a: Vec<Mint998244353>, mut b: Vec<Mint998244353>) -> Vec<
 
     cooley_tukey_radix_8_butterfly_inv_montgomery_modint(n, log, &mut a, &cache);
 
-    let ninv = Mint998244353::new(n as i64).inv();
+    let ninv = Mint998244353::new(n as u32).inv();
     a.resize(deg, Mint998244353::zero());
     a.iter_mut().for_each(|v| *v *= ninv);
     a
@@ -110,9 +110,7 @@ mod tests {
             ifft_cooley_tukey_radix_4,
         },
         gentleman_sande::{
-            fft_gentleman_sande_radix_2, fft_gentleman_sande_radix_4,
-            fft_gentleman_sande_radix_4_montgomery_modint,
-            fft_gentleman_sande_radix_8_montgomery_modint, ifft_gentleman_sande_radix_2,
+            fft_gentleman_sande_radix_2, fft_gentleman_sande_radix_4, ifft_gentleman_sande_radix_2,
             ifft_gentleman_sande_radix_4,
         },
     };
@@ -131,60 +129,6 @@ mod tests {
         }
 
         diff_max
-    }
-
-    #[test]
-    fn gentleman_sande_radix_2_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        fft_gentleman_sande_radix_2(&mut data1);
-        ifft_gentleman_sande_radix_2(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
-    }
-
-    #[test]
-    fn cooley_tukey_radix_2_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        fft_cooley_tukey_radix_2(&mut data1);
-        ifft_cooley_tukey_radix_2(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
     }
 
     #[test]
@@ -224,151 +168,8 @@ mod tests {
     }
 
     #[test]
-    fn gentleman_sande_radix_4_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        fft_gentleman_sande_radix_4(&mut data1);
-        ifft_gentleman_sande_radix_4(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
-    }
-
-    #[test]
-    fn cooley_tukey_radix_4_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        fft_cooley_tukey_radix_4(&mut data1);
-        ifft_cooley_tukey_radix_4(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
-    }
-
-    #[test]
-    fn gentleman_sande_radix_2_radix_4_compare_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        let mut data2 = data.clone();
-        fft_gentleman_sande_radix_2(&mut data1);
-        fft_gentleman_sande_radix_4(&mut data2);
-        let diff_max = calc_diff(&data1, &data2);
-        assert!(diff_max < 1e-10);
-
-        ifft_gentleman_sande_radix_2(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
-
-        ifft_gentleman_sande_radix_4(&mut data2);
-        let diff_max = calc_diff(&data, &data2);
-        assert!(diff_max < 1e-10);
-    }
-
-    #[test]
-    fn cooley_tukey_radix_2_radix_4_compare_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
-        let mut data1 = data.clone();
-        let mut data2 = data.clone();
-        fft_cooley_tukey_radix_2(&mut data1);
-        fft_cooley_tukey_radix_4(&mut data2);
-        let diff_max = calc_diff(&data1, &data2);
-        assert!(diff_max < 1e-10);
-
-        ifft_cooley_tukey_radix_2(&mut data1);
-        let diff_max = calc_diff(&data, &data1);
-        assert!(diff_max < 1e-10);
-
-        ifft_cooley_tukey_radix_4(&mut data2);
-        let diff_max = calc_diff(&data, &data2);
-        assert!(diff_max < 1e-10);
-    }
-
-    #[test]
     fn gentleman_sande_cooley_tukey_radix_4_compare_test() {
-        let data: Vec<Complex> = vec![
-            1.0.into(),
-            2.0.into(),
-            3.0.into(),
-            4.0.into(),
-            5.0.into(),
-            6.0.into(),
-            7.0.into(),
-            8.0.into(),
-            9.0.into(),
-            10.0.into(),
-            11.0.into(),
-            12.0.into(),
-            13.0.into(),
-            14.0.into(),
-            15.0.into(),
-            16.0.into(),
-        ];
+        let data: Vec<Complex> = (1..=16).map(|v| (v as f64).into()).collect();
         let mut data1 = data.clone();
         let mut data2 = data.clone();
         fft_gentleman_sande_radix_4(&mut data1);
@@ -383,33 +184,6 @@ mod tests {
         ifft_cooley_tukey_radix_4(&mut data2);
         let diff_max = calc_diff(&data, &data2);
         assert!(diff_max < 1e-10);
-    }
-
-    #[test]
-    fn gentleman_sande_radix_4_radix_8_compare_test() {
-        let data: Vec<MontgomeryModint<Mod998244353>> = vec![
-            MontgomeryModint::new(1),
-            MontgomeryModint::new(2),
-            MontgomeryModint::new(3),
-            MontgomeryModint::new(4),
-            MontgomeryModint::new(5),
-            MontgomeryModint::new(6),
-            MontgomeryModint::new(7),
-            MontgomeryModint::new(8),
-            MontgomeryModint::new(9),
-            MontgomeryModint::new(10),
-            MontgomeryModint::new(11),
-            MontgomeryModint::new(12),
-            MontgomeryModint::new(13),
-            MontgomeryModint::new(14),
-            MontgomeryModint::new(15),
-            MontgomeryModint::new(16),
-        ];
-        let mut data1 = data.clone();
-        let mut data2 = data.clone();
-        fft_gentleman_sande_radix_8_montgomery_modint(&mut data1);
-        fft_gentleman_sande_radix_4_montgomery_modint(&mut data2);
-        assert_eq!(data1, data2);
     }
 
     #[test]
@@ -421,7 +195,7 @@ mod tests {
         let c = c.into_iter().map(|c| c.round() as i32).collect::<Vec<_>>();
         assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
 
-        type Mint998244353 = MontgomeryModint<Mod998244353>;
+        type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
         let a = vec![
             Mint998244353::new(1),
             Mint998244353::new(2),
