@@ -15,18 +15,6 @@ pub fn bit_reverse<T>(deg: usize, log: usize, a: &mut [T]) {
 }
 
 #[inline]
-pub fn complex_prim_root(nth: usize) -> Complex {
-    // W = exp(-2PI/N), N = backet_width
-    Complex::from_polar(1.0, -2.0 * std::f64::consts::PI / nth as f64)
-}
-
-#[inline]
-pub fn complex_prim_root_f32(nth: usize) -> Complex<f32> {
-    // W = exp(-2PI/N), N = backet_width
-    Complex::from_polar(1.0, -2.0 * std::f32::consts::PI / nth as f32)
-}
-
-#[inline]
 pub fn radix_4_inner_complex<T: Float>(
     c0: Complex<T>,
     c1: Complex<T>,
@@ -248,13 +236,13 @@ pub fn radix_4_inner_montgomery_modint<
     let c0mc2 = c0 - c2;
     let c1pc3 = c1 + c3;
     let c1mc3 = c1 - c3;
-    let c1mc3im = c1mc3 * cache.prim_root_inv(2);
+    let c1mc3im = c1mc3 * cache.prim_root(2);
 
     (
         c0pc2 + c1pc3,
-        c0mc2 - c1mc3im,
-        c0pc2 - c1pc3,
         c0mc2 + c1mc3im,
+        c0pc2 - c1pc3,
+        c0mc2 - c1mc3im,
     )
 }
 
@@ -312,7 +300,7 @@ pub fn radix_8_inner_montgomery_modint<
     MontgomeryModint<M, T>,
     MontgomeryModint<M, T>,
 ) {
-    let im = cache.prim_root_inv(2);
+    let im = cache.prim_root(2);
 
     let c0pc4 = c0 + c4;
     let c0mc4 = c0 - c4;
@@ -336,19 +324,19 @@ pub fn radix_8_inner_montgomery_modint<
 
     let c1pc5pc3pc7 = c1pc5 + c3pc7;
     let c1pc5mc3pc7 = c1pc5 - c3pc7;
-    let c1mc5immc3mc7w = (c1mc5im - c3mc7) * w1;
-    let c1mc5mc3mc7imw = (c1mc5 - c3mc7im) * w1;
+    let c1mc5impc3mc7w = (c1mc5im + c3mc7) * w1;
+    let c1mc5pc3mc7imw = (c1mc5 + c3mc7im) * w1;
     let c1pc5immc3pc7im = c1pc5mc3pc7 * im;
 
     (
         c0pc4pc2pc6 + c1pc5pc3pc7, // c0 + c4 + c2  + c6  + c1   + c5   + c3   + c7
-        c0mc4mc2mc6im + c1mc5mc3mc7imw, // c0 - c4 - c2i + c6i + c1W  - c5W  - c3iW + c7iW
-        c0pc4mc2pc6 - c1pc5immc3pc7im, // c0 + c4 - c2  - c6  - c1i  - c5i  + c3i  + c7i
-        c0mc4pc2mc6im - c1mc5immc3mc7w, // c0 - c4 + c2i - c6i - c1iW + c5iW + c3W  - c7W
-        c0pc4pc2pc6 - c1pc5pc3pc7, // c0 + c4 + c2  + c6  - c1   - c5   - c3   - c7
-        c0mc4mc2mc6im - c1mc5mc3mc7imw, // c0 - c4 - c2i + c6i - c1W  + c5W  + c3iW - c7iW
+        c0mc4pc2mc6im + c1mc5pc3mc7imw, // c0 - c4 + c2i - c6i + c1W  - c5W  + c3iW - c7iW
         c0pc4mc2pc6 + c1pc5immc3pc7im, // c0 + c4 - c2  - c6  + c1i  + c5i  - c3i  - c7i
-        c0mc4pc2mc6im + c1mc5immc3mc7w, // c0 - c4 + c2i - c6i + c1iW - c5iW - c3W  + c7W
+        c0mc4mc2mc6im + c1mc5impc3mc7w, // c0 - c4 - c2i + c6i + c1iW - c5iW + c3W  - c7W
+        c0pc4pc2pc6 - c1pc5pc3pc7, // c0 + c4 + c2  + c6  - c1   - c5   - c3   - c7
+        c0mc4pc2mc6im - c1mc5pc3mc7imw, // c0 - c4 + c2i - c6i - c1W  + c5W  - c3iW + c7iW
+        c0pc4mc2pc6 - c1pc5immc3pc7im, // c0 + c4 - c2  - c6  - c1i  - c5i  + c3i  + c7i
+        c0mc4mc2mc6im - c1mc5impc3mc7w, // c0 - c4 - c2i + c6i - c1iW + c5iW - c3W  + c7W
     )
 }
 

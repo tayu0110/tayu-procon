@@ -81,7 +81,6 @@ checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 name = "math"
 version = "0.1.0"
 dependencies = [
- "modint",
  "numeric",
 ]
 

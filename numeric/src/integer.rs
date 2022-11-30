@@ -110,12 +110,10 @@ pub trait Integer:
     fn div_euclid(self, rhs: Self) -> Self;
     fn leading_ones(self) -> u32;
     fn leading_zeros(self) -> u32;
-    fn pow(self, exp: u32) -> Self;
     fn rem_euclid(self, rhs: Self) -> Self;
     fn reverse_bits(self) -> Self;
     fn rotate_left(self, n: u32) -> Self;
     fn rotate_right(self, n: u32) -> Self;
-    fn swap_bytes(self) -> Self;
     fn trailing_ones(self) -> u32;
     fn trailing_zeros(self) -> u32;
     fn overflowing_add(self, rhs: Self) -> (Self, bool);
@@ -167,9 +165,6 @@ macro_rules! impl_integer_trait {
             fn leading_zeros(self) -> u32 {
                 self.leading_zeros()
             }
-            fn pow(self, exp: u32) -> Self {
-                self.pow(exp)
-            }
             fn rem_euclid(self, rhs: Self) -> Self {
                 self.rem_euclid(rhs)
             }
@@ -181,9 +176,6 @@ macro_rules! impl_integer_trait {
             }
             fn rotate_right(self, n: u32) -> Self {
                 self.rotate_right(n)
-            }
-            fn swap_bytes(self) -> Self {
-                self.swap_bytes()
             }
             fn trailing_ones(self) -> u32 {
                 (!self).trailing_zeros()

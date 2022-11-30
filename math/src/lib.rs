@@ -1,5 +1,4 @@
-use modint::MontgomeryOperator;
-use numeric::integer::Integer;
+use numeric::Integer;
 
 //////////////////////////////////////////////////////////////////////////////////
 // Define famous functions for integers
@@ -190,6 +189,121 @@ fn pollard_rho(n: u64) -> Option<u64> {
     }
 
     pollard_rho(res_g as u64)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// MontgomeryOperator
+///   - Use Montgomery multiplication to reduce the cost of surplus multiplication.
+///   - For implementation reasons, for now I limit modulo to odd numbers for now.
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+pub struct MontgomeryOperator {
+    pub modulo: u64,
+    pub inv_modulo: u64,
+    pub r: u64,
+    pub neg_r: u64,
+    pub half_modulo: u64,
+    pub r2: u64,
+    pub d: u64,
+}
+
+impl MontgomeryOperator {
+    pub const fn new(modulo: u64) -> Self {
+        assert!(modulo & 1 != 0);
+
+        let inv_modulo = {
+            let mut i = 0;
+            let mut inv_modulo = modulo;
+            while i < 5 {
+                inv_modulo =
+                    inv_modulo.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv_modulo)));
+                i += 1;
+            }
+            inv_modulo
+        };
+
+        let half_modulo = (modulo >> 1) + 1;
+        let r = modulo.wrapping_neg() % modulo;
+        let neg_r = modulo - r;
+        let r2 = ((modulo as u128).wrapping_neg() % (modulo as u128)) as u64;
+        let d = (modulo - 1) >> (modulo - 1).trailing_zeros();
+
+        Self {
+            modulo,
+            inv_modulo,
+            r,
+            neg_r,
+            half_modulo,
+            r2,
+            d,
+        }
+    }
+
+    pub const fn add(&self, a: u64, b: u64) -> u64 {
+        let (t, fa) = a.overflowing_add(b);
+        let (u, fs) = t.overflowing_sub(self.modulo);
+        if fa || !fs {
+            u
+        } else {
+            t
+        }
+    }
+
+    pub const fn sub(&self, a: u64, b: u64) -> u64 {
+        let (t, f) = a.overflowing_sub(b);
+        if f {
+            t.wrapping_add(self.modulo)
+        } else {
+            t
+        }
+    }
+
+    pub const fn div2(&self, ar: u64) -> u64 {
+        if ar & 1 != 0 {
+            (ar >> 1) + self.half_modulo
+        } else {
+            ar >> 1
+        }
+    }
+
+    pub const fn mul(&self, ar: u64, br: u64) -> u64 {
+        let t = (ar as u128) * (br as u128);
+        let (t, f) = ((t >> 64) as u64).overflowing_sub(
+            (((((t as u64).wrapping_mul(self.inv_modulo)) as u128) * self.modulo as u128) >> 64)
+                as u64,
+        );
+        if f {
+            t.wrapping_add(self.modulo)
+        } else {
+            t
+        }
+    }
+
+    pub const fn mr(&self, ar: u64) -> u64 {
+        let (t, f) =
+            (((((ar.wrapping_mul(self.inv_modulo)) as u128) * (self.modulo as u128)) >> 64) as u64)
+                .overflowing_neg();
+        if f {
+            t.wrapping_add(self.modulo)
+        } else {
+            t
+        }
+    }
+    pub const fn ar(&self, a: u64) -> u64 {
+        self.mul(a, self.r2)
+    }
+
+    pub const fn pow(&self, mut ar: u64, mut b: u64) -> u64 {
+        let mut t = if (b & 1) != 0 { ar } else { self.r };
+        b >>= 1;
+        while b != 0 {
+            ar = self.mul(ar, ar);
+            if b & 1 != 0 {
+                t = self.mul(t, ar);
+            }
+            b >>= 1;
+        }
+        t
+    }
 }
 
 #[cfg(test)]
