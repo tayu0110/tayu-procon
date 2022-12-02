@@ -3,17 +3,9 @@
 version = 3
 
 [[package]]
-name = "complex"
-version = "0.1.0"
-dependencies = [
- "numeric",
-]
-
-[[package]]
 name = "convolution"
 version = "0.1.0"
 dependencies = [
- "complex",
  "iolib",
  "modint",
  "numeric",
