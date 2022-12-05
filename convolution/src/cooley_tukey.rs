@@ -2,6 +2,7 @@ use super::common::{
     radix_4_inner_montgomery_modint, radix_4_inv_inner_montgomery_modint, radix_8_inner_montgomery_modint, radix_8_inv_inner_montgomery_modint,
 };
 use super::fft_cache::FftCache;
+use super::simd::radix_4_kernel_cooley_tukey_avx2;
 use modint::{Mod998244353, MontgomeryModint};
 
 type Mint = MontgomeryModint<Mod998244353<u32>, u32>;
@@ -139,7 +140,13 @@ pub fn cooley_tukey_radix_8_butterfly_montgomery_modint(deg: usize, log: usize, 
             radix_2_kernel(deg, width, root, a);
         } else if i + 2 == log {
             let width = 1 << (i + 2);
-            radix_4_kernel(deg, width, a, cache, cache.twiddle_factors(), radix_4_inner_montgomery_modint);
+            if is_x86_feature_detected!("avx2") {
+                unsafe {
+                    radix_4_kernel_cooley_tukey_avx2(deg, width, a, cache, cache.twiddle_factors(), radix_4_inner_montgomery_modint);
+                }
+            } else {
+                radix_4_kernel(deg, width, a, cache, cache.twiddle_factors(), radix_4_inner_montgomery_modint);
+            }
         } else {
             let width = 1 << (i + 3);
             radix_8_kernel(deg, width, a, cache, cache.twiddle_factors(), radix_8_inner_montgomery_modint);
@@ -219,9 +226,11 @@ mod tests {
         }
     );
 
+    const N: u32 = 1 << 5;
+
     #[test]
     fn cooley_tukey_radix_8_montgomery_modint_test() {
-        let data: Vec<MontMint998244353> = (1..=16).map(|v| MontMint998244353::new(v)).collect();
+        let data: Vec<MontMint998244353> = (1..=N).map(|v| MontMint998244353::new(v)).collect();
         let mut data1 = data.clone();
         fft_cooley_tukey_radix_8_montgomery_modint(&mut data1);
         ifft_cooley_tukey_radix_8_montgomery_modint(&mut data1);

@@ -231,7 +231,7 @@ mod tests {
         }
     );
 
-    const N: u32 = 1 << 10;
+    const N: u32 = 1 << 7;
 
     #[test]
     fn gentleman_sande_radix_8_montgomery_modint_test() {

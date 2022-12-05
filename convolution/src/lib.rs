@@ -8,6 +8,7 @@ use cooley_tukey::cooley_tukey_radix_8_butterfly_inv_montgomery_modint;
 use fft_cache::FftCache;
 use gentleman_sande::gentleman_sande_radix_8_butterfly_montgomery_modint;
 use modint::{Mod998244353, MontgomeryModint};
+use simd::{cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2, gentleman_sande_radix_4_butterfly_montgomery_modint_avx2};
 
 type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
 
@@ -21,12 +22,25 @@ pub fn convolution(mut a: Vec<Mint998244353>, mut b: Vec<Mint998244353>) -> Vec<
 
     let cache = FftCache::<Mint998244353>::new(log);
 
-    gentleman_sande_radix_8_butterfly_montgomery_modint(n, log, &mut a, &cache);
-    gentleman_sande_radix_8_butterfly_montgomery_modint(n, log, &mut b, &cache);
+    if is_x86_feature_detected!("avx2") {
+        unsafe {
+            gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(n, log, &mut a, &cache);
+            gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(n, log, &mut b, &cache);
+        }
+    } else {
+        gentleman_sande_radix_8_butterfly_montgomery_modint(n, log, &mut a, &cache);
+        gentleman_sande_radix_8_butterfly_montgomery_modint(n, log, &mut b, &cache);
+    }
 
     a.iter_mut().zip(b.into_iter()).for_each(|(a, b)| *a *= b);
 
-    cooley_tukey_radix_8_butterfly_inv_montgomery_modint(n, log, &mut a, &cache);
+    if is_x86_feature_detected!("avx2") {
+        unsafe {
+            cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2(n, log, &mut a, &cache);
+        }
+    } else {
+        cooley_tukey_radix_8_butterfly_inv_montgomery_modint(n, log, &mut a, &cache);
+    }
 
     let ninv = Mint998244353::new(n as u32).inv();
     a.resize(deg, Mint998244353::zero());
