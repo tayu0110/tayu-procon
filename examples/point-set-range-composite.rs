@@ -1,53 +1,51 @@
 // https://judge.yosupo.jp/submission/108278
 mod iolib {
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::io::{
-    Read, BufRead, Error
-};
-use std::str::SplitWhitespace;
-use std::thread_local;
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+    use std::io::{BufRead, Error, Read};
+    use std::str::SplitWhitespace;
+    use std::thread_local;
 
-thread_local! {
-    static BUF: RefCell<VecDeque<String>> = RefCell::new(VecDeque::new());
-    static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
-}
-
-#[inline]
-fn refill_buffer(interactive: bool) -> Result<(), Error> {
-    let mut s = String::new();
-    
-    if cfg!(debug_assertions) || interactive {
-        std::io::stdin().lock().read_line(&mut s)?;
-    } else {
-        std::io::stdin().lock().read_to_string(&mut s)?;
+    thread_local! {
+        static BUF: RefCell<VecDeque<String>> = RefCell::new(VecDeque::new());
+        static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
     }
 
-    BUF_SPLIT_WHITESPACE.with(|buf_str| {
-        *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
-        Ok(())
-    })
-}
+    #[inline]
+    fn refill_buffer(interactive: bool) -> Result<(), Error> {
+        let mut s = String::new();
 
-#[inline]
-pub fn scan_string(interactive: bool) -> String {
-    BUF_SPLIT_WHITESPACE.with(|buf_str| {
-        if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
+        if cfg!(debug_assertions) || interactive {
+            std::io::stdin().lock().read_line(&mut s)?;
+        } else {
+            std::io::stdin().lock().read_to_string(&mut s)?;
         }
 
-        refill_buffer(interactive).unwrap();
+        BUF_SPLIT_WHITESPACE.with(|buf_str| {
+            *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
+            Ok(())
+        })
+    }
 
-        if let Some(s) = buf_str.borrow_mut().next() {
-            return s.to_string();
-        }
+    #[inline]
+    pub fn scan_string(interactive: bool) -> String {
+        BUF_SPLIT_WHITESPACE.with(|buf_str| {
+            if let Some(s) = buf_str.borrow_mut().next() {
+                return s.to_string();
+            }
 
-        unreachable!("Read Error: No input items.");
-    })
-}
+            refill_buffer(interactive).unwrap();
 
-#[macro_export]
-macro_rules! scan {
+            if let Some(s) = buf_str.borrow_mut().next() {
+                return s.to_string();
+            }
+
+            unreachable!("Read Error: No input items.");
+        })
+    }
+
+    #[macro_export]
+    macro_rules! scan {
     // Terminator
     ( @interactive : $interactive:literal ) => {};
     // Terminator
@@ -113,8 +111,8 @@ macro_rules! scan {
     };
 }
 
-#[macro_export]
-macro_rules! scani {
+    #[macro_export]
+    macro_rules! scani {
     ( $( $rest:tt )* ) => {
         $crate::scan!(@interactive: true, $( $rest )*);
     };
@@ -122,15 +120,19 @@ macro_rules! scani {
 }
 
 pub struct SegmentTree<M>
-where M: Clone {
+where
+    M: Clone,
+{
     size: usize,
     e: M,
     op: fn(&M, &M) -> M,
-    tree: Vec<M>
+    tree: Vec<M>,
 }
 
 impl<M> SegmentTree<M>
-where M: Clone {
+where
+    M: Clone,
+{
     /// * `size` - Number of elements in the data array to be managed
     /// * `e`    - Identity element of the monoid that the data represents
     /// * `op`   - Operation applied to data (If the operation is to fold the data toward the right, op(a, b) must return b*a as the result)
@@ -147,24 +149,22 @@ where M: Clone {
         let size = vec.len();
         let mut tree = [vec![e.clone(); size], vec.clone()].concat();
 
-        for i in (0..(size<<1)-1).rev().step_by(2).take_while(|i| i>>1 > 0) {
-            tree[i>>1] = op(&tree[i], &tree[i|1]);
+        for i in (0..(size << 1) - 1).rev().step_by(2).take_while(|i| i >> 1 > 0) {
+            tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
 
         Self { size, e, op, tree }
     }
 
     #[inline]
-    pub fn set(&mut self, index: usize, val: M) {
-        self.update_by(index, val, |_, act| act.clone());
-    }
+    pub fn set(&mut self, index: usize, val: M) { self.update_by(index, val, |_, act| act.clone()); }
 
     pub fn update_by(&mut self, mut index: usize, val: M, f: fn(old: &M, act: &M) -> M) {
         index += self.size;
         self.tree[index] = f(&self.tree[index], &val);
         while index >> 1 > 0 {
             index >>= 1;
-            self.tree[index] = self.op(&self.tree[index<<1], &self.tree[index<<1|1], false);
+            self.tree[index] = self.op(&self.tree[index << 1], &self.tree[index << 1 | 1], false);
         }
     }
 
@@ -181,7 +181,7 @@ where M: Clone {
                 l += 1;
             }
             if r & 1 != 0 {
-                res_r = self.op(&res_r, &self.tree[r-1], fold_right);
+                res_r = self.op(&res_r, &self.tree[r - 1], fold_right);
             }
             l >>= 1;
             r >>= 1;
@@ -189,23 +189,25 @@ where M: Clone {
 
         self.op(&res_l, &res_r, false)
     }
-    
+
     /// Fold the operation in a leftward direction.
     /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
     #[inline]
-    pub fn foldl(&self, left: usize, right: usize) -> M {
-        self.fold(left, right, false)
-    }
+    pub fn foldl(&self, left: usize, right: usize) -> M { self.fold(left, right, false) }
 
     /// Fold the operation in a rightward direction.
     /// That is, you obtain op(op(op(...op(t_{l}, t_{l+1}), t_{l+2}), ..., t_{r-2}), t_{r_1}) as a result.
     #[inline]
-    pub fn foldr(&self, left: usize, right: usize) -> M {
-        self.fold(left, right, true)
-    }
+    pub fn foldr(&self, left: usize, right: usize) -> M { self.fold(left, right, true) }
 
     #[inline]
-    fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M { if !fold_right { (self.op)(&lhs, &rhs) } else { (self.op)(&rhs, &lhs) } }
+    fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M {
+        if !fold_right {
+            (self.op)(&lhs, &rhs)
+        } else {
+            (self.op)(&rhs, &lhs)
+        }
+    }
 }
 
 fn main() {
@@ -216,7 +218,7 @@ fn main() {
     const MOD: usize = 998244353;
     scan!(n: usize, q: usize, p: [(usize, usize); n], q: [(usize, usize, usize, usize); q]);
 
-    let mut st = SegmentTree::from_vec(&p, (1, 0), |&(a1, b1), &(a2, b2)| (a1*a2 % MOD, (a2*b1+b2) % MOD));
+    let mut st = SegmentTree::from_vec(&p, (1, 0), |&(a1, b1), &(a2, b2)| (a1 * a2 % MOD, (a2 * b1 + b2) % MOD));
 
     for (t, l, r, x) in q {
         if t == 0 {

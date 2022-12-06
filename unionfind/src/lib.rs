@@ -3,11 +3,7 @@ pub struct UnionFind {
 }
 
 impl UnionFind {
-    pub fn new(size: usize) -> Self {
-        UnionFind {
-            tree: vec![-1; size],
-        }
-    }
+    pub fn new(size: usize) -> Self { UnionFind { tree: vec![-1; size] } }
 
     pub fn root(&mut self, index: usize) -> usize {
         if self.tree[index] < 0 {
@@ -23,9 +19,7 @@ impl UnionFind {
         -self.tree[root] as usize
     }
 
-    pub fn is_same(&mut self, left: usize, right: usize) -> bool {
-        self.root(left) == self.root(right)
-    }
+    pub fn is_same(&mut self, left: usize, right: usize) -> bool { self.root(left) == self.root(right) }
 
     pub fn merge(&mut self, left: usize, right: usize) -> bool {
         let (mut rl, mut rr) = (self.root(left), self.root(right));
@@ -49,13 +43,7 @@ impl UnionFind {
 pub struct AlreadySameGroupError(usize, usize);
 
 impl std::fmt::Display for AlreadySameGroupError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Node {} and Node {} are already belong to the same group.",
-            self.0, self.1
-        )
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Node {} and Node {} are already belong to the same group.", self.0, self.1) }
 }
 
 impl std::error::Error for AlreadySameGroupError {}
@@ -89,16 +77,9 @@ impl WeightedUnionFind {
         root
     }
 
-    pub fn is_same(&mut self, l: usize, r: usize) -> bool {
-        self.root(l) == self.root(r)
-    }
+    pub fn is_same(&mut self, l: usize, r: usize) -> bool { self.root(l) == self.root(r) }
 
-    pub fn merge(
-        &mut self,
-        l: usize,
-        r: usize,
-        mut weight: i64,
-    ) -> Result<(), AlreadySameGroupError> {
+    pub fn merge(&mut self, l: usize, r: usize, mut weight: i64) -> Result<(), AlreadySameGroupError> {
         if self.is_same(l, r) {
             return Err(AlreadySameGroupError(l, r));
         }
@@ -126,9 +107,7 @@ impl WeightedUnionFind {
         self.potential[index]
     }
 
-    pub fn diff(&mut self, l: usize, r: usize) -> i64 {
-        self.weight(r) - self.weight(l)
-    }
+    pub fn diff(&mut self, l: usize, r: usize) -> i64 { self.weight(r) - self.weight(l) }
 }
 
 #[cfg(test)]

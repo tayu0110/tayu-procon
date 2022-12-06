@@ -41,9 +41,7 @@ where
         res
     }
 
-    fn get_sum(&self, l: usize, r: usize) -> T {
-        self.get_sum_sub(r) - self.get_sum_sub(l)
-    }
+    fn get_sum(&self, l: usize, r: usize) -> T { self.get_sum_sub(r) - self.get_sum_sub(l) }
 
     fn lower_bound(&self, mut val: T) -> usize {
         let mut now = 0;

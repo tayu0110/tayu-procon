@@ -21,12 +21,7 @@ pub fn radix_4_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMult
     c2: MontgomeryModint<M, T>,
     c3: MontgomeryModint<M, T>,
     cache: &FftCache<MontgomeryModint<M, T>>,
-) -> (
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-) {
+) -> (MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>) {
     let c0pc2 = c0 + c2;
     let c0mc2 = c0 - c2;
     let c1pc3 = c1 + c3;
@@ -43,12 +38,7 @@ pub fn radix_4_inv_inner_montgomery_modint<M: Modulo<T>, T: Integer + Montgomery
     c2: MontgomeryModint<M, T>,
     c3: MontgomeryModint<M, T>,
     cache: &FftCache<MontgomeryModint<M, T>>,
-) -> (
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-) {
+) -> (MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>) {
     let c0pc2 = c0 + c2;
     let c0mc2 = c0 - c2;
     let c1pc3 = c1 + c3;

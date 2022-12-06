@@ -15,9 +15,7 @@ impl Bitset {
         }
     }
 
-    pub const fn size(&self) -> usize {
-        self.size
-    }
+    pub const fn size(&self) -> usize { self.size }
 
     pub fn set(&mut self, idx: usize) {
         debug_assert!(idx < self.size);
@@ -42,122 +40,75 @@ impl Bitset {
         }
     }
 
-    pub fn test(&self, idx: usize) -> bool {
-        (self.bits[idx >> LOG] & (1u128 << (idx & (BIT_SIZE - 1)))) != 0
-    }
+    pub fn test(&self, idx: usize) -> bool { (self.bits[idx >> LOG] & (1u128 << (idx & (BIT_SIZE - 1)))) != 0 }
 
-    pub fn count_ones(&self) -> usize {
-        self.bits.iter().map(|v| v.count_ones() as usize).sum()
-    }
+    pub fn count_ones(&self) -> usize { self.bits.iter().map(|v| v.count_ones() as usize).sum() }
 
-    pub fn count_zeros(&self) -> usize {
-        self.size - self.count_ones()
-    }
+    pub fn count_zeros(&self) -> usize { self.size - self.count_ones() }
 
     pub fn bitwise_and(&self, rhs: &Bitset) -> Self {
-        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(
-            Vec::with_capacity(self.size),
-            |mut s, (v, w)| {
-                s.push(v & w);
-                s
-            },
-        );
-        Self {
-            size: self.size,
-            bits,
-        }
+        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(Vec::with_capacity(self.size), |mut s, (v, w)| {
+            s.push(v & w);
+            s
+        });
+        Self { size: self.size, bits }
     }
 
     pub fn bitwise_or(&self, rhs: &Bitset) -> Bitset {
-        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(
-            Vec::with_capacity(self.size),
-            |mut s, (v, w)| {
-                s.push(v | w);
-                s
-            },
-        );
-        Self {
-            size: self.size,
-            bits,
-        }
+        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(Vec::with_capacity(self.size), |mut s, (v, w)| {
+            s.push(v | w);
+            s
+        });
+        Self { size: self.size, bits }
     }
 
     pub fn bitwise_xor(&self, rhs: &Bitset) -> Self {
-        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(
-            Vec::with_capacity(self.size),
-            |mut s, (v, w)| {
-                s.push(v ^ w);
-                s
-            },
-        );
-        Self {
-            size: self.size,
-            bits,
-        }
+        let bits = self.bits.iter().zip(rhs.bits.iter()).fold(Vec::with_capacity(self.size), |mut s, (v, w)| {
+            s.push(v ^ w);
+            s
+        });
+        Self { size: self.size, bits }
     }
 }
 
 impl BitAnd for Bitset {
     type Output = Bitset;
-    fn bitand(self, rhs: Self) -> Self::Output {
-        self.bitwise_and(&rhs)
-    }
+    fn bitand(self, rhs: Self) -> Self::Output { self.bitwise_and(&rhs) }
 }
 
 impl BitOr for Bitset {
     type Output = Bitset;
-    fn bitor(self, rhs: Self) -> Self::Output {
-        self.bitwise_or(&rhs)
-    }
+    fn bitor(self, rhs: Self) -> Self::Output { self.bitwise_or(&rhs) }
 }
 
 impl BitXor for Bitset {
     type Output = Bitset;
-    fn bitxor(self, rhs: Self) -> Self::Output {
-        self.bitwise_xor(&rhs)
-    }
+    fn bitxor(self, rhs: Self) -> Self::Output { self.bitwise_xor(&rhs) }
 }
 
 impl BitAndAssign for Bitset {
-    fn bitand_assign(&mut self, rhs: Self) {
-        *self = self.bitwise_and(&rhs)
-    }
+    fn bitand_assign(&mut self, rhs: Self) { *self = self.bitwise_and(&rhs) }
 }
 
 impl BitOrAssign for Bitset {
-    fn bitor_assign(&mut self, rhs: Self) {
-        *self = self.bitwise_or(&rhs)
-    }
+    fn bitor_assign(&mut self, rhs: Self) { *self = self.bitwise_or(&rhs) }
 }
 
 impl BitXorAssign for Bitset {
-    fn bitxor_assign(&mut self, rhs: Self) {
-        *self = self.bitwise_xor(&rhs)
-    }
+    fn bitxor_assign(&mut self, rhs: Self) { *self = self.bitwise_xor(&rhs) }
 }
 
 impl PartialEq for Bitset {
-    fn eq(&self, other: &Self) -> bool {
-        self.bits == other.bits
-    }
+    fn eq(&self, other: &Self) -> bool { self.bits == other.bits }
 }
 
 impl Eq for Bitset {}
 
 impl PartialOrd for Bitset {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.bits.partial_cmp(&other.bits)
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { self.bits.partial_cmp(&other.bits) }
 
     fn lt(&self, other: &Self) -> bool {
-        if let Some((v, w)) = self
-            .bits
-            .iter()
-            .rev()
-            .zip(other.bits.iter().rev())
-            .skip_while(|(v, w)| v == w)
-            .next()
-        {
+        if let Some((v, w)) = self.bits.iter().rev().zip(other.bits.iter().rev()).skip_while(|(v, w)| v == w).next() {
             v < w
         } else {
             false
@@ -165,14 +116,7 @@ impl PartialOrd for Bitset {
     }
 
     fn le(&self, other: &Self) -> bool {
-        if let Some((v, w)) = self
-            .bits
-            .iter()
-            .rev()
-            .zip(other.bits.iter().rev())
-            .skip_while(|(v, w)| v == w)
-            .next()
-        {
+        if let Some((v, w)) = self.bits.iter().rev().zip(other.bits.iter().rev()).skip_while(|(v, w)| v == w).next() {
             v < w
         } else {
             true
@@ -180,14 +124,7 @@ impl PartialOrd for Bitset {
     }
 
     fn gt(&self, other: &Self) -> bool {
-        if let Some((v, w)) = self
-            .bits
-            .iter()
-            .rev()
-            .zip(other.bits.iter().rev())
-            .skip_while(|(v, w)| v == w)
-            .next()
-        {
+        if let Some((v, w)) = self.bits.iter().rev().zip(other.bits.iter().rev()).skip_while(|(v, w)| v == w).next() {
             v > w
         } else {
             false
@@ -195,14 +132,7 @@ impl PartialOrd for Bitset {
     }
 
     fn ge(&self, other: &Self) -> bool {
-        if let Some((v, w)) = self
-            .bits
-            .iter()
-            .rev()
-            .zip(other.bits.iter().rev())
-            .skip_while(|(v, w)| v == w)
-            .next()
-        {
+        if let Some((v, w)) = self.bits.iter().rev().zip(other.bits.iter().rev()).skip_while(|(v, w)| v == w).next() {
             v > w
         } else {
             true
@@ -211,13 +141,9 @@ impl PartialOrd for Bitset {
 }
 
 impl Ord for Bitset {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.bits.cmp(&other.bits)
-    }
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.bits.cmp(&other.bits) }
 }
 
 impl std::fmt::Debug for Bitset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.bits)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{:?}", self.bits) }
 }

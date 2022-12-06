@@ -1,1 +1,4 @@
+unstable_features = true
 max_width = 175
+fn_single_line = true
+single_line_if_else_max_width = 100

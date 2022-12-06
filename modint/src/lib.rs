@@ -4,24 +4,12 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 pub trait Modulo<T = i64>: Clone + marker::Copy + PartialEq + Eq {
     fn modulo() -> T;
-    fn primitive_root() -> T {
-        unimplemented!()
-    }
-    fn montgomery_constant_mask() -> T {
-        unimplemented!()
-    }
-    fn montgomery_constant_r() -> T {
-        unimplemented!()
-    }
-    fn montgomery_constant_r_inv() -> T {
-        unimplemented!()
-    }
-    fn montgomery_constant_r_pow2() -> T {
-        unimplemented!()
-    }
-    fn montgomery_constant_modulo_inv() -> T {
-        unimplemented!()
-    }
+    fn primitive_root() -> T { unimplemented!() }
+    fn montgomery_constant_mask() -> T { unimplemented!() }
+    fn montgomery_constant_r() -> T { unimplemented!() }
+    fn montgomery_constant_r_inv() -> T { unimplemented!() }
+    fn montgomery_constant_r_pow2() -> T { unimplemented!() }
+    fn montgomery_constant_modulo_inv() -> T { unimplemented!() }
 }
 
 #[derive(Clone, marker::Copy, PartialEq, Eq)]
@@ -30,82 +18,52 @@ pub enum Mod998244353<T = i64> {
 }
 impl Modulo for Mod998244353 {
     #[inline]
-    fn modulo() -> i64 {
-        998_244_353i64
-    }
+    fn modulo() -> i64 { 998_244_353i64 }
     #[inline]
     // R - 1 = 2^63 - 1
-    fn montgomery_constant_mask() -> i64 {
-        0x7FFFFFFFFFFFFFFF
-    }
+    fn montgomery_constant_mask() -> i64 { 0x7FFFFFFFFFFFFFFF }
     #[inline]
-    fn primitive_root() -> i64 {
-        3i64
-    }
+    fn primitive_root() -> i64 { 3i64 }
     #[inline]
     // R = 2^63 mod 998244353
-    fn montgomery_constant_r() -> i64 {
-        466025955
-    }
+    fn montgomery_constant_r() -> i64 { 466025955 }
     #[inline]
     // R2 = 2^126 mod 998244353
-    fn montgomery_constant_r_pow2() -> i64 {
-        74890016
-    }
+    fn montgomery_constant_r_pow2() -> i64 { 74890016 }
     #[inline]
     // R^{-1} = (2^63 mod 998244353)^{-1} mod 998244353
-    fn montgomery_constant_r_inv() -> i64 {
-        890394177
-    }
+    fn montgomery_constant_r_inv() -> i64 { 890394177 }
     #[inline]
     // modulo * modulo_inv = -1 mod R
-    fn montgomery_constant_modulo_inv() -> i64 {
-        8226880251553120255
-    }
+    fn montgomery_constant_modulo_inv() -> i64 { 8226880251553120255 }
 }
 impl Modulo<u32> for Mod998244353<u32> {
     #[inline]
-    fn modulo() -> u32 {
-        998_244_353u32
-    }
+    fn modulo() -> u32 { 998_244_353u32 }
     #[inline]
     // R - 1 = 2^32 - 1
-    fn montgomery_constant_mask() -> u32 {
-        !0
-    }
+    fn montgomery_constant_mask() -> u32 { !0 }
     #[inline]
     // modulo * modulo_inv = -1 mod R
-    fn montgomery_constant_modulo_inv() -> u32 {
-        998244351
-    }
+    fn montgomery_constant_modulo_inv() -> u32 { 998244351 }
     #[inline]
     // R = 2^32 mod 998244353
-    fn montgomery_constant_r() -> u32 {
-        301989884
-    }
+    fn montgomery_constant_r() -> u32 { 301989884 }
     #[inline]
     // R^{-1} = (2^32 mod 998244353)^{-1} mod 998244353
-    fn montgomery_constant_r_inv() -> u32 {
-        232013824
-    }
+    fn montgomery_constant_r_inv() -> u32 { 232013824 }
     #[inline]
     // R2 = 2^64 mod 998244353
-    fn montgomery_constant_r_pow2() -> u32 {
-        932051910
-    }
+    fn montgomery_constant_r_pow2() -> u32 { 932051910 }
     #[inline]
-    fn primitive_root() -> u32 {
-        3
-    }
+    fn primitive_root() -> u32 { 3 }
 }
 
 #[derive(Clone, marker::Copy, PartialEq, Eq)]
 pub enum Mod1000000007 {}
 impl Modulo for Mod1000000007 {
     #[inline]
-    fn modulo() -> i64 {
-        1_000_000_007i64
-    }
+    fn modulo() -> i64 { 1_000_000_007i64 }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -146,21 +104,14 @@ impl<M: Modulo> Mint<M> {
     #[inline]
     pub fn raw(val: i64) -> Self {
         debug_assert!(0 <= val && val < M::modulo());
-        Mint {
-            val,
-            _p: marker::PhantomData,
-        }
+        Mint { val, _p: marker::PhantomData }
     }
 
     #[inline]
-    pub fn modulo() -> i64 {
-        M::modulo()
-    }
+    pub fn modulo() -> i64 { M::modulo() }
 
     #[inline]
-    pub fn val(&self) -> i64 {
-        self.val
-    }
+    pub fn val(&self) -> i64 { self.val }
 
     pub fn pow(&self, mut exp: i64) -> Self {
         let (mut val, mut res) = (self.val, 1);
@@ -178,9 +129,7 @@ impl<M: Modulo> Mint<M> {
     }
 
     #[inline]
-    pub fn inv(&self) -> Self {
-        self.pow(M::modulo() - 2)
-    }
+    pub fn inv(&self) -> Self { self.pow(M::modulo() - 2) }
 
     #[inline]
     pub fn nth_root(n: i64) -> Self {
@@ -216,60 +165,42 @@ impl<M: Modulo> Mint<M> {
 }
 
 impl<M: Modulo> Default for Mint<M> {
-    fn default() -> Self {
-        Mint::zero()
-    }
+    fn default() -> Self { Mint::zero() }
 }
 
 impl<M: Modulo> std::fmt::Debug for Mint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.val)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
 }
 
 impl<M: Modulo> std::fmt::Display for Mint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.val)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
 }
 
 impl<M: Modulo> Add for Mint<M> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::new(self.val + rhs.val)
-    }
+    fn add(self, rhs: Self) -> Self::Output { Self::new(self.val + rhs.val) }
 }
 
 impl<M: Modulo> AddAssign for Mint<M> {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
+    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
 impl<M: Modulo> Sub for Mint<M> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.val - rhs.val + M::modulo())
-    }
+    fn sub(self, rhs: Self) -> Self::Output { Self::new(self.val - rhs.val + M::modulo()) }
 }
 
 impl<M: Modulo> SubAssign for Mint<M> {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
-    }
+    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
 impl<M: Modulo> Mul for Mint<M> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::new(self.val * rhs.val)
-    }
+    fn mul(self, rhs: Self) -> Self::Output { Self::new(self.val * rhs.val) }
 }
 
 impl<M: Modulo> MulAssign for Mint<M> {
-    fn mul_assign(&mut self, rhs: Self) {
-        *self = *self * rhs;
-    }
+    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
 impl<M: Modulo> Div for Mint<M> {
@@ -337,8 +268,7 @@ pub trait MontgomeryMultiplication<M: Modulo<T>, T> {
 impl<M: Modulo<u32>> MontgomeryMultiplication<M, u32> for u32 {
     #[inline]
     fn montgomery_reduction(self) -> u32 {
-        let t = ((self as u64).wrapping_add((self.wrapping_mul(M::montgomery_constant_modulo_inv()) as u64).wrapping_mul(M::modulo() as u64)) >> 32)
-            as u32;
+        let t = ((self as u64).wrapping_add((self.wrapping_mul(M::montgomery_constant_modulo_inv()) as u64).wrapping_mul(M::modulo() as u64)) >> 32) as u32;
         if t >= M::modulo() {
             t - M::modulo()
         } else {
@@ -361,8 +291,7 @@ impl<M: Modulo> MontgomeryMultiplication<M, i64> for i64 {
     #[inline]
     fn montgomery_reduction(self) -> i64 {
         let t = ((self as i128).wrapping_add(
-            ((self as i128).wrapping_mul(M::montgomery_constant_modulo_inv() as i128) & M::montgomery_constant_mask() as i128)
-                .wrapping_mul(M::modulo() as i128),
+            ((self as i128).wrapping_mul(M::montgomery_constant_modulo_inv() as i128) & M::montgomery_constant_mask() as i128).wrapping_mul(M::modulo() as i128),
         ) >> 63) as i64;
         if t >= M::modulo() {
             t - M::modulo()
@@ -373,9 +302,8 @@ impl<M: Modulo> MontgomeryMultiplication<M, i64> for i64 {
     #[inline]
     fn multiplication(self, rhs: Self) -> Self {
         let a = self as i128 * rhs as i128;
-        let t = (a.wrapping_add(
-            (a.wrapping_mul(M::montgomery_constant_modulo_inv() as i128) & M::montgomery_constant_mask() as i128).wrapping_mul(M::modulo() as i128),
-        ) >> 63) as i64;
+        let t = (a.wrapping_add((a.wrapping_mul(M::montgomery_constant_modulo_inv() as i128) & M::montgomery_constant_mask() as i128).wrapping_mul(M::modulo() as i128)) >> 63)
+            as i64;
         if t >= M::modulo() {
             t - M::modulo()
         } else {
@@ -409,14 +337,10 @@ impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> MontgomeryModint
     }
 
     #[inline]
-    pub fn val(&self) -> T {
-        self.val.montgomery_reduction()
-    }
+    pub fn val(&self) -> T { self.val.montgomery_reduction() }
 
     #[inline]
-    pub fn val_montgomery_expression(&self) -> T {
-        self.val
-    }
+    pub fn val_montgomery_expression(&self) -> T { self.val }
 
     #[inline]
     pub fn one() -> Self {
@@ -460,23 +384,17 @@ impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> MontgomeryModint
     }
 
     #[inline]
-    pub fn inv(&self) -> Self {
-        self.pow(M::modulo() - T::one() - T::one())
-    }
+    pub fn inv(&self) -> Self { self.pow(M::modulo() - T::one() - T::one()) }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> One for MontgomeryModint<M, T> {
     #[inline]
-    fn one() -> Self {
-        Self::one()
-    }
+    fn one() -> Self { Self::one() }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> Zero for MontgomeryModint<M, T> {
     #[inline]
-    fn zero() -> Self {
-        Self::zero()
-    }
+    fn zero() -> Self { Self::zero() }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> Add for MontgomeryModint<M, T> {
@@ -514,45 +432,31 @@ impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> Mul for Montgome
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> Div for MontgomeryModint<M, T> {
     type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        self * rhs.inv()
-    }
+    fn div(self, rhs: Self) -> Self::Output { self * rhs.inv() }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> AddAssign for MontgomeryModint<M, T> {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
+    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> SubAssign for MontgomeryModint<M, T> {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
-    }
+    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> MulAssign for MontgomeryModint<M, T> {
-    fn mul_assign(&mut self, rhs: Self) {
-        *self = *self * rhs;
-    }
+    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> DivAssign for MontgomeryModint<M, T> {
-    fn div_assign(&mut self, rhs: Self) {
-        *self = *self / rhs;
-    }
+    fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> std::fmt::Debug for MontgomeryModint<M, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.val())
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> std::fmt::Display for MontgomeryModint<M, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.val())
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
 }
 
 #[cfg(test)]
@@ -586,24 +490,12 @@ mod tests {
     fn combination_test() {
         const A: usize = 35;
         const CASE: [[i64; A + 1]; A + 1] = [
-            [
-                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-            [
-                1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-            [
-                1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-            [
-                1, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-            [
-                1, 4, 6, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
-            [
-                1, 5, 10, 10, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 4, 6, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 5, 10, 10, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [
                 1, 6, 15, 20, 15, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
@@ -629,98 +521,87 @@ mod tests {
                 1, 13, 78, 286, 715, 1287, 1716, 1716, 1287, 715, 286, 78, 13, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 14, 91, 364, 1001, 2002, 3003, 3432, 3003, 2002, 1001, 364, 91, 14, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0,
+                1, 14, 91, 364, 1001, 2002, 3003, 3432, 3003, 2002, 1001, 364, 91, 14, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 15, 105, 455, 1365, 3003, 5005, 6435, 6435, 5005, 3003, 1365, 455, 105, 15, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0,
+                1, 15, 105, 455, 1365, 3003, 5005, 6435, 6435, 5005, 3003, 1365, 455, 105, 15, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 16, 120, 560, 1820, 4368, 8008, 11440, 12870, 11440, 8008, 4368, 1820, 560, 120, 16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0,
+                1, 16, 120, 560, 1820, 4368, 8008, 11440, 12870, 11440, 8008, 4368, 1820, 560, 120, 16, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 17, 136, 680, 2380, 6188, 12376, 19448, 24310, 24310, 19448, 12376, 6188, 2380, 680, 136, 17, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0,
+                1, 17, 136, 680, 2380, 6188, 12376, 19448, 24310, 24310, 19448, 12376, 6188, 2380, 680, 136, 17, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 18, 153, 816, 3060, 8568, 18564, 31824, 43758, 48620, 43758, 31824, 18564, 8568, 3060, 816, 153, 18, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 18, 153, 816, 3060, 8568, 18564, 31824, 43758, 48620, 43758, 31824, 18564, 8568, 3060, 816, 153, 18, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            [
+                1, 19, 171, 969, 3876, 11628, 27132, 50388, 75582, 92378, 92378, 75582, 50388, 27132, 11628, 3876, 969, 171, 19, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0,
+            ],
+            [
+                1, 20, 190, 1140, 4845, 15504, 38760, 77520, 125970, 167960, 184756, 167960, 125970, 77520, 38760, 15504, 4845, 1140, 190, 20, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0,
+            ],
+            [
+                1, 21, 210, 1330, 5985, 20349, 54264, 116280, 203490, 293930, 352716, 352716, 293930, 203490, 116280, 54264, 20349, 5985, 1330, 210, 21, 1, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 19, 171, 969, 3876, 11628, 27132, 50388, 75582, 92378, 92378, 75582, 50388, 27132, 11628, 3876, 969, 171, 19, 1, 0, 0, 0, 0, 0, 0,
+                1, 22, 231, 1540, 7315, 26334, 74613, 170544, 319770, 497420, 646646, 705432, 646646, 497420, 319770, 170544, 74613, 26334, 7315, 1540, 231, 22, 1, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 20, 190, 1140, 4845, 15504, 38760, 77520, 125970, 167960, 184756, 167960, 125970, 77520, 38760, 15504, 4845, 1140, 190, 20, 1, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 23, 253, 1771, 8855, 33649, 100947, 245157, 490314, 817190, 1144066, 1352078, 1352078, 1144066, 817190, 490314, 245157, 100947, 33649, 8855, 1771, 253, 23,
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 21, 210, 1330, 5985, 20349, 54264, 116280, 203490, 293930, 352716, 352716, 293930, 203490, 116280, 54264, 20349, 5985, 1330, 210,
-                21, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 24, 276, 2024, 10626, 42504, 134596, 346104, 735471, 1307504, 1961256, 2496144, 2704156, 2496144, 1961256, 1307504, 735471, 346104, 134596, 42504, 10626,
+                2024, 276, 24, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 22, 231, 1540, 7315, 26334, 74613, 170544, 319770, 497420, 646646, 705432, 646646, 497420, 319770, 170544, 74613, 26334, 7315,
-                1540, 231, 22, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 25, 300, 2300, 12650, 53130, 177100, 480700, 1081575, 2042975, 3268760, 4457400, 5200300, 5200300, 4457400, 3268760, 2042975, 1081575, 480700, 177100,
+                53130, 12650, 2300, 300, 25, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 23, 253, 1771, 8855, 33649, 100947, 245157, 490314, 817190, 1144066, 1352078, 1352078, 1144066, 817190, 490314, 245157, 100947,
-                33649, 8855, 1771, 253, 23, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 26, 325, 2600, 14950, 65780, 230230, 657800, 1562275, 3124550, 5311735, 7726160, 9657700, 10400600, 9657700, 7726160, 5311735, 3124550, 1562275, 657800,
+                230230, 65780, 14950, 2600, 325, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 24, 276, 2024, 10626, 42504, 134596, 346104, 735471, 1307504, 1961256, 2496144, 2704156, 2496144, 1961256, 1307504, 735471,
-                346104, 134596, 42504, 10626, 2024, 276, 24, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 27, 351, 2925, 17550, 80730, 296010, 888030, 2220075, 4686825, 8436285, 13037895, 17383860, 20058300, 20058300, 17383860, 13037895, 8436285, 4686825,
+                2220075, 888030, 296010, 80730, 17550, 2925, 351, 27, 1, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 25, 300, 2300, 12650, 53130, 177100, 480700, 1081575, 2042975, 3268760, 4457400, 5200300, 5200300, 4457400, 3268760, 2042975,
-                1081575, 480700, 177100, 53130, 12650, 2300, 300, 25, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 28, 378, 3276, 20475, 98280, 376740, 1184040, 3108105, 6906900, 13123110, 21474180, 30421755, 37442160, 40116600, 37442160, 30421755, 21474180, 13123110,
+                6906900, 3108105, 1184040, 376740, 98280, 20475, 3276, 378, 28, 1, 0, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 26, 325, 2600, 14950, 65780, 230230, 657800, 1562275, 3124550, 5311735, 7726160, 9657700, 10400600, 9657700, 7726160, 5311735,
-                3124550, 1562275, 657800, 230230, 65780, 14950, 2600, 325, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 29, 406, 3654, 23751, 118755, 475020, 1560780, 4292145, 10015005, 20030010, 34597290, 51895935, 67863915, 77558760, 77558760, 67863915, 51895935, 34597290,
+                20030010, 10015005, 4292145, 1560780, 475020, 118755, 23751, 3654, 406, 29, 1, 0, 0, 0, 0, 0, 0,
             ],
             [
-                1, 27, 351, 2925, 17550, 80730, 296010, 888030, 2220075, 4686825, 8436285, 13037895, 17383860, 20058300, 20058300, 17383860,
-                13037895, 8436285, 4686825, 2220075, 888030, 296010, 80730, 17550, 2925, 351, 27, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 30, 435, 4060, 27405, 142506, 593775, 2035800, 5852925, 14307150, 30045015, 54627300, 86493225, 119759850, 145422675, 155117520, 145422675, 119759850,
+                86493225, 54627300, 30045015, 14307150, 5852925, 2035800, 593775, 142506, 27405, 4060, 435, 30, 1, 0, 0, 0, 0, 0,
             ],
             [
-                1, 28, 378, 3276, 20475, 98280, 376740, 1184040, 3108105, 6906900, 13123110, 21474180, 30421755, 37442160, 40116600, 37442160,
-                30421755, 21474180, 13123110, 6906900, 3108105, 1184040, 376740, 98280, 20475, 3276, 378, 28, 1, 0, 0, 0, 0, 0, 0, 0,
+                1, 31, 465, 4495, 31465, 169911, 736281, 2629575, 7888725, 20160075, 44352165, 84672315, 141120525, 206253075, 265182525, 300540195, 300540195, 265182525,
+                206253075, 141120525, 84672315, 44352165, 20160075, 7888725, 2629575, 736281, 169911, 31465, 4495, 465, 31, 1, 0, 0, 0, 0,
             ],
             [
-                1, 29, 406, 3654, 23751, 118755, 475020, 1560780, 4292145, 10015005, 20030010, 34597290, 51895935, 67863915, 77558760, 77558760,
-                67863915, 51895935, 34597290, 20030010, 10015005, 4292145, 1560780, 475020, 118755, 23751, 3654, 406, 29, 1, 0, 0, 0, 0, 0, 0,
+                1, 32, 496, 4960, 35960, 201376, 906192, 3365856, 10518300, 28048800, 64512240, 129024480, 225792840, 347373600, 471435600, 565722720, 601080390, 565722720,
+                471435600, 347373600, 225792840, 129024480, 64512240, 28048800, 10518300, 3365856, 906192, 201376, 35960, 4960, 496, 32, 1, 0, 0, 0,
             ],
             [
-                1, 30, 435, 4060, 27405, 142506, 593775, 2035800, 5852925, 14307150, 30045015, 54627300, 86493225, 119759850, 145422675, 155117520,
-                145422675, 119759850, 86493225, 54627300, 30045015, 14307150, 5852925, 2035800, 593775, 142506, 27405, 4060, 435, 30, 1, 0, 0, 0, 0,
-                0,
+                1, 33, 528, 5456, 40920, 237336, 1107568, 4272048, 13884156, 38567100, 92561040, 193536720, 354817320, 573166440, 818809200, 38913967, 168558757, 168558757,
+                38913967, 818809200, 573166440, 354817320, 193536720, 92561040, 38567100, 13884156, 4272048, 1107568, 237336, 40920, 5456, 528, 33, 1, 0, 0,
             ],
             [
-                1, 31, 465, 4495, 31465, 169911, 736281, 2629575, 7888725, 20160075, 44352165, 84672315, 141120525, 206253075, 265182525, 300540195,
-                300540195, 265182525, 206253075, 141120525, 84672315, 44352165, 20160075, 7888725, 2629575, 736281, 169911, 31465, 4495, 465, 31, 1,
-                0, 0, 0, 0,
+                1, 34, 561, 5984, 46376, 278256, 1344904, 5379616, 18156204, 52451256, 131128140, 286097760, 548354040, 927983760, 393731287, 857723167, 207472724, 337117514,
+                207472724, 857723167, 393731287, 927983760, 548354040, 286097760, 131128140, 52451256, 18156204, 5379616, 1344904, 278256, 46376, 5984, 561, 34, 1, 0,
             ],
             [
-                1, 32, 496, 4960, 35960, 201376, 906192, 3365856, 10518300, 28048800, 64512240, 129024480, 225792840, 347373600, 471435600,
-                565722720, 601080390, 565722720, 471435600, 347373600, 225792840, 129024480, 64512240, 28048800, 10518300, 3365856, 906192, 201376,
-                35960, 4960, 496, 32, 1, 0, 0, 0,
-            ],
-            [
-                1, 33, 528, 5456, 40920, 237336, 1107568, 4272048, 13884156, 38567100, 92561040, 193536720, 354817320, 573166440, 818809200,
-                38913967, 168558757, 168558757, 38913967, 818809200, 573166440, 354817320, 193536720, 92561040, 38567100, 13884156, 4272048, 1107568,
-                237336, 40920, 5456, 528, 33, 1, 0, 0,
-            ],
-            [
-                1, 34, 561, 5984, 46376, 278256, 1344904, 5379616, 18156204, 52451256, 131128140, 286097760, 548354040, 927983760, 393731287,
-                857723167, 207472724, 337117514, 207472724, 857723167, 393731287, 927983760, 548354040, 286097760, 131128140, 52451256, 18156204,
-                5379616, 1344904, 278256, 46376, 5984, 561, 34, 1, 0,
-            ],
-            [
-                1, 35, 595, 6545, 52360, 324632, 1623160, 6724520, 23535820, 70607460, 183579396, 417225900, 834451800, 478093447, 323470694,
-                253210101, 66951538, 544590238, 544590238, 66951538, 253210101, 323470694, 478093447, 834451800, 417225900, 183579396, 70607460,
-                23535820, 6724520, 1623160, 324632, 52360, 6545, 595, 35, 1,
+                1, 35, 595, 6545, 52360, 324632, 1623160, 6724520, 23535820, 70607460, 183579396, 417225900, 834451800, 478093447, 323470694, 253210101, 66951538, 544590238,
+                544590238, 66951538, 253210101, 323470694, 478093447, 834451800, 417225900, 183579396, 70607460, 23535820, 6724520, 1623160, 324632, 52360, 6545, 595, 35, 1,
             ],
         ];
 

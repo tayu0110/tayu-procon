@@ -1,14 +1,12 @@
+use graph::{dijkstra_heap, UnDirectedTree};
 use iolib::scan;
-use graph::{
-    UnDirectedTree, dijkstra_heap
-};
 
 fn main() {
     use std::io::Write;
     let out = std::io::stdout();
     let mut out = std::io::BufWriter::new(out.lock());
 
-    scan!(n: usize, p: [(usize, usize, i64); n-1]);
+    scan!(n: usize, p: [(usize, usize, i64); n - 1]);
 
     let mut tree = UnDirectedTree::try_from(p).unwrap();
     tree.reroot_with_diameter();

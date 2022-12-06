@@ -14,34 +14,22 @@ pub struct FftCache<T: Clone + Copy> {
 
 impl<T: Clone + Copy> FftCache<T> {
     #[inline]
-    pub fn prim_root(&self, nth: usize) -> T {
-        self.prim_roots[nth]
-    }
+    pub fn prim_root(&self, nth: usize) -> T { self.prim_roots[nth] }
 
     #[inline]
-    pub fn prim_root_inv(&self, nth: usize) -> T {
-        self.prim_roots_inv[nth]
-    }
+    pub fn prim_root_inv(&self, nth: usize) -> T { self.prim_roots_inv[nth] }
 
     #[inline]
-    pub fn prim_roots(&self) -> &Vec<T> {
-        &self.prim_roots
-    }
+    pub fn prim_roots(&self) -> &Vec<T> { &self.prim_roots }
 
     #[inline]
-    pub fn prim_roots_inv(&self) -> &Vec<T> {
-        &self.prim_roots_inv
-    }
+    pub fn prim_roots_inv(&self) -> &Vec<T> { &self.prim_roots_inv }
 
     #[inline]
-    pub fn twiddle_factors(&self) -> &Vec<T> {
-        &self.twiddle_factors
-    }
+    pub fn twiddle_factors(&self) -> &Vec<T> { &self.twiddle_factors }
 
     #[inline]
-    pub fn twiddle_factors_inv(&self) -> &Vec<T> {
-        &self.twiddle_factors_inv
-    }
+    pub fn twiddle_factors_inv(&self) -> &Vec<T> { &self.twiddle_factors_inv }
 }
 
 impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> FftCache<MontgomeryModint<M, T>> {

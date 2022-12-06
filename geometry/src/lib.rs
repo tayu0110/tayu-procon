@@ -6,15 +6,11 @@ use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 struct Vector<T: Numeric + Signed + IntoFloat>(T, T);
 
 impl<T: Numeric + Signed + IntoFloat> From<(T, T)> for Vector<T> {
-    fn from(from: (T, T)) -> Self {
-        Self(from.0, from.1)
-    }
+    fn from(from: (T, T)) -> Self { Self(from.0, from.1) }
 }
 
 impl<T: Numeric + Signed + IntoFloat> From<[T; 2]> for Vector<T> {
-    fn from(from: [T; 2]) -> Self {
-        Self(from[0], from[1])
-    }
+    fn from(from: [T; 2]) -> Self { Self(from[0], from[1]) }
 }
 
 impl<T: Numeric + Signed + IntoFloat> TryFrom<Vec<T>> for Vector<T> {
@@ -22,66 +18,46 @@ impl<T: Numeric + Signed + IntoFloat> TryFrom<Vec<T>> for Vector<T> {
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         match value.len() {
             2 => Ok(Self(value[0], value[1])),
-            _ => Err(Error("Failed to generate the instance of geometry::Vector because the length of the argument Vec<i64> is not 2."))
+            _ => Err(Error(
+                "Failed to generate the instance of geometry::Vector because the length of the argument Vec<i64> is not 2.",
+            )),
         }
     }
 }
 
 #[allow(dead_code)]
 impl<T: Numeric + Signed + IntoFloat> Vector<T> {
-    fn new(from: [T; 2], to: [T; 2]) -> Self {
-        Self(to[0] - from[0], to[1] - from[1])
-    }
+    fn new(from: [T; 2], to: [T; 2]) -> Self { Self(to[0] - from[0], to[1] - from[1]) }
 
-    fn inner_product(&self, rhs: &Vector<T>) -> T {
-        self.0 * rhs.0 + self.1 * rhs.1
-    }
+    fn inner_product(&self, rhs: &Vector<T>) -> T { self.0 * rhs.0 + self.1 * rhs.1 }
 
-    fn outer_product(&self, rhs: &Vector<T>) -> T {
-        self.0 * rhs.1 - self.1 * rhs.0
-    }
+    fn outer_product(&self, rhs: &Vector<T>) -> T { self.0 * rhs.1 - self.1 * rhs.0 }
 
-    fn scalar_product(&self, rhs: T) -> Self {
-        Self(self.0 * rhs, self.1 * rhs)
-    }
+    fn scalar_product(&self, rhs: T) -> Self { Self(self.0 * rhs, self.1 * rhs) }
 
-    fn is_vertical(&self, rhs: &Vector<T>) -> bool {
-        self.inner_product(rhs) == T::zero()
-    }
+    fn is_vertical(&self, rhs: &Vector<T>) -> bool { self.inner_product(rhs) == T::zero() }
 
-    fn is_parallel(&self, rhs: &Vector<T>) -> bool {
-        self.outer_product(rhs) == T::zero()
-    }
+    fn is_parallel(&self, rhs: &Vector<T>) -> bool { self.outer_product(rhs) == T::zero() }
 
     // 0 <= theta <= 180
     fn arg(&self, rhs: &Vector<T>) -> f64 {
-        ((self.0 * rhs.0 + self.1 * rhs.1).as_f64()
-            / ((self.0 * self.0 + self.1 * self.1) * (rhs.0 * rhs.0 + rhs.1 * rhs.1))
-                .as_f64()
-                .sqrt())
-        .acos()
+        ((self.0 * rhs.0 + self.1 * rhs.1).as_f64() / ((self.0 * self.0 + self.1 * self.1) * (rhs.0 * rhs.0 + rhs.1 * rhs.1)).as_f64().sqrt()).acos()
     }
 }
 
 impl<T: Numeric + Signed + IntoFloat> Add for Vector<T> {
     type Output = Vector<T>;
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1)
-    }
+    fn add(self, rhs: Self) -> Self::Output { Self(self.0 + rhs.0, self.1 + rhs.1) }
 }
 
 impl<T: Numeric + Signed + IntoFloat> Sub for Vector<T> {
     type Output = Vector<T>;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0, self.1 - rhs.1)
-    }
+    fn sub(self, rhs: Self) -> Self::Output { Self(self.0 - rhs.0, self.1 - rhs.1) }
 }
 
 impl<T: Numeric + Signed + IntoFloat> Neg for Vector<T> {
     type Output = Vector<T>;
-    fn neg(self) -> Self::Output {
-        Self(-self.0, -self.1)
-    }
+    fn neg(self) -> Self::Output { Self(-self.0, -self.1) }
 }
 
 impl<T: Numeric + Signed + IntoFloat> AddAssign for Vector<T> {
@@ -102,9 +78,7 @@ impl<T: Numeric + Signed + IntoFloat> SubAssign for Vector<T> {
 pub struct Error(&'static str);
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.0) }
 }
 
 impl std::error::Error for Error {}
@@ -123,15 +97,10 @@ pub fn convex_hull<T: Numeric + Signed + IntoFloat>(mut points: Vec<(T, T)>) -> 
         for (i, convex) in convex.iter_mut().enumerate() {
             while convex.len() >= 2 {
                 let ((sx, sy), (fx, fy)) = (convex.pop().unwrap(), *convex.last().unwrap());
-                let (f, s) = (
-                    Vector::new([fx, fy], [sx, sy]),
-                    Vector::new([sx, sy], [x, y]),
-                );
+                let (f, s) = (Vector::new([fx, fy], [sx, sy]), Vector::new([sx, sy], [x, y]));
 
                 let outer_product = f.outer_product(&s);
-                if outer_product.partial_cmp(&T::zero()) == Some(check[i])
-                    || outer_product == T::zero()
-                {
+                if outer_product.partial_cmp(&T::zero()) == Some(check[i]) || outer_product == T::zero() {
                     convex.push((sx, sy));
                     break;
                 }

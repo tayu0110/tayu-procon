@@ -41,17 +41,17 @@ fn main() {
     scan!(n: usize, q: usize, a: [i64; n]);
     const MOD: i64 = 998244353;
     let a = a.into_iter().map(|v| (v, 1i64)).collect();
- 
+
     let op = |l: (i64, i64), r: (i64, i64)| ((l.0 + r.0) % MOD, l.1 + r.1);
     let e = || (0, 0);
     let id = || (1i64, 0i64);
     let mapping = |f: (i64, i64), x: (i64, i64)| ((f.0 * x.0 + f.1 * x.1) % MOD, x.1);
     let composition = |f: (i64, i64), g: (i64, i64)| (f.0 * g.0 % MOD, (f.0 * g.1 + f.1) % MOD);
     let mut st = LazySegtree::from_vec(&a, op, e, id, mapping, composition);
- 
+
     for _ in 0..q {
         scan!(t: usize);
- 
+
         if t == 0 {
             scan!(l: usize, r: usize, b: i64, c: i64);
             st.apply_range(l, r, (b, c));
@@ -64,53 +64,50 @@ fn main() {
 }
 
 mod iolib {
-use std::cell::RefCell;
-use std::io::{
-    Read, BufRead,
-    Error
-};
-use std::str::SplitWhitespace;
-use std::thread_local;
+    use std::cell::RefCell;
+    use std::io::{BufRead, Error, Read};
+    use std::str::SplitWhitespace;
+    use std::thread_local;
 
-thread_local! {
-    static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
-}
-
-#[inline]
-fn refill_buffer(interactive: bool) -> Result<(), Error> {
-    let mut s = String::new();
-    
-    if cfg!(debug_assertions) || interactive {
-        std::io::stdin().lock().read_line(&mut s)?;
-    } else {
-        std::io::stdin().lock().read_to_string(&mut s)?;
+    thread_local! {
+        static BUF_SPLIT_WHITESPACE: RefCell<SplitWhitespace<'static>> = RefCell::new("".split_whitespace());
     }
 
-    BUF_SPLIT_WHITESPACE.with(|buf_str| {
-        *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
-        Ok(())
-    })
-}
+    #[inline]
+    fn refill_buffer(interactive: bool) -> Result<(), Error> {
+        let mut s = String::new();
 
-#[inline]
-pub fn scan_string(interactive: bool) -> &'static str {
-    BUF_SPLIT_WHITESPACE.with(|buf_str| {
-        if let Some(s) = buf_str.borrow_mut().next() {
-            return s;
+        if cfg!(debug_assertions) || interactive {
+            std::io::stdin().lock().read_line(&mut s)?;
+        } else {
+            std::io::stdin().lock().read_to_string(&mut s)?;
         }
 
-        refill_buffer(interactive).unwrap();
+        BUF_SPLIT_WHITESPACE.with(|buf_str| {
+            *buf_str.borrow_mut() = Box::leak(s.into_boxed_str()).split_whitespace();
+            Ok(())
+        })
+    }
 
-        if let Some(s) = buf_str.borrow_mut().next() {
-            return s;
-        }
+    #[inline]
+    pub fn scan_string(interactive: bool) -> &'static str {
+        BUF_SPLIT_WHITESPACE.with(|buf_str| {
+            if let Some(s) = buf_str.borrow_mut().next() {
+                return s;
+            }
 
-        unreachable!("Read Error: No input items.");
-    })
-}
+            refill_buffer(interactive).unwrap();
 
-#[macro_export]
-macro_rules! scan {
+            if let Some(s) = buf_str.borrow_mut().next() {
+                return s;
+            }
+
+            unreachable!("Read Error: No input items.");
+        })
+    }
+
+    #[macro_export]
+    macro_rules! scan {
     // Terminator
     ( @interactive : $interactive:literal ) => {};
     // Terminator
@@ -176,14 +173,13 @@ macro_rules! scan {
     };
 }
 
-#[macro_export]
-macro_rules! scani {
+    #[macro_export]
+    macro_rules! scani {
     ( $( $rest:tt )* ) => {
         $crate::scan!(@interactive: true, $( $rest )*);
     };
 }
 }
-
 
 pub struct LazySegtree<S, F> {
     n: usize,
@@ -195,31 +191,19 @@ pub struct LazySegtree<S, F> {
     e: fn() -> S,
     id: fn() -> F,
     mapping: fn(F, S) -> S,
-    composition: fn(F, F) -> F
+    composition: fn(F, F) -> F,
 }
 
 impl<S, F> LazySegtree<S, F>
 where
     S: Copy + Clone + Sized,
-    F: Copy + Clone + Sized
+    F: Copy + Clone + Sized,
 {
-    pub fn new(
-            size: usize,
-            op: fn(S, S) -> S,
-            e: fn() -> S,
-            id: fn() -> F,
-            mapping: fn(F, S) -> S,
-            composition: fn(F, F) -> F) -> Self {
+    pub fn new(size: usize, op: fn(S, S) -> S, e: fn() -> S, id: fn() -> F, mapping: fn(F, S) -> S, composition: fn(F, F) -> F) -> Self {
         LazySegtree::from_vec(&vec![e(); size], op, e, id, mapping, composition)
     }
 
-    pub fn from_vec(
-            v: &Vec<S>,
-            op: fn(S, S) -> S,
-            e: fn() -> S,
-            id: fn() -> F,
-            mapping: fn(F, S) -> S,
-            composition: fn(F, F) -> F) -> Self {
+    pub fn from_vec(v: &Vec<S>, op: fn(S, S) -> S, e: fn() -> S, id: fn() -> F, mapping: fn(F, S) -> S, composition: fn(F, F) -> F) -> Self {
         let n = v.len();
         let size = n.next_power_of_two();
         let log = size.trailing_zeros() as usize;
@@ -227,14 +211,25 @@ where
         let lazy = vec![id(); size * 2];
         tree.iter_mut().skip(size).zip(v.iter()).for_each(|(t, w)| *t = *w);
         for i in (1..size).rev() {
-            tree[i] = op(tree[i*2], tree[i*2 + 1]);
+            tree[i] = op(tree[i * 2], tree[i * 2 + 1]);
         }
-        Self { n, size, log, tree, lazy, op, e, id, mapping, composition }
+        Self {
+            n,
+            size,
+            log,
+            tree,
+            lazy,
+            op,
+            e,
+            id,
+            mapping,
+            composition,
+        }
     }
     pub fn set(&mut self, idx: usize, val: S) {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx] = val;
@@ -246,7 +241,7 @@ where
     pub fn get(&mut self, idx: usize) -> S {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx]
@@ -258,7 +253,7 @@ where
             return self.e();
         }
         let (mut l, mut r) = (l + self.size, r + self.size);
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             if ((l >> i) << i) != l {
                 self.push(l >> i);
             }
@@ -276,18 +271,17 @@ where
                 r -= 1;
                 smr = self.op(self.tree[r], smr);
             }
-            l >>= 1; r >>= 1;
+            l >>= 1;
+            r >>= 1;
         }
         self.op(sml, smr)
     }
-    pub fn all_prod(&self) -> S {
-        self.tree[1]
-    }
+    pub fn all_prod(&self) -> S { self.tree[1] }
     // Apply val to a point whose index is idx.
     pub fn apply(&mut self, idx: usize, val: F) {
         assert!(idx < self.n);
         let idx = idx + self.size;
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx] = self.mapping(val, self.tree[idx]);
@@ -302,12 +296,12 @@ where
             return;
         }
         let (l, r) = (l + self.size, r + self.size);
-        for i in (1..self.log+1).rev() {
+        for i in (1..self.log + 1).rev() {
             if ((l >> i) << i) != l {
                 self.push(l >> i);
             }
             if ((r >> i) << i) != r {
-                self.push((r-1) >> i);
+                self.push((r - 1) >> i);
             }
         }
         let (mut a, mut b) = (l, r);
@@ -320,20 +314,19 @@ where
                 b -= 1;
                 self.all_apply(b, val);
             }
-            a >>= 1; b >>= 1;
+            a >>= 1;
+            b >>= 1;
         }
         for i in 1..=self.log {
             if ((l >> i) << i) != l {
                 self.update(l >> i);
             }
             if ((r >> i) << i) != r {
-                self.update((r-1) >> i);
+                self.update((r - 1) >> i);
             }
         }
     }
-    fn update(&mut self, idx: usize) {
-        self.tree[idx] = self.op(self.tree[idx*2], self.tree[idx*2+1]);
-    }
+    fn update(&mut self, idx: usize) { self.tree[idx] = self.op(self.tree[idx * 2], self.tree[idx * 2 + 1]); }
     fn all_apply(&mut self, idx: usize, val: F) {
         let mapping = self.mapping;
         self.tree[idx] = mapping(val, self.tree[idx]);
@@ -342,12 +335,13 @@ where
         }
     }
     fn push(&mut self, idx: usize) {
-        self.all_apply(idx*2, self.lazy[idx]);
-        self.all_apply(idx*2 + 1, self.lazy[idx]);
+        self.all_apply(idx * 2, self.lazy[idx]);
+        self.all_apply(idx * 2 + 1, self.lazy[idx]);
         self.lazy[idx] = self.id();
     }
     fn op(&self, l: S, r: S) -> S {
-        let op = self.op; op(l, r)
+        let op = self.op;
+        op(l, r)
     }
     fn e(&self) -> S {
         let e = self.e;
@@ -369,7 +363,7 @@ where
 impl<S, F> std::fmt::Debug for LazySegtree<S, F>
 where
     S: Copy + Clone + std::fmt::Debug,
-    F: Copy + Clone + std::fmt::Debug
+    F: Copy + Clone + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (mut tree, mut lazy, mut l, mut r) = (vec![], vec![], 1, 2);

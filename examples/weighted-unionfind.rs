@@ -28,7 +28,7 @@ fn main() {
     let mut uf = WeightedUnionFind::new(n);
 
     for (l, r, d) in p {
-        let (l, r) = (l-1, r-1);
+        let (l, r) = (l - 1, r - 1);
         if let Err(_) = uf.merge(l, r, d) {
             if uf.diff(l, r) != d {
                 println!("No");
@@ -42,9 +42,7 @@ fn main() {
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::io::{
-    Read, BufRead, Error
-};
+use std::io::{BufRead, Error, Read};
 use std::str::SplitWhitespace;
 use std::thread_local;
 
@@ -56,7 +54,7 @@ thread_local! {
 #[inline]
 fn refill_buffer(interactive: bool) -> Result<(), Error> {
     let mut s = String::new();
-    
+
     if cfg!(debug_assertions) || interactive {
         std::io::stdin().lock().read_line(&mut s)?;
     } else {
@@ -168,12 +166,10 @@ macro_rules! scani {
 pub struct AlreadySameGroupError(usize, usize);
 
 impl std::fmt::Display for AlreadySameGroupError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node {} and Node {} are already belong to the same group.", self.0, self.1)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Node {} and Node {} are already belong to the same group.", self.0, self.1) }
 }
 
-impl std::error::Error for AlreadySameGroupError { }
+impl std::error::Error for AlreadySameGroupError {}
 
 /// par[i]    : the parent of node i
 /// rank[i]   : the distance of node i from root
@@ -181,7 +177,7 @@ impl std::error::Error for AlreadySameGroupError { }
 pub struct WeightedUnionFind {
     par: Vec<usize>,
     rank: Vec<usize>,
-    potential: Vec<i64>
+    potential: Vec<i64>,
 }
 
 impl WeightedUnionFind {
@@ -189,7 +185,7 @@ impl WeightedUnionFind {
         Self {
             par: (0..size).collect(),
             rank: vec![0; size],
-            potential: vec![0; size]
+            potential: vec![0; size],
         }
     }
 
@@ -204,9 +200,7 @@ impl WeightedUnionFind {
         root
     }
 
-    pub fn is_same(&mut self, l: usize, r: usize) -> bool {
-        self.root(l) == self.root(r)
-    }
+    pub fn is_same(&mut self, l: usize, r: usize) -> bool { self.root(l) == self.root(r) }
 
     pub fn merge(&mut self, l: usize, r: usize, mut weight: i64) -> Result<(), AlreadySameGroupError> {
         if self.is_same(l, r) {
@@ -236,7 +230,5 @@ impl WeightedUnionFind {
         self.potential[index]
     }
 
-    pub fn diff(&mut self, l: usize, r: usize) -> i64 {
-        self.weight(r) - self.weight(l)
-    }
+    pub fn diff(&mut self, l: usize, r: usize) -> i64 { self.weight(r) - self.weight(l) }
 }

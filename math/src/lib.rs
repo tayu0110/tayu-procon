@@ -14,9 +14,7 @@ pub fn gcd<T: Integer>(x: T, y: T) -> T {
 }
 
 /// Return lcm(x, y).
-pub fn lcm<T: Integer>(x: T, y: T) -> T {
-    x / gcd(x, y) * y
-}
+pub fn lcm<T: Integer>(x: T, y: T) -> T { x / gcd(x, y) * y }
 
 /// Solve the equation "ax + by = gcd(a, b)".
 // ax + by = gcd(a, b)
@@ -64,26 +62,23 @@ pub fn miller_rabin_test(p: u64) -> bool {
     let t = (p - 1) >> s;
     let mont = MontgomeryOperator::new(p as u64);
 
-    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022]
-        .iter()
-        .filter(|a| *a % p != 0)
-        .all(|a| {
-            let a = if *a < p { *a } else { *a % p };
-            let at = mont.pow(mont.ar(a as u64), t as u64);
-            // a^t = 1 (mod p) or a^t = -1 (mod p)
-            if at == mont.r || at == mont.neg_r {
-                return true;
-            }
+    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().filter(|a| *a % p != 0).all(|a| {
+        let a = if *a < p { *a } else { *a % p };
+        let at = mont.pow(mont.ar(a as u64), t as u64);
+        // a^t = 1 (mod p) or a^t = -1 (mod p)
+        if at == mont.r || at == mont.neg_r {
+            return true;
+        }
 
-            (1..s)
-                .scan(at, |at, _| {
-                    *at = mont.mul(*at, *at);
-                    Some(*at)
-                })
-                .any(|at|
+        (1..s)
+            .scan(at, |at, _| {
+                *at = mont.mul(*at, *at);
+                Some(*at)
+            })
+            .any(|at|
             // found i satisfying a^((2^i)*t) = -1 (mod p)
             at == mont.neg_r)
-        })
+    })
 }
 
 /// Returns the result of prime factorization of integer n.
@@ -151,10 +146,7 @@ fn pollard_rho(n: u64) -> Option<u64> {
                 ys = y;
                 for _ in 0..std::cmp::min(m, r - k) {
                     y = f(mont.mr(y));
-                    q = mont.mul(
-                        mont.mr(q),
-                        mont.mr(std::cmp::max(x, y) - std::cmp::min(x, y)),
-                    );
+                    q = mont.mul(mont.mr(q), mont.mr(std::cmp::max(x, y) - std::cmp::min(x, y)));
                 }
                 g = gcd(q as i64, n as i64);
                 k += m;
@@ -167,10 +159,7 @@ fn pollard_rho(n: u64) -> Option<u64> {
             y = ys;
             while g == 1 {
                 y = f(mont.mr(y));
-                g = gcd(
-                    std::cmp::max(x, y) as i64 - std::cmp::min(x, y) as i64,
-                    n as i64,
-                );
+                g = gcd(std::cmp::max(x, y) as i64 - std::cmp::min(x, y) as i64, n as i64);
             }
         }
         if g == n as i64 {
@@ -214,8 +203,7 @@ impl MontgomeryOperator {
             let mut i = 0;
             let mut inv_modulo = modulo;
             while i < 5 {
-                inv_modulo =
-                    inv_modulo.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv_modulo)));
+                inv_modulo = inv_modulo.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv_modulo)));
                 i += 1;
             }
             inv_modulo
@@ -267,10 +255,7 @@ impl MontgomeryOperator {
 
     pub const fn mul(&self, ar: u64, br: u64) -> u64 {
         let t = (ar as u128) * (br as u128);
-        let (t, f) = ((t >> 64) as u64).overflowing_sub(
-            (((((t as u64).wrapping_mul(self.inv_modulo)) as u128) * self.modulo as u128) >> 64)
-                as u64,
-        );
+        let (t, f) = ((t >> 64) as u64).overflowing_sub((((((t as u64).wrapping_mul(self.inv_modulo)) as u128) * self.modulo as u128) >> 64) as u64);
         if f {
             t.wrapping_add(self.modulo)
         } else {
@@ -279,18 +264,14 @@ impl MontgomeryOperator {
     }
 
     pub const fn mr(&self, ar: u64) -> u64 {
-        let (t, f) =
-            (((((ar.wrapping_mul(self.inv_modulo)) as u128) * (self.modulo as u128)) >> 64) as u64)
-                .overflowing_neg();
+        let (t, f) = (((((ar.wrapping_mul(self.inv_modulo)) as u128) * (self.modulo as u128)) >> 64) as u64).overflowing_neg();
         if f {
             t.wrapping_add(self.modulo)
         } else {
             t
         }
     }
-    pub const fn ar(&self, a: u64) -> u64 {
-        self.mul(a, self.r2)
-    }
+    pub const fn ar(&self, a: u64) -> u64 { self.mul(a, self.r2) }
 
     pub const fn pow(&self, mut ar: u64, mut b: u64) -> u64 {
         let mut t = if (b & 1) != 0 { ar } else { self.r };
@@ -322,10 +303,7 @@ mod tests {
         assert_eq!(lcm(8, 12), 24);
         assert_eq!(lcm(0, 12), 0);
 
-        assert_eq!(
-            lcm(1000_000_000_000_000_000i64, 2000_000_000_000_000_000i64),
-            2000_000_000_000_000_000i64
-        );
+        assert_eq!(lcm(1000_000_000_000_000_000i64, 2000_000_000_000_000_000i64), 2000_000_000_000_000_000i64);
 
         let (mut x, mut y) = (0, 0);
         let g = ext_gcd(111, &mut x, 30, &mut y);

@@ -1,7 +1,5 @@
+use graph::{scc, DirectedGraph};
 use iolib::scan;
-use graph::{
-    DirectedGraph, scc
-};
 
 fn main() {
     use std::io::Write;

@@ -17,31 +17,19 @@ pub struct Rational {
 impl Rational {
     pub fn new(num: i64, den: i64) -> Self {
         if den == 0 {
-            return Self {
-                numerator: 1,
-                denominator: 0,
-            };
+            return Self { numerator: 1, denominator: 0 };
         } else if num == 0 {
-            return Self {
-                numerator: 0,
-                denominator: 1,
-            };
+            return Self { numerator: 0, denominator: 1 };
         }
         let g = gcd(num.abs(), den.abs());
-        let num = if num / num.abs() == den / den.abs() {
-            num.abs()
-        } else {
-            -num.abs()
-        };
+        let num = if num / num.abs() == den / den.abs() { num.abs() } else { -num.abs() };
         Self {
             numerator: num / g,
             denominator: den.abs() / g,
         }
     }
 
-    pub fn is_nan(&self) -> bool {
-        self.denominator == 0
-    }
+    pub fn is_nan(&self) -> bool { self.denominator == 0 }
 
     pub fn abs(self) -> Self {
         Self {
@@ -68,10 +56,7 @@ impl Add for Rational {
     fn add(self, rhs: Self) -> Self::Output {
         assert!(!self.is_nan());
 
-        Self::new(
-            self.numerator * rhs.denominator + rhs.numerator * self.denominator,
-            self.denominator * rhs.denominator,
-        )
+        Self::new(self.numerator * rhs.denominator + rhs.numerator * self.denominator, self.denominator * rhs.denominator)
     }
 }
 
@@ -89,10 +74,7 @@ impl Mul for Rational {
     fn mul(self, rhs: Self) -> Self::Output {
         assert!(!self.is_nan());
 
-        Self::new(
-            self.numerator * rhs.numerator,
-            self.denominator * rhs.denominator,
-        )
+        Self::new(self.numerator * rhs.numerator, self.denominator * rhs.denominator)
     }
 }
 
@@ -141,15 +123,11 @@ impl DivAssign for Rational {
 }
 
 impl std::fmt::Display for Rational {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({} / {})", self.numerator, self.denominator)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "({} / {})", self.numerator, self.denominator) }
 }
 
 impl std::fmt::Debug for Rational {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({} / {})", self.numerator, self.denominator)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "({} / {})", self.numerator, self.denominator) }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -191,21 +169,11 @@ impl Div<f64> for Rational {
 // Implement Numeric and IntoFloat for Rational
 //////////////////////////////////////////////////////////////////////////////////
 impl One for Rational {
-    fn one() -> Self {
-        Self {
-            numerator: 1,
-            denominator: 1,
-        }
-    }
+    fn one() -> Self { Self { numerator: 1, denominator: 1 } }
 }
 
 impl Zero for Rational {
-    fn zero() -> Self {
-        Self {
-            numerator: 0,
-            denominator: 1,
-        }
-    }
+    fn zero() -> Self { Self { numerator: 0, denominator: 1 } }
 }
 
 impl Numeric for Rational {
@@ -224,12 +192,8 @@ impl Numeric for Rational {
 }
 
 impl IntoFloat for Rational {
-    fn as_f64(self) -> f64 {
-        self.try_into().unwrap()
-    }
-    fn as_f32(self) -> f32 {
-        self.try_into().unwrap()
-    }
+    fn as_f64(self) -> f64 { self.try_into().unwrap() }
+    fn as_f32(self) -> f32 { self.try_into().unwrap() }
 }
 
 impl<T: Into<i64>> From<T> for Rational {

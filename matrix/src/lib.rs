@@ -22,14 +22,10 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    const fn row(&self) -> usize {
-        self.row
-    }
+    const fn row(&self) -> usize { self.row }
 
     #[inline]
-    const fn column(&self) -> usize {
-        self.column
-    }
+    const fn column(&self) -> usize { self.column }
 
     #[inline]
     fn set(&mut self, row: usize, column: usize, val: Mint<T>) {
@@ -49,11 +45,7 @@ impl<T: Modulo> Matrix<T> {
     #[inline]
     fn id(size: usize) -> Self {
         let mut matrix = vec![Mint::<T>::zero(); size * size];
-        matrix
-            .iter_mut()
-            .enumerate()
-            .filter(|(i, _)| i % (size + 1) == 0)
-            .for_each(|(_, v)| *v = Mint::one());
+        matrix.iter_mut().enumerate().filter(|(i, _)| i % (size + 1) == 0).for_each(|(_, v)| *v = Mint::one());
         Self {
             row: size,
             column: size,
@@ -65,12 +57,7 @@ impl<T: Modulo> Matrix<T> {
     fn add(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
-        let matrix = self
-            .matrix
-            .iter()
-            .zip(rhs.matrix.iter())
-            .map(|(x, y)| *x + *y)
-            .collect();
+        let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x + *y).collect();
         Self {
             row: self.row(),
             column: self.column(),
@@ -82,12 +69,7 @@ impl<T: Modulo> Matrix<T> {
     fn sub(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
-        let matrix = self
-            .matrix
-            .iter()
-            .zip(rhs.matrix.iter())
-            .map(|(x, y)| *x - *y)
-            .collect();
+        let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x - *y).collect();
         Self {
             row: self.row(),
             column: self.column(),
@@ -96,9 +78,7 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    fn mul(&self, rhs: &Self) -> Self {
-        unsafe { self.mul_sub(rhs) }
-    }
+    fn mul(&self, rhs: &Self) -> Self { unsafe { self.mul_sub(rhs) } }
 
     #[target_feature(enable = "avx2")]
     unsafe fn mul_sub(&self, rhs: &Self) -> Self {
@@ -107,10 +87,7 @@ impl<T: Modulo> Matrix<T> {
         debug_assert!(lcolumn == rrow);
 
         let mut matrix = (vec![Default::default(); lrow * rcolumn]).into_boxed_slice();
-        for (s, t) in matrix
-            .chunks_exact_mut(rcolumn)
-            .zip(self.matrix.chunks_exact(lcolumn))
-        {
+        for (s, t) in matrix.chunks_exact_mut(rcolumn).zip(self.matrix.chunks_exact(lcolumn)) {
             for (v, u) in t.iter().zip(rhs.matrix.chunks_exact(rcolumn)) {
                 for (x, y) in s.iter_mut().zip(u.iter()) {
                     *x += *v * *y;
@@ -154,11 +131,7 @@ impl<T: Modulo> From<Vec<Vec<i64>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from
-                .into_iter()
-                .flatten()
-                .map(|v| Mint::<T>::new(v))
-                .collect(),
+            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new(v)).collect(),
         }
     }
 }
@@ -168,11 +141,7 @@ impl<T: Modulo> From<Vec<Vec<i32>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from
-                .into_iter()
-                .flatten()
-                .map(|v| Mint::<T>::new(v as i64))
-                .collect(),
+            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new(v as i64)).collect(),
         }
     }
 }
@@ -212,10 +181,7 @@ mod tests {
         let a = Matrix::<Mod998244353>::from(matrix_i64);
         let b = Matrix::<Mod998244353>::from(matrix_i32);
 
-        assert_eq!(
-            Matrix::<Mod998244353>::new(4, 3).matrix,
-            vec![Mint::zero(); 12].into_boxed_slice()
-        );
+        assert_eq!(Matrix::<Mod998244353>::new(4, 3).matrix, vec![Mint::zero(); 12].into_boxed_slice());
         assert_eq!(
             Matrix::<Mod998244353>::id(3).matrix,
             vec![

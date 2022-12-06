@@ -1,6 +1,4 @@
-use super::common::{
-    radix_4_inner_montgomery_modint, radix_4_inv_inner_montgomery_modint, radix_8_inner_montgomery_modint, radix_8_inv_inner_montgomery_modint,
-};
+use super::common::{radix_4_inner_montgomery_modint, radix_4_inv_inner_montgomery_modint, radix_8_inner_montgomery_modint, radix_8_inv_inner_montgomery_modint};
 use super::fft_cache::FftCache;
 use super::simd::radix_4_kernel_cooley_tukey_avx2;
 use modint::{Mod998244353, MontgomeryModint};
@@ -106,16 +104,7 @@ fn radix_8_kernel(deg: usize, width: usize, a: &mut [Mint], cache: &FftCache<Min
                 base + offset * 6,
                 base + offset * 7,
             );
-            let (c0, c1, c2, c3, c4, c5, c6, c7) = (
-                a[id0],
-                a[id4] * w1,
-                a[id2] * w2,
-                a[id6] * w3,
-                a[id1] * w4,
-                a[id5] * w5,
-                a[id3] * w6,
-                a[id7] * w7,
-            );
+            let (c0, c1, c2, c3, c4, c5, c6, c7) = (a[id0], a[id4] * w1, a[id2] * w2, a[id6] * w3, a[id1] * w4, a[id5] * w5, a[id3] * w6, a[id7] * w7);
 
             let (c0, c1, c2, c3, c4, c5, c6, c7) = radix_8_inner(c0, c1, c2, c3, c4, c5, c6, c7, cache);
 

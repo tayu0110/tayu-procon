@@ -33,7 +33,3 @@ proconio = "0.4.3"
 
 [[example]]
 name = "io"
-
-[[example]]
-name = "convolution"
-path = "./examples/convolution.rs"

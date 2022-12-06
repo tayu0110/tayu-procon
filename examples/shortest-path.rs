@@ -1,7 +1,5 @@
+use graph::{dijkstra_heap, DirectedGraph};
 use iolib::scan;
-use graph::{
-    DirectedGraph, dijkstra_heap
-};
 
 fn main() {
     use std::io::Write;
@@ -11,7 +9,7 @@ fn main() {
     scan!(n: usize, m: usize, s: usize, t: usize, p: [(usize, usize, i64); m]);
 
     let graph = DirectedGraph::from_weighted_edges(n, p);
-    
+
     let dist = dijkstra_heap(s, &graph);
 
     if dist[t] == std::i64::MAX {

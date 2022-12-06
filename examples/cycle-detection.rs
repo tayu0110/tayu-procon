@@ -1,7 +1,5 @@
+use graph::{cycle_detect, DirectedGraph};
 use iolib::scan;
-use graph::{
-    DirectedGraph, cycle_detect
-};
 
 fn main() {
     use std::io::Write;
@@ -17,7 +15,7 @@ fn main() {
     if let Some(cycle) = cycle_detect(&graph) {
         writeln!(out, "{}", cycle.len()).unwrap();
         for i in 0..cycle.len() {
-            writeln!(out, "{}", map.get(&(cycle[i], cycle[(i+1)%cycle.len()])).unwrap()).unwrap();
+            writeln!(out, "{}", map.get(&(cycle[i], cycle[(i + 1) % cycle.len()])).unwrap()).unwrap();
         }
     } else {
         writeln!(out, "-1").unwrap();

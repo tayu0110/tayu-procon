@@ -7,15 +7,11 @@ pub trait IntoVec<T> {
 }
 
 impl IntoVec<char> for String {
-    fn into_vec(&self) -> Vec<char> {
-        self.chars().collect()
-    }
+    fn into_vec(&self) -> Vec<char> { self.chars().collect() }
 }
 
 impl IntoVec<u8> for String {
-    fn into_vec(&self) -> Vec<u8> {
-        self.bytes().collect()
-    }
+    fn into_vec(&self) -> Vec<u8> { self.bytes().collect() }
 }
 
 macro_rules! into_vec_impl {

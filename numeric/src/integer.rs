@@ -1,18 +1,11 @@
 use super::Numeric;
-use std::ops::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Rem, RemAssign, Shl, ShlAssign,
-    Shr, ShrAssign,
-};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign};
 
 macro_rules! impl_numeric_trait_for_integer {
     ( $t:tt ) => {
         impl Numeric for $t {
-            fn max_value() -> Self {
-                std::$t::MAX
-            }
-            fn min_value() -> Self {
-                std::$t::MIN
-            }
+            fn max_value() -> Self { std::$t::MAX }
+            fn min_value() -> Self { std::$t::MIN }
         }
     };
 }
@@ -147,120 +140,44 @@ pub trait Integer:
 macro_rules! impl_integer_trait {
     ( $t:ty ) => {
         impl Integer for $t {
-            fn abs_diff(self, other: Self) -> Self {
-                std::cmp::max(self, other) - std::cmp::min(self, other)
-            }
-            fn count_ones(self) -> u32 {
-                self.count_ones()
-            }
-            fn count_zeros(self) -> u32 {
-                self.count_zeros()
-            }
-            fn div_euclid(self, rhs: Self) -> Self {
-                self.div_euclid(rhs)
-            }
-            fn leading_ones(self) -> u32 {
-                (!self).leading_zeros()
-            }
-            fn leading_zeros(self) -> u32 {
-                self.leading_zeros()
-            }
-            fn rem_euclid(self, rhs: Self) -> Self {
-                self.rem_euclid(rhs)
-            }
-            fn reverse_bits(self) -> Self {
-                self.reverse_bits()
-            }
-            fn rotate_left(self, n: u32) -> Self {
-                self.rotate_left(n)
-            }
-            fn rotate_right(self, n: u32) -> Self {
-                self.rotate_right(n)
-            }
-            fn trailing_ones(self) -> u32 {
-                (!self).trailing_zeros()
-            }
-            fn trailing_zeros(self) -> u32 {
-                self.trailing_zeros()
-            }
-            fn overflowing_add(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_add(rhs)
-            }
-            fn overflowing_div(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_div(rhs)
-            }
-            fn overflowing_div_euclid(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_div_euclid(rhs)
-            }
-            fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_mul(rhs)
-            }
-            fn overflowing_neg(self) -> (Self, bool) {
-                self.overflowing_neg()
-            }
-            fn overflowing_pow(self, rhs: u32) -> (Self, bool) {
-                self.overflowing_pow(rhs)
-            }
-            fn overflowing_rem(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_rem(rhs)
-            }
-            fn overflowing_rem_euclid(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_rem_euclid(rhs)
-            }
-            fn overflowing_shl(self, rhs: u32) -> (Self, bool) {
-                self.overflowing_shl(rhs)
-            }
-            fn overflowing_shr(self, rhs: u32) -> (Self, bool) {
-                self.overflowing_shr(rhs)
-            }
-            fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
-                self.overflowing_sub(rhs)
-            }
-            fn saturating_add(self, rhs: Self) -> Self {
-                self.saturating_add(rhs)
-            }
-            fn saturating_mul(self, rhs: Self) -> Self {
-                self.saturating_mul(rhs)
-            }
-            fn saturating_pow(self, rhs: u32) -> Self {
-                self.saturating_pow(rhs)
-            }
-            fn saturating_sub(self, rhs: Self) -> Self {
-                self.saturating_sub(rhs)
-            }
-            fn wrapping_add(self, rhs: Self) -> Self {
-                self.wrapping_add(rhs)
-            }
-            fn wrapping_div(self, rhs: Self) -> Self {
-                self.wrapping_div(rhs)
-            }
-            fn wrapping_div_euclid(self, rhs: Self) -> Self {
-                self.wrapping_div_euclid(rhs)
-            }
-            fn wrapping_mul(self, rhs: Self) -> Self {
-                self.wrapping_mul(rhs)
-            }
-            fn wrapping_neg(self) -> Self {
-                self.wrapping_neg()
-            }
-            fn wrapping_pow(self, rhs: u32) -> Self {
-                self.wrapping_pow(rhs)
-            }
-            fn wrapping_rem(self, rhs: Self) -> Self {
-                self.wrapping_rem(rhs)
-            }
-            fn wrapping_rem_euclid(self, rhs: Self) -> Self {
-                self.wrapping_rem_euclid(rhs)
-            }
-            fn wrapping_shl(self, rhs: u32) -> Self {
-                self.wrapping_shl(rhs)
-            }
-            fn wrapping_shr(self, rhs: u32) -> Self {
-                self.wrapping_shr(rhs)
-            }
-            fn wrapping_sub(self, rhs: Self) -> Self {
-                self.wrapping_sub(rhs)
-            }
+            fn abs_diff(self, other: Self) -> Self { std::cmp::max(self, other) - std::cmp::min(self, other) }
+            fn count_ones(self) -> u32 { self.count_ones() }
+            fn count_zeros(self) -> u32 { self.count_zeros() }
+            fn div_euclid(self, rhs: Self) -> Self { self.div_euclid(rhs) }
+            fn leading_ones(self) -> u32 { (!self).leading_zeros() }
+            fn leading_zeros(self) -> u32 { self.leading_zeros() }
+            fn rem_euclid(self, rhs: Self) -> Self { self.rem_euclid(rhs) }
+            fn reverse_bits(self) -> Self { self.reverse_bits() }
+            fn rotate_left(self, n: u32) -> Self { self.rotate_left(n) }
+            fn rotate_right(self, n: u32) -> Self { self.rotate_right(n) }
+            fn trailing_ones(self) -> u32 { (!self).trailing_zeros() }
+            fn trailing_zeros(self) -> u32 { self.trailing_zeros() }
+            fn overflowing_add(self, rhs: Self) -> (Self, bool) { self.overflowing_add(rhs) }
+            fn overflowing_div(self, rhs: Self) -> (Self, bool) { self.overflowing_div(rhs) }
+            fn overflowing_div_euclid(self, rhs: Self) -> (Self, bool) { self.overflowing_div_euclid(rhs) }
+            fn overflowing_mul(self, rhs: Self) -> (Self, bool) { self.overflowing_mul(rhs) }
+            fn overflowing_neg(self) -> (Self, bool) { self.overflowing_neg() }
+            fn overflowing_pow(self, rhs: u32) -> (Self, bool) { self.overflowing_pow(rhs) }
+            fn overflowing_rem(self, rhs: Self) -> (Self, bool) { self.overflowing_rem(rhs) }
+            fn overflowing_rem_euclid(self, rhs: Self) -> (Self, bool) { self.overflowing_rem_euclid(rhs) }
+            fn overflowing_shl(self, rhs: u32) -> (Self, bool) { self.overflowing_shl(rhs) }
+            fn overflowing_shr(self, rhs: u32) -> (Self, bool) { self.overflowing_shr(rhs) }
+            fn overflowing_sub(self, rhs: Self) -> (Self, bool) { self.overflowing_sub(rhs) }
+            fn saturating_add(self, rhs: Self) -> Self { self.saturating_add(rhs) }
+            fn saturating_mul(self, rhs: Self) -> Self { self.saturating_mul(rhs) }
+            fn saturating_pow(self, rhs: u32) -> Self { self.saturating_pow(rhs) }
+            fn saturating_sub(self, rhs: Self) -> Self { self.saturating_sub(rhs) }
+            fn wrapping_add(self, rhs: Self) -> Self { self.wrapping_add(rhs) }
+            fn wrapping_div(self, rhs: Self) -> Self { self.wrapping_div(rhs) }
+            fn wrapping_div_euclid(self, rhs: Self) -> Self { self.wrapping_div_euclid(rhs) }
+            fn wrapping_mul(self, rhs: Self) -> Self { self.wrapping_mul(rhs) }
+            fn wrapping_neg(self) -> Self { self.wrapping_neg() }
+            fn wrapping_pow(self, rhs: u32) -> Self { self.wrapping_pow(rhs) }
+            fn wrapping_rem(self, rhs: Self) -> Self { self.wrapping_rem(rhs) }
+            fn wrapping_rem_euclid(self, rhs: Self) -> Self { self.wrapping_rem_euclid(rhs) }
+            fn wrapping_shl(self, rhs: u32) -> Self { self.wrapping_shl(rhs) }
+            fn wrapping_shr(self, rhs: u32) -> Self { self.wrapping_shr(rhs) }
+            fn wrapping_sub(self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
         }
     };
 }

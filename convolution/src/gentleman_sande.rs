@@ -1,6 +1,4 @@
-use super::common::{
-    radix_4_inner_montgomery_modint, radix_4_inv_inner_montgomery_modint, radix_8_inner_montgomery_modint, radix_8_inv_inner_montgomery_modint,
-};
+use super::common::{radix_4_inner_montgomery_modint, radix_4_inv_inner_montgomery_modint, radix_8_inner_montgomery_modint, radix_8_inv_inner_montgomery_modint};
 use super::fft_cache::FftCache;
 use super::simd::radix_4_kernel_gentleman_sande_avx2;
 use modint::{Mod998244353, MontgomeryModint};

@@ -22,11 +22,7 @@ impl<M: Clone> SegmentTree<M> {
         let size = vec.len();
         let mut tree = [vec![e.clone(); size], vec.clone()].concat();
 
-        for i in (0..(size << 1) - 1)
-            .rev()
-            .step_by(2)
-            .take_while(|i| i >> 1 > 0)
-        {
+        for i in (0..(size << 1) - 1).rev().step_by(2).take_while(|i| i >> 1 > 0) {
             tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
 
@@ -34,9 +30,7 @@ impl<M: Clone> SegmentTree<M> {
     }
 
     #[inline]
-    pub fn set(&mut self, index: usize, val: M) {
-        self.update_by(index, val, |_, act| act.clone());
-    }
+    pub fn set(&mut self, index: usize, val: M) { self.update_by(index, val, |_, act| act.clone()); }
 
     pub fn update_by(&mut self, mut index: usize, val: M, f: fn(old: &M, act: &M) -> M) {
         index += self.size;
@@ -72,16 +66,12 @@ impl<M: Clone> SegmentTree<M> {
     /// Fold the operation in a leftward direction.
     /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
     #[inline]
-    pub fn foldl(&self, left: usize, right: usize) -> M {
-        self.fold(left, right, false)
-    }
+    pub fn foldl(&self, left: usize, right: usize) -> M { self.fold(left, right, false) }
 
     /// Fold the operation in a rightward direction.
     /// That is, you obtain op(op(op(...op(t_{l}, t_{l+1}), t_{l+2}), ..., t_{r-2}), t_{r_1}) as a result.
     #[inline]
-    pub fn foldr(&self, left: usize, right: usize) -> M {
-        self.fold(left, right, true)
-    }
+    pub fn foldr(&self, left: usize, right: usize) -> M { self.fold(left, right, true) }
 
     #[inline]
     fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M {
@@ -111,34 +101,17 @@ where
     S: Copy + Clone + Sized,
     F: Copy + Clone + Sized,
 {
-    pub fn new(
-        size: usize,
-        op: fn(S, S) -> S,
-        e: fn() -> S,
-        id: fn() -> F,
-        mapping: fn(F, S) -> S,
-        composition: fn(F, F) -> F,
-    ) -> Self {
+    pub fn new(size: usize, op: fn(S, S) -> S, e: fn() -> S, id: fn() -> F, mapping: fn(F, S) -> S, composition: fn(F, F) -> F) -> Self {
         LazySegtree::from_vec(&vec![e(); size], op, e, id, mapping, composition)
     }
 
-    pub fn from_vec(
-        v: &Vec<S>,
-        op: fn(S, S) -> S,
-        e: fn() -> S,
-        id: fn() -> F,
-        mapping: fn(F, S) -> S,
-        composition: fn(F, F) -> F,
-    ) -> Self {
+    pub fn from_vec(v: &Vec<S>, op: fn(S, S) -> S, e: fn() -> S, id: fn() -> F, mapping: fn(F, S) -> S, composition: fn(F, F) -> F) -> Self {
         let n = v.len();
         let size = n.next_power_of_two();
         let log = size.trailing_zeros() as usize;
         let mut tree = vec![e(); size * 2];
         let lazy = vec![id(); size * 2];
-        tree.iter_mut()
-            .skip(size)
-            .zip(v.iter())
-            .for_each(|(t, w)| *t = *w);
+        tree.iter_mut().skip(size).zip(v.iter()).for_each(|(t, w)| *t = *w);
         for i in (1..size).rev() {
             tree[i] = op(tree[i * 2], tree[i * 2 + 1]);
         }
@@ -205,9 +178,7 @@ where
         }
         self.op(sml, smr)
     }
-    pub fn all_prod(&self) -> S {
-        self.tree[1]
-    }
+    pub fn all_prod(&self) -> S { self.tree[1] }
     // Apply val to a point whose index is idx.
     pub fn apply(&mut self, idx: usize, val: F) {
         assert!(idx < self.n);
@@ -257,9 +228,7 @@ where
             }
         }
     }
-    fn update(&mut self, idx: usize) {
-        self.tree[idx] = self.op(self.tree[idx * 2], self.tree[idx * 2 + 1]);
-    }
+    fn update(&mut self, idx: usize) { self.tree[idx] = self.op(self.tree[idx * 2], self.tree[idx * 2 + 1]); }
     fn all_apply(&mut self, idx: usize, val: F) {
         let mapping = self.mapping;
         self.tree[idx] = mapping(val, self.tree[idx]);
@@ -327,33 +296,16 @@ pub fn range_add_range_sum_query(size: usize) -> LazySegtree<(i64, i64), i64> {
 }
 
 pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {
-    LazySegtree::from_vec(
-        &vec![0i64; size],
-        |l, r| std::cmp::max(l, r),
-        || std::i64::MIN,
-        || 0i64,
-        |f, x| f + x,
-        |f, g| f + g,
-    )
+    LazySegtree::from_vec(&vec![0i64; size], |l, r| std::cmp::max(l, r), || std::i64::MIN, || 0i64, |f, x| f + x, |f, g| f + g)
 }
 
 pub fn range_add_range_minimum_query(size: usize) -> LazySegtree<i64, i64> {
-    LazySegtree::from_vec(
-        &vec![0i64; size],
-        |l, r| std::cmp::min(l, r),
-        || std::i64::MAX,
-        || 0i64,
-        |f, x| f + x,
-        |f, g| f + g,
-    )
+    LazySegtree::from_vec(&vec![0i64; size], |l, r| std::cmp::min(l, r), || std::i64::MAX, || 0i64, |f, x| f + x, |f, g| f + g)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        range_add_range_maximum_query, range_add_range_minimum_query, range_add_range_sum_query,
-        SegmentTree,
-    };
+    use super::{range_add_range_maximum_query, range_add_range_minimum_query, range_add_range_sum_query, SegmentTree};
 
     #[test]
     fn segtree_test() {
