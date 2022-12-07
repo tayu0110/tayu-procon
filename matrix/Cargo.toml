@@ -9,3 +9,6 @@ license = "MIT"
 [dependencies]
 modint = { path = "../modint" }
 numeric = { package = "numeric", path = "../numeric" }
+
+[dev-dependencies]
+proconio = { version = "0.3.8" }

@@ -74,22 +74,12 @@ pub struct Mint<M: Modulo> {
 
 impl<M: Modulo> One for Mint<M> {
     #[inline]
-    fn one() -> Self {
-        Mint {
-            val: 1i64,
-            _p: marker::PhantomData,
-        }
-    }
+    fn one() -> Self { Self::one() }
 }
 
 impl<M: Modulo> Zero for Mint<M> {
     #[inline]
-    fn zero() -> Self {
-        Mint {
-            val: 0i64,
-            _p: marker::PhantomData,
-        }
-    }
+    fn zero() -> Self { Self::zero() }
 }
 
 impl<M: Modulo> Mint<M> {
@@ -105,6 +95,22 @@ impl<M: Modulo> Mint<M> {
     pub fn raw(val: i64) -> Self {
         debug_assert!(0 <= val && val < M::modulo());
         Mint { val, _p: marker::PhantomData }
+    }
+
+    #[inline]
+    pub fn zero() -> Self {
+        Mint {
+            val: 0i64,
+            _p: marker::PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn one() -> Self {
+        Mint {
+            val: 1i64,
+            _p: marker::PhantomData,
+        }
     }
 
     #[inline]
@@ -462,7 +468,6 @@ impl<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>> std::fmt::Displa
 #[cfg(test)]
 mod tests {
     use super::{combination, Mint, Mod1000000007, Mod998244353, Modulo, MontgomeryModint};
-    use numeric::One;
 
     #[test]
     fn modint_test() {
