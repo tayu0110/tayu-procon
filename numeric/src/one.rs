@@ -3,37 +3,21 @@ pub trait One {
 }
 
 macro_rules! impl_one_integer {
-    ( $t:ty ) => {
-        impl One for $t {
-            fn one() -> $t {
-                1
-            }
-        }
+    ( $( $t:ty )* ) => {
+        $(impl One for $t {
+            fn one() -> $t { 1 }
+        })*
     };
 }
 
-impl_one_integer!(i8);
-impl_one_integer!(i16);
-impl_one_integer!(i32);
-impl_one_integer!(i64);
-impl_one_integer!(i128);
-impl_one_integer!(isize);
-impl_one_integer!(u8);
-impl_one_integer!(u16);
-impl_one_integer!(u32);
-impl_one_integer!(u64);
-impl_one_integer!(u128);
-impl_one_integer!(usize);
+impl_one_integer!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
 
 macro_rules! impl_one_float {
-    ( $t:ty ) => {
-        impl One for $t {
-            fn one() -> $t {
-                1.0
-            }
-        }
+    ( $( $t:ty )* ) => {
+        $(impl One for $t {
+            fn one() -> $t { 1.0 }
+        })*
     };
 }
 
-impl_one_float!(f32);
-impl_one_float!(f64);
+impl_one_float!(f32 f64);

@@ -1,3 +1,6 @@
+mod montgomery_modint;
+
+pub use montgomery_modint::*;
 use numeric::{Integer, One, Zero};
 use std::marker;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
