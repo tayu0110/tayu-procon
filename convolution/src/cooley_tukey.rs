@@ -3,7 +3,7 @@ use super::fft_cache::FftCache;
 use super::simd::radix_4_kernel_cooley_tukey_avx2;
 use modint::{Mod998244353, MontgomeryModint};
 
-type Mint = MontgomeryModint<Mod998244353<u32>, u32>;
+type Mint = MontgomeryModint<Mod998244353>;
 
 type Radix4Inner<T> = fn(T, T, T, T, &FftCache<T>) -> (T, T, T, T);
 type Radix8Inner<T> = fn(T, T, T, T, T, T, T, T, &FftCache<T>) -> (T, T, T, T, T, T, T, T);
@@ -168,7 +168,7 @@ mod tests {
     use super::{cooley_tukey_radix_8_butterfly_inv_montgomery_modint, cooley_tukey_radix_8_butterfly_montgomery_modint};
     use modint::{Mod998244353, MontgomeryModint};
 
-    type MontMint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
+    type MontMint998244353 = MontgomeryModint<Mod998244353>;
 
     macro_rules! impl_fft_inner {
         ( $t:ty, $butterfly:ident, $deg:ident, $log:ident, $a:ident, $cache:ident, $epilogue:expr ) => {{

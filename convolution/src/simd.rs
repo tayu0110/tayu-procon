@@ -4,17 +4,24 @@ use modint::{Mod998244353, Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_add_epi64, _mm256_alignr_epi8, _mm256_and_si256, _mm256_blendv_epi8, _mm256_castsi256_si128, _mm256_cmpgt_epi32, _mm256_cvtepi32_epi64,
-    _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_permute2x128_si256, _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_set1_epi64x, _mm256_set_epi32, _mm256_set_epi64x,
-    _mm256_setzero_si256, _mm256_store_si256, _mm256_sub_epi32, _mm_loadu_si128, _mm_storeu_si128,
+    __m256i, _mm256_add_epi32, _mm256_add_epi64, _mm256_and_si256, _mm256_blendv_epi8, _mm256_castps_si256, _mm256_castsi256_ps, _mm256_castsi256_si128, _mm256_cmpgt_epi32,
+    _mm256_cvtepi32_epi64, _mm256_load_si256, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_permutevar8x32_epi32, _mm256_set1_epi32, _mm256_set1_epi64x, _mm256_set_epi32,
+    _mm256_set_epi64x, _mm256_set_m128i, _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_shuffle_ps, _mm256_store_si256, _mm256_storeu_si256, _mm256_sub_epi32,
+    _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm_loadu_si128, _mm_storeu_si128,
 };
+use std::arch::x86_64::{_mm256_loadu_si256, _mm256_permute2x128_si256};
 
-type Mint = MontgomeryModint<Mod998244353<u32>, u32>;
+type Mint = MontgomeryModint<Mod998244353>;
 type Radix4Inner<T> = fn(T, T, T, T, &FftCache<T>) -> (T, T, T, T);
 
 #[repr(C, align(32))]
 struct AlignedArrayu32x8 {
     val: [u32; 8],
+}
+
+#[repr(C, align(32))]
+struct AlignedArrayu64x4 {
+    val: [u64; 4],
 }
 
 #[inline]
@@ -51,7 +58,9 @@ unsafe fn montgomery_multiplication_u32x4(ws: __m256i, cs: __m256i, modulo: __m2
     // else
     //      res[i] = c_neg
     let res = _mm256_blendv_epi8(c_neg, c, mask);
-    _mm256_shift_rightx4byte(res)
+    // Instead of 32-bit right shift, shuffle is used to swap the upper and lower 32 bits of a 64-bit integer.
+    // At this point, the lower 32 bits are all zeros, so this is no problem.
+    _mm256_shuffle_epi32(res, 0b10_11_00_01)
 }
 
 #[inline]
@@ -70,13 +79,6 @@ unsafe fn _mm256_sub_mod_epi32(a: __m256i, b: __m256i, modulo: __m256i, zero: __
     let c = _mm256_add_epi32(c_neg, modulo);
     let mask = _mm256_cmpgt_epi32(zero, c_neg);
     _mm256_blendv_epi8(c_neg, c, mask)
-}
-
-#[inline]
-#[target_feature(enable = "avx2")]
-unsafe fn _mm256_shift_rightx4byte(a: __m256i) -> __m256i {
-    let mask = _mm256_permute2x128_si256(a, a, 0x81);
-    _mm256_alignr_epi8(mask, a, 4)
 }
 
 #[inline]
@@ -146,52 +148,50 @@ unsafe fn radix_2_kernel_gentleman_sande_avx2(deg: usize, width: usize, a: &mut 
 #[target_feature(enable = "avx2")]
 pub unsafe fn radix_4_kernel_gentleman_sande_avx2(deg: usize, width: usize, a: &mut [Mint], cache: &FftCache<Mint>, twiddle: &[Mint], radix4_inner: Radix4Inner<Mint>) {
     let log = width.trailing_zeros();
-
-    let exp = (deg >> log) as i32;
-    let exp_base = _mm256_set_epi32(exp * 3, exp * 2, exp, 0, 0, 0, 0, 0);
-    let exp_mask = _mm256_set1_epi32(deg as i32 - 1);
-    let exp_diff = _mm256_set_epi32(exp * 6, exp * 4, exp * 2, 0, exp * 6, exp * 4, exp * 2, 0);
-    let mut exp_now = AlignedArrayu32x8 { val: [0u32; 8] };
+    let exp = deg >> log;
 
     // Constants for Montgomery Operation
-    let modulo_inv = _mm256_set1_epi32(Mod998244353::<u32>::montgomery_constant_modulo_inv() as i32);
-    let modulo = _mm256_set1_epi32(Mod998244353::<u32>::modulo() as i32);
+    let modulo_inv = _mm256_set1_epi32(Mod998244353::MOD_INV as i32);
+    let modulo = _mm256_set1_epi32(Mod998244353::MOD as i32);
     let all_zero = _mm256_setzero_si256();
-    let mut dest = AlignedArrayu32x8 { val: [0u32; 8] };
-    let prim_root = _mm256_set1_epi64x(twiddle[deg >> 2].val_montgomery_expression() as i64);
-
-    let perm_mask = _mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0);
+    let prim_root = _mm256_set1_epi64x(twiddle[deg >> 2].val_mont_expr() as i64);
 
     let offset = width >> 2;
     if offset == 1 {
         for top in (0..deg).step_by(width) {
-            let (id0, id1, id2, id3) = (top, top + offset, top + offset * 2, top + offset * 3);
-            let (c0, c1, c2, c3) = (a[id0], a[id1], a[id2], a[id3]);
+            let (c0, c1, c2, c3) = (a[top], a[top + 1], a[top + 2], a[top + 3]);
             let (c0, c1, c2, c3) = radix4_inner(c0, c1, c2, c3, cache);
-            a[id0] = c0;
-            a[id2] = c1;
-            a[id1] = c2;
-            a[id3] = c3;
+            a[top] = c0;
+            a[top + 2] = c1;
+            a[top + 1] = c2;
+            a[top + 3] = c3;
         }
     } else if offset == 2 {
-        _mm256_store_si256(exp_now.val.as_mut_ptr() as *mut _, exp_base);
-        let (w01, w02, w03) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
-        let (w11, w12, w13) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
+        let mut c0 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut c1 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut c2 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut c3 = AlignedArrayu64x4 { val: [0; 4] };
 
-        let w1 = _mm256_set_epi64x(0, 0, w11.val_montgomery_expression() as i64, w01.val_montgomery_expression() as i64);
-        let w2 = _mm256_set_epi64x(0, 0, w12.val_montgomery_expression() as i64, w02.val_montgomery_expression() as i64);
-        let w3 = _mm256_set_epi64x(0, 0, w13.val_montgomery_expression() as i64, w03.val_montgomery_expression() as i64);
+        let (w01, w02, w03) = (twiddle[0], twiddle[0], twiddle[0]);
+        let (w11, w12, w13) = (twiddle[exp], twiddle[exp * 2], twiddle[exp * 3]);
+
+        let w1 = _mm256_set_epi64x(0, 0, w11.val_mont_expr() as i64, w01.val_mont_expr() as i64);
+        let w2 = _mm256_set_epi64x(0, 0, w12.val_mont_expr() as i64, w02.val_mont_expr() as i64);
+        let w3 = _mm256_set_epi64x(0, 0, w13.val_mont_expr() as i64, w03.val_mont_expr() as i64);
         for top in (0..deg).step_by(width) {
-            let (id00, id01, id02, id03) = (top, top + offset, top + offset * 2, top + offset * 3);
-            let (id10, id11, id12, id13) = (top + 1, top + 1 + offset, top + 1 + offset * 2, top + 1 + offset * 3);
+            c0.val[0] = a[top].val_mont_expr() as u64;
+            c1.val[0] = a[top + 2].val_mont_expr() as u64;
+            c2.val[0] = a[top + 4].val_mont_expr() as u64;
+            c3.val[0] = a[top + 6].val_mont_expr() as u64;
+            c0.val[1] = a[top + 1].val_mont_expr() as u64;
+            c1.val[1] = a[top + 3].val_mont_expr() as u64;
+            c2.val[1] = a[top + 5].val_mont_expr() as u64;
+            c3.val[1] = a[top + 7].val_mont_expr() as u64;
 
-            let (c00, c01, c02, c03) = (a[id00], a[id01], a[id02], a[id03]);
-            let (c10, c11, c12, c13) = (a[id10], a[id11], a[id12], a[id13]);
-
-            let c0 = _mm256_set_epi64x(0, 0, c10.val_montgomery_expression() as i64, c00.val_montgomery_expression() as i64);
-            let c1 = _mm256_set_epi64x(0, 0, c11.val_montgomery_expression() as i64, c01.val_montgomery_expression() as i64);
-            let c2 = _mm256_set_epi64x(0, 0, c12.val_montgomery_expression() as i64, c02.val_montgomery_expression() as i64);
-            let c3 = _mm256_set_epi64x(0, 0, c13.val_montgomery_expression() as i64, c03.val_montgomery_expression() as i64);
+            let c0 = _mm256_load_si256(c0.val.as_ptr() as *const _);
+            let c1 = _mm256_load_si256(c1.val.as_ptr() as *const _);
+            let c2 = _mm256_load_si256(c2.val.as_ptr() as *const _);
+            let c3 = _mm256_load_si256(c3.val.as_ptr() as *const _);
 
             let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
 
@@ -199,89 +199,143 @@ pub unsafe fn radix_4_kernel_gentleman_sande_avx2(deg: usize, width: usize, a: &
             let c2 = montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero);
             let c3 = montgomery_multiplication_u32x4(w3, c3, modulo, modulo_inv, all_zero);
 
-            _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c0);
-            a[id00] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id10] = Mint::from_montgomery_expression(dest.val[2]);
+            let c02 = _mm256_unpacklo_epi64(_mm256_unpacklo_epi32(c0, c2), _mm256_unpackhi_epi32(c0, c2));
+            let c13 = _mm256_unpacklo_epi64(_mm256_unpacklo_epi32(c1, c3), _mm256_unpackhi_epi32(c1, c3));
+            let c0123 = _mm256_set_m128i(_mm256_castsi256_si128(c13), _mm256_castsi256_si128(c02));
+            let c0123 = _mm256_shuffle_epi32(c0123, 0b11_01_10_00);
 
-            _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c1);
-            a[id02] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id12] = Mint::from_montgomery_expression(dest.val[2]);
+            _mm256_storeu_si256(a[top..top + 8].as_mut_ptr() as *mut _, c0123);
+        }
+    } else if offset == 4 {
+        let mut w1 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w2 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w3 = AlignedArrayu64x4 { val: [0; 4] };
+        for (i, exp_now) in (0..4).map(|i| (i, (i * exp) & (deg - 1))) {
+            w1.val[i] = twiddle[exp_now].val_mont_expr() as u64;
+            w2.val[i] = twiddle[exp_now * 2].val_mont_expr() as u64;
+            w3.val[i] = twiddle[exp_now * 3].val_mont_expr() as u64;
+        }
+        let w1 = _mm256_load_si256(w1.val.as_ptr() as *const _);
+        let w2 = _mm256_load_si256(w2.val.as_ptr() as *const _);
+        let w3 = _mm256_load_si256(w3.val.as_ptr() as *const _);
 
-            _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c2);
-            a[id01] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id11] = Mint::from_montgomery_expression(dest.val[2]);
+        let perm_mask = _mm256_set_epi32(7, 6, 3, 2, 5, 4, 1, 0);
+        for top in (0..deg).step_by(width) {
+            let c0 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[top..top + 4].as_ptr() as *const _));
+            let c1 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[top + 4..top + 8].as_ptr() as *const _));
+            let c2 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[top + 8..top + 12].as_ptr() as *const _));
+            let c3 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[top + 12..top + 16].as_ptr() as *const _));
 
-            _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c3);
-            a[id03] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id13] = Mint::from_montgomery_expression(dest.val[2]);
+            let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
+
+            {
+                let c2 = montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero);
+                let c02 = _mm256_shuffle_ps(_mm256_castsi256_ps(c0), _mm256_castsi256_ps(c2), 0b10_00_10_00);
+                let c02 = _mm256_permutevar8x32_epi32(_mm256_castps_si256(c02), perm_mask);
+                _mm256_storeu_si256(a[top..top + 8].as_mut_ptr() as *mut _, c02);
+            }
+
+            {
+                let c1 = montgomery_multiplication_u32x4(w1, c1, modulo, modulo_inv, all_zero);
+                let c3 = montgomery_multiplication_u32x4(w3, c3, modulo, modulo_inv, all_zero);
+                let c13 = _mm256_shuffle_ps(_mm256_castsi256_ps(c1), _mm256_castsi256_ps(c3), 0b10_00_10_00);
+                let c13 = _mm256_permutevar8x32_epi32(_mm256_castps_si256(c13), perm_mask);
+                _mm256_storeu_si256(a[top + offset * 2..top + offset * 2 + 8].as_mut_ptr() as *mut _, c13);
+            }
         }
     } else {
+        let mut w1 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w2 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w3 = AlignedArrayu64x4 { val: [0; 4] };
+        let perm_mask = _mm256_set_epi32(7, 6, 3, 2, 5, 4, 1, 0);
+
         for top in (0..deg).step_by(width) {
-            let mut exp_cache = exp_base.clone();
-            for base in (top..top + offset).step_by(4) {
-                let c0 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[base..base + 4].as_ptr() as *const _));
-                let c1 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[base + offset..base + offset + 4].as_ptr() as *const _));
-                let c2 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[base + offset * 2..base + offset * 2 + 4].as_ptr() as *const _));
-                let c3 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[base + offset * 3..base + offset * 3 + 4].as_ptr() as *const _));
+            let mut exp_now = 0;
+            for base in (top..top + offset).step_by(8) {
+                let c0 = _mm256_loadu_si256(a[base..base + 8].as_ptr() as *const _);
+                let c1 = _mm256_loadu_si256(a[base + offset..base + offset + 8].as_ptr() as *const _);
+                let c2 = _mm256_loadu_si256(a[base + offset * 2..base + offset * 2 + 8].as_ptr() as *const _);
+                let c3 = _mm256_loadu_si256(a[base + offset * 3..base + offset * 3 + 8].as_ptr() as *const _);
 
-                let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
+                let (c00, c01, c02, c03) = {
+                    let c0 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(c0));
+                    let c1 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(c1));
+                    let c2 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(c2));
+                    let c3 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(c3));
 
-                // c0 is no longer used, so STORE and cut scope here.
-                _mm_storeu_si128(a[base..base + 4].as_mut_ptr() as *mut _, _mm256_castsi256_si128(_mm256_permutevar8x32_epi32(c0, perm_mask)));
+                    let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
 
-                _mm256_store_si256(exp_now.val.as_mut_ptr() as *mut _, exp_cache);
-                let (w01, w02, w03) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
-                let (w11, w12, w13) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
-                exp_cache = _mm256_add_epi32(exp_cache, exp_diff);
-                exp_cache = _mm256_and_si256(exp_cache, exp_mask);
+                    for i in 0..4 {
+                        w1.val[i] = twiddle[exp_now].val_mont_expr() as u64;
+                        w2.val[i] = twiddle[exp_now * 2].val_mont_expr() as u64;
+                        w3.val[i] = twiddle[exp_now * 3].val_mont_expr() as u64;
+                        exp_now = (exp_now + exp) & (deg - 1);
+                    }
 
-                _mm256_store_si256(exp_now.val.as_mut_ptr() as *mut _, exp_cache);
-                let (w21, w22, w23) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
-                let (w31, w32, w33) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
-                exp_cache = _mm256_add_epi32(exp_cache, exp_diff);
-                exp_cache = _mm256_and_si256(exp_cache, exp_mask);
-
-                {
-                    let w1 = _mm256_set_epi64x(
-                        w31.val_montgomery_expression() as i64,
-                        w21.val_montgomery_expression() as i64,
-                        w11.val_montgomery_expression() as i64,
-                        w01.val_montgomery_expression() as i64,
-                    );
+                    let w1 = _mm256_load_si256(w1.val.as_ptr() as *const _);
                     let c1 = montgomery_multiplication_u32x4(w1, c1, modulo, modulo_inv, all_zero);
-                    _mm_storeu_si128(
-                        a[base + offset * 2..base + offset * 2 + 4].as_mut_ptr() as *mut _,
-                        _mm256_castsi256_si128(_mm256_permutevar8x32_epi32(c1, perm_mask)),
-                    );
-                }
-
-                {
-                    let w2 = _mm256_set_epi64x(
-                        w32.val_montgomery_expression() as i64,
-                        w22.val_montgomery_expression() as i64,
-                        w12.val_montgomery_expression() as i64,
-                        w02.val_montgomery_expression() as i64,
-                    );
+                    let w2 = _mm256_load_si256(w2.val.as_ptr() as *const _);
                     let c2 = montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero);
-                    _mm_storeu_si128(
-                        a[base + offset..base + offset + 4].as_mut_ptr() as *mut _,
-                        _mm256_castsi256_si128(_mm256_permutevar8x32_epi32(c2, perm_mask)),
-                    );
-                }
-
-                {
-                    let w3 = _mm256_set_epi64x(
-                        w33.val_montgomery_expression() as i64,
-                        w23.val_montgomery_expression() as i64,
-                        w13.val_montgomery_expression() as i64,
-                        w03.val_montgomery_expression() as i64,
-                    );
+                    let w3 = _mm256_load_si256(w3.val.as_ptr() as *const _);
                     let c3 = montgomery_multiplication_u32x4(w3, c3, modulo, modulo_inv, all_zero);
-                    _mm_storeu_si128(
-                        a[base + offset * 3..base + offset * 3 + 4].as_mut_ptr() as *mut _,
-                        _mm256_castsi256_si128(_mm256_permutevar8x32_epi32(c3, perm_mask)),
-                    );
-                }
+                    (c0, c1, c2, c3)
+                };
+
+                let (c10, c11, c12, c13) = {
+                    let c0 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(_mm256_permute2x128_si256(c0, all_zero, 0b00_10_00_01)));
+                    let c1 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(_mm256_permute2x128_si256(c1, all_zero, 0b00_10_00_01)));
+                    let c2 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(_mm256_permute2x128_si256(c2, all_zero, 0b00_10_00_01)));
+                    let c3 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(_mm256_permute2x128_si256(c3, all_zero, 0b00_10_00_01)));
+
+                    let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
+
+                    for i in 0..4 {
+                        w1.val[i] = twiddle[exp_now].val_mont_expr() as u64;
+                        w2.val[i] = twiddle[exp_now * 2].val_mont_expr() as u64;
+                        w3.val[i] = twiddle[exp_now * 3].val_mont_expr() as u64;
+                        exp_now = (exp_now + exp) & (deg - 1);
+                    }
+
+                    let w1 = _mm256_load_si256(w1.val.as_ptr() as *const _);
+                    let c1 = montgomery_multiplication_u32x4(w1, c1, modulo, modulo_inv, all_zero);
+                    let w2 = _mm256_load_si256(w2.val.as_ptr() as *const _);
+                    let c2 = montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero);
+                    let w3 = _mm256_load_si256(w3.val.as_ptr() as *const _);
+                    let c3 = montgomery_multiplication_u32x4(w3, c3, modulo, modulo_inv, all_zero);
+                    (c0, c1, c2, c3)
+                };
+
+                _mm256_storeu_si256(
+                    a[base..base + 8].as_mut_ptr() as *mut _,
+                    _mm256_permutevar8x32_epi32(
+                        _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(c00), _mm256_castsi256_ps(c10), 0b10_00_10_00)),
+                        perm_mask,
+                    ),
+                );
+
+                _mm256_storeu_si256(
+                    a[base + offset * 2..base + offset * 2 + 8].as_mut_ptr() as *mut _,
+                    _mm256_permutevar8x32_epi32(
+                        _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(c01), _mm256_castsi256_ps(c11), 0b10_00_10_00)),
+                        perm_mask,
+                    ),
+                );
+
+                _mm256_storeu_si256(
+                    a[base + offset..base + offset + 8].as_mut_ptr() as *mut _,
+                    _mm256_permutevar8x32_epi32(
+                        _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(c02), _mm256_castsi256_ps(c12), 0b10_00_10_00)),
+                        perm_mask,
+                    ),
+                );
+
+                _mm256_storeu_si256(
+                    a[base + offset * 3..base + offset * 3 + 8].as_mut_ptr() as *mut _,
+                    _mm256_permutevar8x32_epi32(
+                        _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(c03), _mm256_castsi256_ps(c13), 0b10_00_10_00)),
+                        perm_mask,
+                    ),
+                );
             }
         }
     }
@@ -352,11 +406,11 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2(deg: usize, width: usize, a: &mut
     let mut exp_now = AlignedArrayu32x8 { val: [0u32; 8] };
 
     // Constants for Montgomery Operation
-    let modulo_inv = _mm256_set1_epi32(Mod998244353::<u32>::montgomery_constant_modulo_inv() as i32);
-    let modulo = _mm256_set1_epi32(Mod998244353::<u32>::modulo() as i32);
+    let modulo_inv = _mm256_set1_epi32(Mod998244353::MOD_INV as i32);
+    let modulo = _mm256_set1_epi32(Mod998244353::MOD as i32);
     let all_zero = _mm256_setzero_si256();
     let mut dest = AlignedArrayu32x8 { val: [0u32; 8] };
-    let prim_root = _mm256_set1_epi64x(twiddle[deg >> 2].val_montgomery_expression() as i64);
+    let prim_root = _mm256_set1_epi64x(twiddle[deg >> 2].val_mont_expr() as i64);
 
     let perm_mask = _mm256_set_epi32(7, 5, 3, 1, 6, 4, 2, 0);
 
@@ -373,21 +427,18 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2(deg: usize, width: usize, a: &mut
         let (w01, w02, w03) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
         let (w11, w12, w13) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
 
-        let w1 = _mm256_set_epi64x(0, 0, w11.val_montgomery_expression() as i64, w01.val_montgomery_expression() as i64);
-        let w2 = _mm256_set_epi64x(0, 0, w12.val_montgomery_expression() as i64, w02.val_montgomery_expression() as i64);
-        let w3 = _mm256_set_epi64x(0, 0, w13.val_montgomery_expression() as i64, w03.val_montgomery_expression() as i64);
+        let w1 = _mm256_set_epi64x(0, 0, w11.val_mont_expr() as i64, w01.val_mont_expr() as i64);
+        let w2 = _mm256_set_epi64x(0, 0, w12.val_mont_expr() as i64, w02.val_mont_expr() as i64);
+        let w3 = _mm256_set_epi64x(0, 0, w13.val_mont_expr() as i64, w03.val_mont_expr() as i64);
 
         for top in (0..deg).step_by(width) {
-            let (id00, id01, id02, id03) = (top, top + offset, top + offset * 2, top + offset * 3);
-            let (id10, id11, id12, id13) = (top + 1, top + 1 + offset, top + 1 + offset * 2, top + 1 + offset * 3);
+            let (c00, c01, c02, c03) = (a[top], a[top + 4], a[top + 2], a[top + 6]);
+            let (c10, c11, c12, c13) = (a[top + 1], a[top + 5], a[top + 3], a[top + 7]);
 
-            let (c00, c01, c02, c03) = (a[id00], a[id02], a[id01], a[id03]);
-            let (c10, c11, c12, c13) = (a[id10], a[id12], a[id11], a[id13]);
-
-            let c0 = _mm256_set_epi64x(0, 0, c10.val_montgomery_expression() as i64, c00.val_montgomery_expression() as i64);
-            let c1 = _mm256_set_epi64x(0, 0, c11.val_montgomery_expression() as i64, c01.val_montgomery_expression() as i64);
-            let c2 = _mm256_set_epi64x(0, 0, c12.val_montgomery_expression() as i64, c02.val_montgomery_expression() as i64);
-            let c3 = _mm256_set_epi64x(0, 0, c13.val_montgomery_expression() as i64, c03.val_montgomery_expression() as i64);
+            let c0 = _mm256_set_epi64x(0, 0, c10.val_mont_expr() as i64, c00.val_mont_expr() as i64);
+            let c1 = _mm256_set_epi64x(0, 0, c11.val_mont_expr() as i64, c01.val_mont_expr() as i64);
+            let c2 = _mm256_set_epi64x(0, 0, c12.val_mont_expr() as i64, c02.val_mont_expr() as i64);
+            let c3 = _mm256_set_epi64x(0, 0, c13.val_mont_expr() as i64, c03.val_mont_expr() as i64);
 
             let c1 = montgomery_multiplication_u32x4(w1, c1, modulo, modulo_inv, all_zero);
             let c2 = montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero);
@@ -396,22 +447,25 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2(deg: usize, width: usize, a: &mut
             let (c0, c1, c2, c3) = radix_4_inner_avx2(c0, c1, c2, c3, modulo, modulo_inv, all_zero, prim_root);
 
             _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c0);
-            a[id00] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id10] = Mint::from_montgomery_expression(dest.val[2]);
+            a[top] = Mint::from_mont_expr(dest.val[0]);
+            a[top + 1] = Mint::from_mont_expr(dest.val[2]);
 
             _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c1);
-            a[id01] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id11] = Mint::from_montgomery_expression(dest.val[2]);
+            a[top + 2] = Mint::from_mont_expr(dest.val[0]);
+            a[top + 3] = Mint::from_mont_expr(dest.val[2]);
 
             _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c2);
-            a[id02] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id12] = Mint::from_montgomery_expression(dest.val[2]);
+            a[top + 4] = Mint::from_mont_expr(dest.val[0]);
+            a[top + 5] = Mint::from_mont_expr(dest.val[2]);
 
             _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, c3);
-            a[id03] = Mint::from_montgomery_expression(dest.val[0]);
-            a[id13] = Mint::from_montgomery_expression(dest.val[2]);
+            a[top + 6] = Mint::from_mont_expr(dest.val[0]);
+            a[top + 7] = Mint::from_mont_expr(dest.val[2]);
         }
     } else {
+        let mut w1 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w2 = AlignedArrayu64x4 { val: [0; 4] };
+        let mut w3 = AlignedArrayu64x4 { val: [0; 4] };
         for top in (0..deg).step_by(width) {
             let mut exp_cache = exp_base.clone();
             for base in (top..top + offset).step_by(4) {
@@ -421,44 +475,37 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2(deg: usize, width: usize, a: &mut
                 let c3 = _mm256_cvtepi32_epi64(_mm_loadu_si128(a[base + offset * 3..base + offset * 3 + 4].as_ptr() as *const _));
 
                 _mm256_store_si256(exp_now.val.as_mut_ptr() as *mut _, exp_cache);
-                let (w01, w02, w03) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
-                let (w11, w12, w13) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
+                w1.val[0] = twiddle[exp_now.val[1] as usize].val_mont_expr() as u64;
+                w2.val[0] = twiddle[exp_now.val[2] as usize].val_mont_expr() as u64;
+                w3.val[0] = twiddle[exp_now.val[3] as usize].val_mont_expr() as u64;
+                w1.val[1] = twiddle[exp_now.val[5] as usize].val_mont_expr() as u64;
+                w2.val[1] = twiddle[exp_now.val[6] as usize].val_mont_expr() as u64;
+                w3.val[1] = twiddle[exp_now.val[7] as usize].val_mont_expr() as u64;
                 exp_cache = _mm256_add_epi32(exp_cache, exp_diff);
                 exp_cache = _mm256_and_si256(exp_cache, exp_mask);
 
                 _mm256_store_si256(exp_now.val.as_mut_ptr() as *mut _, exp_cache);
-                let (w21, w22, w23) = (twiddle[exp_now.val[1] as usize], twiddle[exp_now.val[2] as usize], twiddle[exp_now.val[3] as usize]);
-                let (w31, w32, w33) = (twiddle[exp_now.val[5] as usize], twiddle[exp_now.val[6] as usize], twiddle[exp_now.val[7] as usize]);
+                w1.val[2] = twiddle[exp_now.val[1] as usize].val_mont_expr() as u64;
+                w2.val[2] = twiddle[exp_now.val[2] as usize].val_mont_expr() as u64;
+                w3.val[2] = twiddle[exp_now.val[3] as usize].val_mont_expr() as u64;
+                w1.val[3] = twiddle[exp_now.val[5] as usize].val_mont_expr() as u64;
+                w2.val[3] = twiddle[exp_now.val[6] as usize].val_mont_expr() as u64;
+                w3.val[3] = twiddle[exp_now.val[7] as usize].val_mont_expr() as u64;
                 exp_cache = _mm256_add_epi32(exp_cache, exp_diff);
                 exp_cache = _mm256_and_si256(exp_cache, exp_mask);
 
                 let c1 = {
-                    let w1 = _mm256_set_epi64x(
-                        w31.val_montgomery_expression() as i64,
-                        w21.val_montgomery_expression() as i64,
-                        w11.val_montgomery_expression() as i64,
-                        w01.val_montgomery_expression() as i64,
-                    );
+                    let w1 = _mm256_load_si256(w1.val.as_ptr() as *const _);
                     montgomery_multiplication_u32x4(w1, c1, modulo, modulo_inv, all_zero)
                 };
 
                 let c2 = {
-                    let w2 = _mm256_set_epi64x(
-                        w32.val_montgomery_expression() as i64,
-                        w22.val_montgomery_expression() as i64,
-                        w12.val_montgomery_expression() as i64,
-                        w02.val_montgomery_expression() as i64,
-                    );
+                    let w2 = _mm256_load_si256(w2.val.as_ptr() as *const _);
                     montgomery_multiplication_u32x4(w2, c2, modulo, modulo_inv, all_zero)
                 };
 
                 let c3 = {
-                    let w3 = _mm256_set_epi64x(
-                        w33.val_montgomery_expression() as i64,
-                        w23.val_montgomery_expression() as i64,
-                        w13.val_montgomery_expression() as i64,
-                        w03.val_montgomery_expression() as i64,
-                    );
+                    let w3 = _mm256_load_si256(w3.val.as_ptr() as *const _);
                     montgomery_multiplication_u32x4(w3, c3, modulo, modulo_inv, all_zero)
                 };
 
@@ -520,7 +567,7 @@ mod tests_gentleman_sande {
     use super::{gentleman_sande_radix_4_butterfly_inv_montgomery_modint_avx2, gentleman_sande_radix_4_butterfly_montgomery_modint_avx2};
     use modint::{Mod998244353, MontgomeryModint};
 
-    type MontMint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
+    type MontMint998244353 = MontgomeryModint<Mod998244353>;
 
     macro_rules! impl_fft_inner {
         ( $t:ty, $butterfly:ident, $deg:ident, $log:ident, $a:ident, $cache:ident, $epilogue:expr ) => {{
@@ -588,7 +635,7 @@ mod tests_cooley_tukey {
     use super::{cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2, cooley_tukey_radix_4_butterfly_montgomery_modint_avx2};
     use modint::{Mod998244353, MontgomeryModint};
 
-    type MontMint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
+    type MontMint998244353 = MontgomeryModint<Mod998244353>;
 
     macro_rules! impl_fft_inner {
         ( $t:ty, $butterfly:ident, $deg:ident, $log:ident, $a:ident, $cache:ident, $epilogue:expr ) => {{

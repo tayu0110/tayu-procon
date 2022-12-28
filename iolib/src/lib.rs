@@ -34,13 +34,13 @@ pub fn scan_string(interactive: bool) -> &'static str {
             return (*BUF_SPLIT_WHITESPACE).next().unwrap();
         }
 
-        if let Some(s) = (*BUF_SPLIT_WHITESPACE).next() {
-            return s;
+        loop {
+            if let Some(s) = (*BUF_SPLIT_WHITESPACE).next() {
+                break s;
+            }
+
+            refill_buffer(interactive).expect("Error: Unknown Error");
         }
-
-        refill_buffer(interactive).unwrap();
-
-        (*BUF_SPLIT_WHITESPACE).next().expect("Read Error: No input item.")
     }
 }
 

@@ -18,3 +18,4 @@ pub use suffix_array;
 pub use trie;
 pub use unionfind;
 pub use utility;
+pub use wavelet_matrix;

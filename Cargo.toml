@@ -26,6 +26,7 @@ suffix-array = { path = "./suffix-array" }
 trie = { path = "./trie" }
 unionfind = { path = "./unionfind" }
 utility = { path = "./utility" }
+wavelet-matrix = { path = "./wavelet-matrix" }
 
 [dev-dependencies]
 rand = "0.8.5"

@@ -10,7 +10,7 @@ use gentleman_sande::gentleman_sande_radix_8_butterfly_montgomery_modint;
 use modint::{Mod998244353, MontgomeryModint};
 use simd::{cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2, gentleman_sande_radix_4_butterfly_montgomery_modint_avx2};
 
-type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
+type Mint998244353 = MontgomeryModint<Mod998244353>;
 
 pub fn convolution(mut a: Vec<Mint998244353>, mut b: Vec<Mint998244353>) -> Vec<Mint998244353> {
     let deg = a.len() + b.len() - 1;
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn convolution_test() {
-        type Mint998244353 = MontgomeryModint<Mod998244353<u32>, u32>;
+        type Mint998244353 = MontgomeryModint<Mod998244353>;
         let a = vec![Mint998244353::new(1), Mint998244353::new(2), Mint998244353::new(3), Mint998244353::new(4)];
         let b = vec![Mint998244353::new(1), Mint998244353::new(2), Mint998244353::new(4), Mint998244353::new(8)];
         let c = convolution(a, b);

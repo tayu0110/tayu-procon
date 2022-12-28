@@ -3,17 +3,14 @@ use convolution::convolution;
 use iolib::scan;
 use modint::{Mod998244353, MontgomeryModint};
 
-type Modint = MontgomeryModint<Mod998244353<u32>, u32>;
+type Modint = MontgomeryModint<Mod998244353>;
 
 fn main() {
     use std::io::Write;
     let out = std::io::stdout();
     let mut out = std::io::BufWriter::new(out.lock());
 
-    scan!(n: usize, m: usize, a: [u32; n], b: [u32; m]);
-
-    let a = a.into_iter().map(|a| Modint::new(a)).collect::<Vec<_>>();
-    let b = b.into_iter().map(|b| Modint::new(b)).collect::<Vec<_>>();
+    scan!(n: usize, m: usize, a: [Modint; n], b: [Modint; m]);
 
     let c = convolution(a, b);
 

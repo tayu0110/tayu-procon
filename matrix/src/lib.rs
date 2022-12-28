@@ -47,11 +47,7 @@ impl<T: Modulo> Matrix<T> {
     fn id(size: usize) -> Self {
         let mut matrix = vec![Mint::<T>::zero(); size * size];
         matrix.iter_mut().enumerate().filter(|(i, _)| i % (size + 1) == 0).for_each(|(_, v)| *v = Mint::one());
-        Self {
-            row: size,
-            column: size,
-            matrix: matrix.into_boxed_slice(),
-        }
+        Self { row: size, column: size, matrix: matrix.into_boxed_slice() }
     }
 
     #[inline]
@@ -59,11 +55,7 @@ impl<T: Modulo> Matrix<T> {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x + *y).collect();
-        Self {
-            row: self.row(),
-            column: self.column(),
-            matrix,
-        }
+        Self { row: self.row(), column: self.column(), matrix }
     }
 
     #[inline]
@@ -71,11 +63,7 @@ impl<T: Modulo> Matrix<T> {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x - *y).collect();
-        Self {
-            row: self.row(),
-            column: self.column(),
-            matrix,
-        }
+        Self { row: self.row(), column: self.column(), matrix }
     }
 
     #[inline]
@@ -95,11 +83,7 @@ impl<T: Modulo> Matrix<T> {
                 }
             }
         }
-        Self {
-            row: lrow,
-            column: rcolumn,
-            matrix,
-        }
+        Self { row: lrow, column: rcolumn, matrix }
     }
 
     fn pow(&self, mut n: usize) -> Self {
@@ -132,7 +116,7 @@ impl<T: Modulo> From<Vec<Vec<i64>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new(v)).collect(),
+            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new_signed(v)).collect(),
         }
     }
 }
@@ -142,7 +126,7 @@ impl<T: Modulo> From<Vec<Vec<i32>>> for Matrix<T> {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new(v as i64)).collect(),
+            matrix: from.into_iter().flatten().map(|v| Mint::<T>::new_signed(v as i64)).collect(),
         }
     }
 }

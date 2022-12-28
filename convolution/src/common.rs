@@ -1,7 +1,6 @@
 use super::fft_cache::FftCache;
 
-use modint::{Modulo, MontgomeryModint, MontgomeryMultiplication};
-use numeric::Integer;
+use modint::{Modulo, MontgomeryModint};
 
 #[inline]
 #[allow(dead_code)]
@@ -15,13 +14,13 @@ pub fn bit_reverse<T>(deg: usize, log: usize, a: &mut [T]) {
 }
 
 #[inline]
-pub fn radix_4_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>>(
-    c0: MontgomeryModint<M, T>,
-    c1: MontgomeryModint<M, T>,
-    c2: MontgomeryModint<M, T>,
-    c3: MontgomeryModint<M, T>,
-    cache: &FftCache<MontgomeryModint<M, T>>,
-) -> (MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>) {
+pub fn radix_4_inner_montgomery_modint<M: Modulo>(
+    c0: MontgomeryModint<M>,
+    c1: MontgomeryModint<M>,
+    c2: MontgomeryModint<M>,
+    c3: MontgomeryModint<M>,
+    cache: &FftCache<MontgomeryModint<M>>,
+) -> (MontgomeryModint<M>, MontgomeryModint<M>, MontgomeryModint<M>, MontgomeryModint<M>) {
     let c0pc2 = c0 + c2;
     let c0mc2 = c0 - c2;
     let c1pc3 = c1 + c3;
@@ -32,13 +31,13 @@ pub fn radix_4_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMult
 }
 
 #[inline]
-pub fn radix_4_inv_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>>(
-    c0: MontgomeryModint<M, T>,
-    c1: MontgomeryModint<M, T>,
-    c2: MontgomeryModint<M, T>,
-    c3: MontgomeryModint<M, T>,
-    cache: &FftCache<MontgomeryModint<M, T>>,
-) -> (MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>, MontgomeryModint<M, T>) {
+pub fn radix_4_inv_inner_montgomery_modint<M: Modulo>(
+    c0: MontgomeryModint<M>,
+    c1: MontgomeryModint<M>,
+    c2: MontgomeryModint<M>,
+    c3: MontgomeryModint<M>,
+    cache: &FftCache<MontgomeryModint<M>>,
+) -> (MontgomeryModint<M>, MontgomeryModint<M>, MontgomeryModint<M>, MontgomeryModint<M>) {
     let c0pc2 = c0 + c2;
     let c0mc2 = c0 - c2;
     let c1pc3 = c1 + c3;
@@ -49,25 +48,25 @@ pub fn radix_4_inv_inner_montgomery_modint<M: Modulo<T>, T: Integer + Montgomery
 }
 
 #[inline]
-pub fn radix_8_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>>(
-    c0: MontgomeryModint<M, T>,
-    c1: MontgomeryModint<M, T>,
-    c2: MontgomeryModint<M, T>,
-    c3: MontgomeryModint<M, T>,
-    c4: MontgomeryModint<M, T>,
-    c5: MontgomeryModint<M, T>,
-    c6: MontgomeryModint<M, T>,
-    c7: MontgomeryModint<M, T>,
-    cache: &FftCache<MontgomeryModint<M, T>>,
+pub fn radix_8_inner_montgomery_modint<M: Modulo>(
+    c0: MontgomeryModint<M>,
+    c1: MontgomeryModint<M>,
+    c2: MontgomeryModint<M>,
+    c3: MontgomeryModint<M>,
+    c4: MontgomeryModint<M>,
+    c5: MontgomeryModint<M>,
+    c6: MontgomeryModint<M>,
+    c7: MontgomeryModint<M>,
+    cache: &FftCache<MontgomeryModint<M>>,
 ) -> (
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
 ) {
     let im = cache.prim_root(2);
 
@@ -110,25 +109,25 @@ pub fn radix_8_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMult
 }
 
 #[inline]
-pub fn radix_8_inv_inner_montgomery_modint<M: Modulo<T>, T: Integer + MontgomeryMultiplication<M, T>>(
-    c0: MontgomeryModint<M, T>,
-    c1: MontgomeryModint<M, T>,
-    c2: MontgomeryModint<M, T>,
-    c3: MontgomeryModint<M, T>,
-    c4: MontgomeryModint<M, T>,
-    c5: MontgomeryModint<M, T>,
-    c6: MontgomeryModint<M, T>,
-    c7: MontgomeryModint<M, T>,
-    cache: &FftCache<MontgomeryModint<M, T>>,
+pub fn radix_8_inv_inner_montgomery_modint<M: Modulo>(
+    c0: MontgomeryModint<M>,
+    c1: MontgomeryModint<M>,
+    c2: MontgomeryModint<M>,
+    c3: MontgomeryModint<M>,
+    c4: MontgomeryModint<M>,
+    c5: MontgomeryModint<M>,
+    c6: MontgomeryModint<M>,
+    c7: MontgomeryModint<M>,
+    cache: &FftCache<MontgomeryModint<M>>,
 ) -> (
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
-    MontgomeryModint<M, T>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
+    MontgomeryModint<M>,
 ) {
     let im = cache.prim_root_inv(2);
 
