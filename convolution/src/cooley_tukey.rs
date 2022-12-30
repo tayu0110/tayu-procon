@@ -131,7 +131,7 @@ pub fn cooley_tukey_radix_8_butterfly_montgomery_modint(deg: usize, log: usize, 
             let width = 1 << (i + 2);
             if is_x86_feature_detected!("avx2") {
                 unsafe {
-                    radix_4_kernel_cooley_tukey_avx2(deg, width, a, cache, cache.twiddle_factors(), radix_4_inner_montgomery_modint);
+                    radix_4_kernel_cooley_tukey_avx2(deg, width, a, cache.twiddle_factors());
                 }
             } else {
                 radix_4_kernel(deg, width, a, cache, cache.twiddle_factors(), radix_4_inner_montgomery_modint);

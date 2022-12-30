@@ -130,7 +130,7 @@ pub fn gentleman_sande_radix_8_butterfly_montgomery_modint(deg: usize, log: usiz
         } else if i + 2 == log {
             if is_x86_feature_detected!("avx2") {
                 unsafe {
-                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, cache, twiddle, radix_4_inner_montgomery_modint);
+                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, twiddle);
                 }
             } else {
                 radix_4_kernel(deg, width, a, cache, twiddle, radix_4_inner_montgomery_modint);
@@ -138,9 +138,9 @@ pub fn gentleman_sande_radix_8_butterfly_montgomery_modint(deg: usize, log: usiz
         } else if i + 4 == log {
             if is_x86_feature_detected!("avx2") {
                 unsafe {
-                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, cache, twiddle, radix_4_inner_montgomery_modint);
+                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, twiddle);
                     let width = deg >> (i + 2);
-                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, cache, twiddle, radix_4_inner_montgomery_modint);
+                    radix_4_kernel_gentleman_sande_avx2(deg, width, a, twiddle);
                 }
             } else {
                 radix_4_kernel(deg, width, a, cache, twiddle, radix_4_inner_montgomery_modint);

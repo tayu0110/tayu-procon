@@ -256,7 +256,7 @@ fn montgomery_multiplication(lhs: u32, rhs: u32, modulo: u32, mod_inv: u32) -> u
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MontgomeryModint<M: Modulo> {
-    val: u32,
+    pub val: u32,
     _phantom: PhantomData<fn() -> M>,
 }
 
@@ -397,10 +397,12 @@ impl<M: Modulo> From<i64> for MontgomeryModint<M> {
 impl<M: Modulo> FromStr for MontgomeryModint<M> {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("-") {
-            Ok(Self::from(i64::from_str(s)?))
+        let val = s.parse::<i64>()?;
+
+        if 0 <= val && val < M::MOD as i64 {
+            Ok(Self::raw(val as u32))
         } else {
-            Ok(Self::from(u64::from_str(s)?))
+            Ok(Self::from(val))
         }
     }
 }
@@ -579,5 +581,9 @@ mod tests {
         assert_eq!((a * b).val(), 17486571);
         assert_eq!(a.pow(B).val(), 860108694);
         assert_eq!((a / b).val(), 748159151);
+
+        assert_eq!("347384953".parse::<Modint>(), Ok(Modint::new(347384953)));
+        assert_eq!("-347384953".parse::<Modint>(), Ok(Modint::from(-347384953i64)));
+        assert!("-3473a4953".parse::<Modint>().is_err());
     }
 }

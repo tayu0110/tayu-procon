@@ -7,7 +7,9 @@ type Mint998244353 = MontgomeryModint<Mod998244353>;
 
 #[fastout]
 fn main() {
-    input! {n: usize, a: [Mint998244353; n], b: [Mint998244353; n]};
+    input! {n: usize, p: [(Mint998244353, Mint998244353); n]};
+
+    let (a, b) = p.into_iter().unzip();
 
     let c = convolution(a, b);
     println!("0");
