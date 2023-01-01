@@ -6,8 +6,13 @@ version = 3
 name = "graph"
 version = "0.1.0"
 dependencies = [
+ "iolib",
  "unionfind",
 ]
+
+[[package]]
+name = "iolib"
+version = "0.1.0"
 
 [[package]]
 name = "unionfind"

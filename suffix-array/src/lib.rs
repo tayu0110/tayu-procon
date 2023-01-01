@@ -162,7 +162,7 @@ impl<'a> SuffixArray<'a> {
                 rem -= 1;
             }
 
-            for lms_index in 0..filled_lms[backet_index] {
+            for lms_index in 0..*filled_lms.get_unchecked(backet_index) {
                 let lms = *sa.get_unchecked((*char_start.get_unchecked(backet_index + 1) - 1 - lms_index) as usize) as usize;
                 if lms > 0 && types.get_unchecked(lms - 1) == &Type::L {
                     let nc = (*s.get_unchecked(lms - 1)).into() as usize;
