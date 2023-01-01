@@ -10,12 +10,5 @@ dependencies = [
 ]
 
 [[package]]
-name = "modint"
-version = "0.1.0"
-
-[[package]]
 name = "numeric"
 version = "0.1.0"
-dependencies = [
- "modint",
-]

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 pub const BIT_SIZE: usize = std::mem::size_of::<u128>();
@@ -8,12 +10,7 @@ struct Bitset {
 }
 
 impl Bitset {
-    pub fn new(size: usize) -> Self {
-        Self {
-            size,
-            bits: vec![0; (size + BIT_SIZE - 1) >> LOG],
-        }
-    }
+    pub fn new(size: usize) -> Self { Self { size, bits: vec![0; (size + BIT_SIZE - 1) >> LOG] } }
 
     pub const fn size(&self) -> usize { self.size }
 
