@@ -1,61 +1,17 @@
+mod dynamic_montgomery_modint;
+mod modulo;
 mod montgomery_modint;
 
+pub use dynamic_montgomery_modint::*;
+pub use modulo::*;
 pub use montgomery_modint::*;
+
 use numeric::{One, Zero};
 use std::convert::From;
 use std::marker::{self, PhantomData};
 use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use std::str::FromStr;
-
-pub trait Modulo: Clone + marker::Copy + PartialEq + Eq {
-    const MOD: u32;
-    const MOD_INV: u32;
-    const R: u32;
-    const R2: u32;
-    const PRIM_ROOT: u32;
-    fn montgomery_constant_mask() -> u32 { unimplemented!() }
-}
-
-#[derive(Clone, marker::Copy, PartialEq, Eq)]
-pub enum Mod998244353 {}
-impl Modulo for Mod998244353 {
-    const MOD: u32 = 998_244_353;
-    // R = 2^32 mod 998244353
-    const R: u32 = ((1u64 << 32) % Self::MOD as u64) as u32;
-    // modulo * modulo_inv = -1 mod R
-    const MOD_INV: u32 = {
-        let inv = Self::MOD.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(Self::MOD)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        inv.wrapping_neg()
-    };
-    // R2 = 2^64 mod 998244353
-    const R2: u32 = ((Self::MOD as u64).wrapping_neg() % Self::MOD as u64) as u32;
-    const PRIM_ROOT: u32 = 3;
-    #[inline]
-    // R - 1 = 2^32 - 1
-    fn montgomery_constant_mask() -> u32 { !0 }
-}
-
-#[derive(Clone, marker::Copy, PartialEq, Eq)]
-pub enum Mod1000000007 {}
-impl Modulo for Mod1000000007 {
-    const MOD: u32 = 1_000_000_007;
-    const MOD_INV: u32 = {
-        let inv = Self::MOD.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(Self::MOD)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        inv.wrapping_neg()
-    };
-    const PRIM_ROOT: u32 = 5;
-    const R: u32 = ((1u64 << 32) % Self::MOD as u64) as u32;
-    const R2: u32 = (Self::R as u64 * Self::R as u64 % Self::MOD as u64) as u32;
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Mint<M: Modulo> {
@@ -238,9 +194,9 @@ pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Mint<M> {
 // t <- MR(T) = (T + (TN' mod R) * N) / R
 //  if t >= N then return t - N else return t
 //      T := a (0 <= T < NR)
-//      N := modulo()
-//      N':= montgomery_constant_modulo_inv()
-//      R := montgomery_constant_r()
+//      N := MOD
+//      N':= MOD_INV
+//      R := R
 fn montgomery_reduction(val: u32, modulo: u32, mod_inv: u32) -> u32 {
     let t = ((val as u64).wrapping_add((val.wrapping_mul(mod_inv) as u64).wrapping_mul(modulo as u64)) >> 32) as u32;
     let res = if t >= modulo { t - modulo } else { t };
@@ -286,13 +242,12 @@ impl<M: Modulo> MontgomeryModint<M> {
 
     pub fn pow(&self, mut n: u32) -> Self {
         let mut val = self.val;
-        let mut res = if (n & 1) != 0 { val } else { M::R };
-        n >>= 1;
+        let mut res = M::R;
         while n != 0 {
-            val = montgomery_multiplication(val, val, M::MOD, M::MOD_INV);
             if n & 1 != 0 {
                 res = montgomery_multiplication(res, val, M::MOD, M::MOD_INV);
             }
+            val = montgomery_multiplication(val, val, M::MOD, M::MOD_INV);
             n >>= 1;
         }
         Self { val: res, _phantom: PhantomData }

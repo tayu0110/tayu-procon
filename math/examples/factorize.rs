@@ -1,3 +1,4 @@
+// https://judge.yosupo.jp/problem/factorize
 use iolib::scan;
 use math::factorize;
 

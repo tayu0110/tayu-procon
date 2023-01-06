@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 numeric = { package = "numeric", path = "../numeric" }
+modint = { package = "modint", path = "../modint" }
+
+[dev-dependencies]
+iolib = { package = "iolib", path = "../iolib" }

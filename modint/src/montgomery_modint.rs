@@ -94,9 +94,9 @@ impl<const MOD: u32> MontgomeryModintu32<MOD> {
     // t <- MR(T) = (T + (TN' mod R) * N) / R
     //  if t >= N then return t - N else return t
     //      T := a (0 <= T < NR)
-    //      N := modulo()
-    //      N':= montgomery_constant_modulo_inv()
-    //      R := montgomery_constant_r()
+    //      N := MOD
+    //      N':= MOD_INV
+    //      R := R
     const fn montgomery_reduction(t: u32) -> u32 {
         let t = ((t as u64).wrapping_add((t.wrapping_mul(Self::MOD_INV) as u64).wrapping_mul(Self::MOD as u64)) >> 32) as u32;
         if t >= Self::MOD {
@@ -179,25 +179,17 @@ impl<const MOD: u32> MontgomeryModintu32<MOD> {
     const fn add_mont(&self, rhs: Self) -> Self {
         let (t, fa) = self.val.overflowing_add(rhs.val);
         let (u, fs) = t.overflowing_sub(Self::MOD);
-        Self {
-            val: if fa || !fs { u } else { t },
-        }
+        Self { val: if fa || !fs { u } else { t } }
     }
 
     #[inline]
     const fn sub_mont(&self, rhs: Self) -> Self {
         let (val, f) = self.val.overflowing_sub(rhs.val);
-        Self {
-            val: if f { val.wrapping_add(Self::MOD) } else { val },
-        }
+        Self { val: if f { val.wrapping_add(Self::MOD) } else { val } }
     }
 
     #[inline]
-    const fn mul_mont(&self, rhs: Self) -> Self {
-        Self {
-            val: Self::multiplication(self.val, rhs.val),
-        }
-    }
+    const fn mul_mont(&self, rhs: Self) -> Self { Self { val: Self::multiplication(self.val, rhs.val) } }
 
     #[inline]
     const fn div_mont(&self, rhs: Self) -> Self { self.mul_mont(rhs.inv()) }

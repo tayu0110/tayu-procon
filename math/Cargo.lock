@@ -3,7 +3,20 @@
 version = 3
 
 [[package]]
+name = "iolib"
+version = "0.1.0"
+
+[[package]]
 name = "math"
+version = "0.1.0"
+dependencies = [
+ "iolib",
+ "modint",
+ "numeric",
+]
+
+[[package]]
+name = "modint"
 version = "0.1.0"
 dependencies = [
  "numeric",

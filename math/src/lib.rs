@@ -1,3 +1,4 @@
+use modint::DynamicMontgomeryModint;
 use numeric::Integer;
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -5,15 +6,18 @@ use numeric::Integer;
 //////////////////////////////////////////////////////////////////////////////////
 
 /// Return gcd(x, y).
-pub fn gcd<T: Integer>(x: T, y: T) -> T {
-    if y == T::zero() {
-        x
-    } else {
-        gcd(y, x % y)
+#[inline]
+pub fn gcd<T: Integer>(mut x: T, mut y: T) -> T {
+    while y != T::zero() {
+        let (nx, ny) = (y, x % y);
+        x = nx;
+        y = ny;
     }
+    x
 }
 
 /// Return lcm(x, y).
+#[inline]
 pub fn lcm<T: Integer>(x: T, y: T) -> T { x / gcd(x, y) * y }
 
 /// Solve the equation "ax + by = gcd(a, b)".
@@ -60,24 +64,29 @@ pub fn miller_rabin_test(p: u64) -> bool {
 
     let s = (p - 1).trailing_zeros();
     let t = (p - 1) >> s;
-    let mont = MontgomeryOperator::new(p as u64);
+    let mont_zero = DynamicMontgomeryModint::raw(0, p);
+    let mont_one = mont_zero.one();
+    let mont_neg_one = mont_zero - mont_one;
 
-    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().filter(|a| *a % p != 0).all(|a| {
-        let a = if *a < p { *a } else { *a % p };
-        let at = mont.pow(mont.ar(a as u64), t as u64);
+    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().filter(|a| *a % p != 0).all(|&a| {
+        let a = if a < p {
+            DynamicMontgomeryModint::from_same_mod_unchecked(a, mont_zero)
+        } else {
+            DynamicMontgomeryModint::from_same_mod(a, mont_zero)
+        };
+        let at = a.pow(t);
         // a^t = 1 (mod p) or a^t = -1 (mod p)
-        if at == mont.r || at == mont.neg_r {
+        if at == mont_one || at == mont_neg_one {
             return true;
         }
 
+        // found i satisfying a^((2^i)*t) = -1 (mod p)
         (1..s)
             .scan(at, |at, _| {
-                *at = mont.mul(*at, *at);
+                *at *= *at;
                 Some(*at)
             })
-            .any(|at|
-            // found i satisfying a^((2^i)*t) = -1 (mod p)
-            at == mont.neg_r)
+            .any(|at| at == mont_neg_one)
     })
 }
 
@@ -87,20 +96,15 @@ pub fn factorize(mut n: u64) -> Vec<u64> {
         return vec![];
     }
 
-    let mut res = if n & 1 == 0 {
-        let tz = n.trailing_zeros();
-        n >>= tz;
-        (0..tz).map(|_| 2).collect()
-    } else {
-        vec![]
-    };
+    let mut res = (0..n.trailing_zeros() as u64).map(|_| 2).collect::<Vec<u64>>();
+    n >>= n.trailing_zeros();
 
     while let Some(g) = pollard_rho(n) {
         res.push(g);
         n /= g;
     }
 
-    if n != 1 {
+    if n > 1 {
         res.push(n);
     }
 
@@ -120,171 +124,49 @@ fn pollard_rho(n: u64) -> Option<u64> {
     }
 
     // If n is prime number, n has no divisors of ifself.
-    // So return None.
+    // So return itself.
     if miller_rabin_test(n) {
-        return None;
+        return Some(n);
     }
 
     let m = (n as f64).powf(0.125).round() as i64 + 1;
-    let mont = MontgomeryOperator::new(n);
-    let mut res_g = 0;
+    let mont_zero = DynamicMontgomeryModint::new(0, n);
+    let mont_one = mont_zero.one();
+    let mut g = 1;
 
-    for c in 1..n {
-        let f = |ar| mont.add(mont.mul(ar, ar), c);
-        let mut x = 0;
-        let (mut y, mut ys) = (mont.mr(0), 0);
-        let (mut g, mut q, mut r) = (1, 1, 1);
-        let mut k = 0;
+    for c in (1..n).map(|c| DynamicMontgomeryModint::from_same_mod_unchecked(c, mont_zero)) {
+        let mut y = mont_zero;
+        let mut q = mont_one;
 
-        while g == 1 {
-            x = y;
-            while k < (3 * r) >> 2 {
-                y = f(mont.mr(y));
-                k += 1;
-            }
-            while k < r && g == 1 {
-                ys = y;
-                for _ in 0..std::cmp::min(m, r - k) {
-                    y = f(mont.mr(y));
-                    q = mont.mul(mont.mr(q), mont.mr(std::cmp::max(x, y) - std::cmp::min(x, y)));
+        'base: for r in (0..).map(|i| 1 << i) {
+            let x = y;
+            (r..=(3 * r) >> 2).for_each(|_| y = y * y + c);
+            for k in (((3 * r) >> 2)..r).step_by(m as usize) {
+                let ys = y;
+                (0..std::cmp::min(m, r - k)).for_each(|_| {
+                    y = y * y + c;
+                    q *= x - y;
+                });
+                g = gcd(q.val() as i64, n as i64);
+                if g != 1 {
+                    if g == n as i64 {
+                        y = ys * ys + c;
+                        while gcd((x - y).val() as i64, n as i64) == 1 {
+                            y = y * y + c;
+                        }
+                        g = gcd((x - y).val() as i64, n as i64);
+                    }
+                    break 'base;
                 }
-                g = gcd(q as i64, n as i64);
-                k += m;
-            }
-            k = r;
-            r <<= 1;
-        }
-        if g == n as i64 {
-            g = 1;
-            y = ys;
-            while g == 1 {
-                y = f(mont.mr(y));
-                g = gcd(std::cmp::max(x, y) as i64 - std::cmp::min(x, y) as i64, n as i64);
             }
         }
-        if g == n as i64 {
-            continue;
-        }
 
-        res_g = g;
-        break;
-    }
-
-    if miller_rabin_test(res_g as u64) {
-        return Some(res_g as u64);
-    }
-    if miller_rabin_test(n / res_g as u64) {
-        return Some(n / res_g as u64);
-    }
-
-    pollard_rho(res_g as u64)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// MontgomeryOperator
-///   - Use Montgomery multiplication to reduce the cost of surplus multiplication.
-///   - For implementation reasons, for now I limit modulo to odd numbers for now.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-pub struct MontgomeryOperator {
-    pub modulo: u64,
-    pub inv_modulo: u64,
-    pub r: u64,
-    pub neg_r: u64,
-    pub half_modulo: u64,
-    pub r2: u64,
-    pub d: u64,
-}
-
-impl MontgomeryOperator {
-    pub const fn new(modulo: u64) -> Self {
-        assert!(modulo & 1 != 0);
-
-        let inv_modulo = {
-            let mut i = 0;
-            let mut inv_modulo = modulo;
-            while i < 5 {
-                inv_modulo = inv_modulo.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv_modulo)));
-                i += 1;
-            }
-            inv_modulo
-        };
-
-        let half_modulo = (modulo >> 1) + 1;
-        let r = modulo.wrapping_neg() % modulo;
-        let neg_r = modulo - r;
-        let r2 = ((modulo as u128).wrapping_neg() % (modulo as u128)) as u64;
-        let d = (modulo - 1) >> (modulo - 1).trailing_zeros();
-
-        Self {
-            modulo,
-            inv_modulo,
-            r,
-            neg_r,
-            half_modulo,
-            r2,
-            d,
+        if g != n as i64 {
+            break;
         }
     }
 
-    pub const fn add(&self, a: u64, b: u64) -> u64 {
-        let (t, fa) = a.overflowing_add(b);
-        let (u, fs) = t.overflowing_sub(self.modulo);
-        if fa || !fs {
-            u
-        } else {
-            t
-        }
-    }
-
-    pub const fn sub(&self, a: u64, b: u64) -> u64 {
-        let (t, f) = a.overflowing_sub(b);
-        if f {
-            t.wrapping_add(self.modulo)
-        } else {
-            t
-        }
-    }
-
-    pub const fn div2(&self, ar: u64) -> u64 {
-        if ar & 1 != 0 {
-            (ar >> 1) + self.half_modulo
-        } else {
-            ar >> 1
-        }
-    }
-
-    pub const fn mul(&self, ar: u64, br: u64) -> u64 {
-        let t = (ar as u128) * (br as u128);
-        let (t, f) = ((t >> 64) as u64).overflowing_sub((((((t as u64).wrapping_mul(self.inv_modulo)) as u128) * self.modulo as u128) >> 64) as u64);
-        if f {
-            t.wrapping_add(self.modulo)
-        } else {
-            t
-        }
-    }
-
-    pub const fn mr(&self, ar: u64) -> u64 {
-        let (t, f) = (((((ar.wrapping_mul(self.inv_modulo)) as u128) * (self.modulo as u128)) >> 64) as u64).overflowing_neg();
-        if f {
-            t.wrapping_add(self.modulo)
-        } else {
-            t
-        }
-    }
-    pub const fn ar(&self, a: u64) -> u64 { self.mul(a, self.r2) }
-
-    pub const fn pow(&self, mut ar: u64, mut b: u64) -> u64 {
-        let mut t = if (b & 1) != 0 { ar } else { self.r };
-        b >>= 1;
-        while b != 0 {
-            ar = self.mul(ar, ar);
-            if b & 1 != 0 {
-                t = self.mul(t, ar);
-            }
-            b >>= 1;
-        }
-        t
-    }
+    pollard_rho(g as u64)
 }
 
 #[cfg(test)]
