@@ -2,13 +2,13 @@ use std::marker;
 
 pub trait Modulo: Clone + marker::Copy + PartialEq + Eq {
     const MOD: u32;
-    // MOD * MOD_INV = -1 mod R
+    // MOD * MOD_INV = 1 mod R
     const MOD_INV: u32 = {
         let inv = Self::MOD.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(Self::MOD)));
         let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
         let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
         let inv = inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)));
-        inv.wrapping_neg()
+        inv.wrapping_mul(2u32.wrapping_sub(Self::MOD.wrapping_mul(inv)))
     };
     // R = 2^32 mod MOD
     const R: u32 = ((1u64 << 32) % Self::MOD as u64) as u32;

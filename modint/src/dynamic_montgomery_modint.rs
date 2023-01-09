@@ -3,23 +3,21 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// DynamicMontgomeryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// t <- MR(T) = (T + (TN' mod R) * N) / R
-//  if t >= N then return t - N else return t
+// t <- MR(T) = floor(T/R) - floor((TN' mod R)*N/R)
+//  if t < 0 then return t + N else return t
 //      T := a (0 <= T < NR)
-//      N := modulo
-//      N':= MOD_INV
-//      R := 1 << 64
-fn montgomery_reduction(val: u64, modulo: u64, modulo_inv: u64) -> u64 {
-    let t = ((val as u128).wrapping_add((val.wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128)) >> 64) as u64;
-    let res = if t >= modulo { t - modulo } else { t };
-    res
+//      N := MOD
+//      N':= MOD_INV    NN' = 1 (mod R)
+//      R := R
+const fn montgomery_reduction(val: u64, modulo: u64, modulo_inv: u64) -> u64 {
+    let (t, f) = (((val.wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64) as u64).overflowing_neg();
+    t.wrapping_add(modulo * f as u64)
 }
 
-fn montgomery_multiplication(lhs: u64, rhs: u64, modulo: u64, modulo_inv: u64) -> u64 {
+const fn montgomery_multiplication(lhs: u64, rhs: u64, modulo: u64, modulo_inv: u64) -> u64 {
     let a = lhs as u128 * rhs as u128;
-    let t = (a.wrapping_add(((a as u64).wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128)) >> 64) as u64;
-    let res = if t >= modulo { t - modulo } else { t };
-    res
+    let (t, f) = ((a >> 64) as u64).overflowing_sub((((a as u64).wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64) as u64);
+    t.wrapping_add(modulo * f as u64)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -33,18 +31,17 @@ pub struct DynamicMontgomeryModint {
 
 impl DynamicMontgomeryModint {
     #[inline]
-    pub fn new(val: u64, modulo: u64) -> Self { Self::raw(val.rem_euclid(modulo), modulo) }
+    pub const fn new(val: u64, modulo: u64) -> Self { Self::raw(val % modulo, modulo) }
 
-    pub fn raw(val: u64, modulo: u64) -> Self {
+    pub const fn raw(val: u64, modulo: u64) -> Self {
         let r = ((1u128 << 64) % modulo as u128) as u64;
         let r2 = ((modulo as u128).wrapping_neg() % modulo as u128) as u64;
         let modulo_inv = {
-            let (mut prev, mut inv) = (0, modulo);
-            while prev != inv {
-                prev = inv;
-                inv = inv.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv)));
-            }
-            inv.wrapping_neg()
+            let inv = modulo.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(modulo)));
+            let inv = inv.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv)));
+            let inv = inv.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv)));
+            let inv = inv.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv)));
+            inv.wrapping_mul(2u64.wrapping_sub(modulo.wrapping_mul(inv)))
         };
         let val = montgomery_multiplication(val, r2, modulo, modulo_inv);
         Self { val, modulo, modulo_inv, r, r2 }
@@ -54,16 +51,16 @@ impl DynamicMontgomeryModint {
     const fn from_raw_parts_unchecked(val: u64, modulo: u64, modulo_inv: u64, r: u64, r2: u64) -> Self { Self { val, modulo, modulo_inv, r, r2 } }
 
     #[inline]
-    pub fn from_same_mod(val: u64, from: Self) -> Self { Self::from_same_mod_unchecked(val % from.modulo, from) }
+    pub const fn from_same_mod(val: u64, from: Self) -> Self { Self::from_same_mod_unchecked(val % from.modulo, from) }
 
     #[inline]
-    pub fn from_same_mod_unchecked(val: u64, from: Self) -> Self {
+    pub const fn from_same_mod_unchecked(val: u64, from: Self) -> Self {
         let val = montgomery_multiplication(val, from.r2, from.modulo, from.modulo_inv);
         Self::from_raw_parts_unchecked(val, from.modulo, from.modulo_inv, from.r, from.r2)
     }
 
     #[inline]
-    pub fn val(&self) -> u64 { montgomery_reduction(self.val, self.modulo, self.modulo_inv) }
+    pub const fn val(&self) -> u64 { montgomery_reduction(self.val, self.modulo, self.modulo_inv) }
 
     #[inline]
     pub const fn val_mont_expr(&self) -> u64 { self.val }

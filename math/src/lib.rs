@@ -68,12 +68,8 @@ pub fn miller_rabin_test(p: u64) -> bool {
     let mont_one = mont_zero.one();
     let mont_neg_one = mont_zero - mont_one;
 
-    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().filter(|a| *a % p != 0).all(|&a| {
-        let a = if a < p {
-            DynamicMontgomeryModint::from_same_mod_unchecked(a, mont_zero)
-        } else {
-            DynamicMontgomeryModint::from_same_mod(a, mont_zero)
-        };
+    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().map(|&a| a % p).filter(|&a| a != 0).all(|a| {
+        let a = DynamicMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
         let at = a.pow(t);
         // a^t = 1 (mod p) or a^t = -1 (mod p)
         if at == mont_one || at == mont_neg_one {

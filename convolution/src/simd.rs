@@ -4,10 +4,9 @@ use modint::{Mod998244353, Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_add_epi64, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_castsi128_si256, _mm256_castsi256_si128, _mm256_cmpgt_epi32,
-    _mm256_extracti128_si256, _mm256_load_si256, _mm256_loadu_si256, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i,
-    _mm256_shuffle_epi32, _mm256_store_si256, _mm256_storeu_si256, _mm256_sub_epi32, _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm_load_si128,
-    _mm_loadu_si128,
+    __m256i, _mm256_add_epi32, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_castsi128_si256, _mm256_castsi256_si128, _mm256_cmpgt_epi32, _mm256_extracti128_si256,
+    _mm256_load_si256, _mm256_loadu_si256, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32,
+    _mm256_store_si256, _mm256_storeu_si256, _mm256_sub_epi32, _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm_load_si128, _mm_loadu_si128,
 };
 
 type Mint = MontgomeryModint<Mod998244353>;
@@ -24,32 +23,35 @@ struct AlignedArrayu64x4 {
 
 #[inline]
 #[target_feature(enable = "avx2")]
-// ws: [(0, w0), (0, w1), (0, w2), (0, w3)]
-// cs: [(0, c0), (0, c1), (0, c2), (0, c3)]
-//  -> [0, w0c0, 0, w1c1, 0, w2c2, 0, w3c3]
+// ws: [(w0, 0), (w1, 0), (w2, 0), (w3, 0)]
+// cs: [(c0, 0), (c1, 0), (c2, 0), (c3, 0)]
+//  -> [w0c0, 0, w1c1, 0, w2c2, 0, w3c3, 0]
 unsafe fn montgomery_multiplication_u32x4(ws: __m256i, cs: __m256i, modulo: __m256i, modulo_inv: __m256i) -> __m256i {
     // Parallelization of Montgomery Multiplication
-    // ws    = [(0, w0), (0, w1), (0, w2), (0, w3)], cs = [(0, c0), (0, c1), (0, c2), (0, c3)]
+    // ws    = [(w0, 0), (w1, 0), (w2, 0), (w3, 0)], cs = [(c0, 0), (c1, 0), (c2, 0), (c3, 0)]
     // t     = [(w0 * c0 as i64), (w1 * c1 as i64), (w2 * c2 as i64), (w3 * c3 as i64)]
-    //       = [(w0c0hi, w0c0lo), (w1c1hi, w1c1lo), (w2c2hi, w2c2lo), (w3c3hi, w3c3lo)]
-    // tmi   = [(w0c0hi.wrap_mul(modinv), w0c0lo.wrap_mul(modinv)), (w1c1hi.wrap_mul(modinv), w1c1lo.wrap_mul(modinv)),
-    //          (w2c2hi.wrap_mul(modinv), w2c2lo.wrap_mul(modinv)), (w3c3hi.wrap_mul(modinv), w3c3lo.wrap_mul(modinv))]
+    //       = [(w0c0lo, w0c0hi), (w1c1lo, w1c1hi), (w2c2lo, w2c2hi), (w3c3lo, w3c3hi)]
+    let t = _mm256_mul_epu32(ws, cs);
+    // tmi   = [(w0c0lo.wrap_mul(modinv), w0c0hi.wrap_mul(modinv)), (w1c1lo.wrap_mul(modinv), w1c1hi.wrap_mul(modinv)),
+    //          (w2c2lo.wrap_mul(modinv), w2c2hi.wrap_mul(modinv)), (w3c3lo.wrap_mul(modinv), w3c3hi.wrap_mul(modinv))]
+    let tmi = _mm256_mullo_epi32(t, modulo_inv);
     // u     = [(w0c0lo.wrap_mul(modinv) * mod as i64), (w1c1lo.wrap_mul(modinv) * mod as i64),
     //          (w2c2lo.wrap_mul(modinv) * mod as i64), (w3c3lo.wrap_mul(modinv) * mod as i64)]
-    // c     = [t + (w0c0lo.wrap_mul(modinv) * mod as i64), t + (w1c1lo.wrap_mul(modinv) * mod as i64),
-    //          t + (w2c2lo.wrap_mul(modinv) * mod as i64), t + (w3c3lo.wrap_mul(modinv) * mod as i64)]
-    // MR(t) = (t as u64 + (((wxcxlo * modinv) & mask) * mod as u64)) >> 32 = c
-    //      if c[i] >= mod then return c[i] - mod else return c[i]
-    let t = _mm256_mul_epu32(ws, cs);
-    let tmi = _mm256_mullo_epi32(t, modulo_inv);
     let u = _mm256_mul_epu32(tmi, modulo);
-    let c = _mm256_add_epi64(t, u);
+    // c_neg = [t0lo - u0lo, t0hi - u0hi, t1lo - u1lo,
+    //          t2lo - u2lo, t2hi - u2hi, t3lo - u3lo]
+    // MR(t) = wxcxhi - (wxcxlo.wrap_mul(modinv) as u64 * mod as u64 >> 32)
+    //       = t_hi - u_hi
+    //       = c_hi
+    //      if c[i] < 0 then return c[i] + mod else return c[i]
+    let c_neg = _mm256_sub_epi32(t, u);
+    let c = _mm256_add_epi32(c_neg, modulo);
     // if modulo > c
     //      return c
     // else
     //      return c_neg
-    let res = _mm256_blendv_epi8(_mm256_sub_epi32(c, modulo), c, _mm256_cmpgt_epi32(modulo, c));
-    // let res = _mm256_blendv_epi8(c_neg, c, mask);
+    let res = _mm256_blendv_epi8(c_neg, c, _mm256_cmpgt_epi32(modulo, c));
+    // let res = _mm256_blendv_epi8(_mm256_sub_epi32(c, modulo), c, _mm256_cmpgt_epi32(modulo, c));
     // Instead of 32-bit right shift, shuffle is used to swap the upper and lower 32 bits of a 64-bit integer.
     // At this point, the lower 32 bits are all zeros, so this is no problem.
     _mm256_shuffle_epi32(res, 0b10_11_00_01)
@@ -76,11 +78,13 @@ unsafe fn montgomery_multiplication_u32x8(ws: __m256i, cs: __m256i, modulo: __m2
     // u2    = [(w1c1lo.wrap_mul(modinv) * mod as i64), (w3c3lo.wrap_mul(modinv) * mod as i64), (w5c5lo.wrap_mul(modinv) * mod as i64), (w7c7lo.wrap_mul(modinv) * mod as i64)]
     let u2 = _mm256_mul_epu32(t2mod, modulo);
     // c1    = [t + (w0c0lo.wrap_mul(modinv) * mod as i64), t + (w2c2lo.wrap_mul(modinv) * mod as i64), t + (w4c4lo.wrap_mul(modinv) * mod as i64), t + (w6c6lo.wrap_mul(modinv) * mod as i64)]
-    let c1 = _mm256_add_epi64(t1, u1);
+    let c1_neg = _mm256_sub_epi32(t1, u1);
     // c2    = [t + (w1c1lo.wrap_mul(modinv) * mod as i64), t + (w3c3lo.wrap_mul(modinv) * mod as i64), t + (w5c5lo.wrap_mul(modinv) * mod as i64), t + (w7c7lo.wrap_mul(modinv) * mod as i64)]
-    let c2 = _mm256_add_epi64(t2, u2);
+    let c2_neg = _mm256_sub_epi32(t2, u2);
     // c     = [c1[0], c2[0], c1[1], c2[1], c1[2], c2[2], c1[3], c2[3]]
-    // MR(t) = (t as u64 + (((wxcxlo * modinv) & mask) * mod as u64)) >> 32 = c
+    // MR(t) = t_hi - (wxcxlo.wrap_mul(modinv) as u64 * mod as u64 >> 32)
+    //       = t_hi - u_hi
+    //       = c_hi
     //      if c[i] >= mod then return c[i] - mod else return c[i]
     // Instead of 32-bit right shift, shuffle is used to swap the upper and lower 32 bits of a 64-bit integer.
     // At this point, the lower 32 bits are all zeros, so this is no problem.
@@ -89,7 +93,9 @@ unsafe fn montgomery_multiplication_u32x8(ws: __m256i, cs: __m256i, modulo: __m2
     //      c2                                      = [0,         MR(t2[0]), 0,         MR(t2[1]), 0,         MR(t2[2]), 0,         MR(t2[3])]
     //      _mm256_blend_epi32(_mm256_shuffle_epi32(c1, 0b10_11_00_01), c2, 0b10101010)
     //                                              = [MR(t1[0]), MR(t2[0]), MR(t1[1]), MR(t2[1]), MR(t1[2]), MR(t2[2]), MR(t1[3]), MR(t2[3])]
-    let c = _mm256_blend_epi32(_mm256_shuffle_epi32(c1, 0b10_11_00_01), c2, 0b10101010);
+    // let c = _mm256_blend_epi32(_mm256_shuffle_epi32(c1, 0b10_11_00_01), c2, 0b10101010);
+    let c_neg = _mm256_blend_epi32(_mm256_shuffle_epi32(c1_neg, 0b10_11_00_01), c2_neg, 0b10101010);
+    let c = _mm256_add_epi32(c_neg, modulo);
     // if modulo > c
     //      return c
     // else
