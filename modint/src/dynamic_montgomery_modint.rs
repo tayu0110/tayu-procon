@@ -180,3 +180,31 @@ impl std::fmt::Debug for DynamicMontgomeryModint {
 impl std::fmt::Display for DynamicMontgomeryModint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DynamicMontgomeryModint;
+
+    #[test]
+    fn dynamic_montgomery_modint_test() {
+        type Modint = DynamicMontgomeryModint;
+
+        const MOD: u64 = 998244353;
+        const A: u64 = 347384953;
+        const B: u64 = 847362948;
+
+        const MA: Modint = Modint::new(A, MOD);
+        const MB: Modint = Modint::new(B, MOD);
+        assert_eq!(MA.val(), A);
+        assert_eq!(MB.val(), B);
+
+        assert_eq!(MA.zero().val(), 0);
+        assert_eq!(MA.one().val(), 1);
+
+        assert_eq!((MA + MB).val(), 196503548);
+        assert_eq!((MA - MB).val(), 498266358);
+        assert_eq!((MA * MB).val(), (A as u128 * B as u128 % MOD as u128) as u64);
+        assert_eq!(MA.pow(B).val(), 860108694);
+        assert_eq!((MA / MB).val(), 748159151);
+    }
+}

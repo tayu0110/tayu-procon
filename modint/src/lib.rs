@@ -1,7 +1,9 @@
+mod dynamic_modint;
 mod dynamic_montgomery_modint;
 mod modulo;
 mod montgomery_modint;
 
+pub use dynamic_modint::*;
 pub use dynamic_montgomery_modint::*;
 pub use modulo::*;
 pub use montgomery_modint::*;
