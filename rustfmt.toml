@@ -3,3 +3,4 @@ max_width = 175
 fn_single_line = true
 single_line_if_else_max_width = 100
 struct_lit_width = 60
+format_macro_bodies = false

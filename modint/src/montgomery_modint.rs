@@ -169,10 +169,18 @@ impl<M: Modulo> From<i64> for MontgomeryModint<M> {
 impl<M: Modulo> FromStr for MontgomeryModint<M> {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = s.parse::<i64>()?;
+        let neg = s.starts_with("-");
 
-        if 0 <= val && val < M::MOD as i64 {
+        let val = if neg {
+            s[1..].bytes().fold(0u64, |s, v| s * 10 + (v - b'0') as u64)
+        } else {
+            s.bytes().fold(0u64, |s, v| s * 10 + (v - b'0') as u64)
+        };
+
+        if !neg && val < M::MOD as u64 {
             Ok(Self::raw(val as u32))
+        } else if neg {
+            Ok(Self::from(-(val as i64)))
         } else {
             Ok(Self::from(val))
         }

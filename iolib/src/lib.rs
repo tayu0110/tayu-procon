@@ -1,92 +1,70 @@
-use std::io::{BufRead, BufReader, Error, Read, StdinLock};
-use std::str::SplitWhitespace;
+mod input;
 
-static mut BUFFERED_STDIN: *mut BufReader<StdinLock<'static>> = 0 as *mut BufReader<StdinLock<'static>>;
-static mut BUF_SPLIT_WHITESPACE: *mut SplitWhitespace<'static> = 0 as *mut SplitWhitespace<'static>;
-
-#[inline]
-fn refill_buffer(interactive: bool) -> Result<(), Error> {
-    let mut s = String::new();
-
-    unsafe {
-        if BUFFERED_STDIN == 0 as *mut BufReader<StdinLock> {
-            let stdin = Box::leak(Box::new(std::io::stdin()));
-            BUFFERED_STDIN = Box::leak(Box::new(BufReader::new(stdin.lock())));
-        }
-
-        if cfg!(debug_assertions) || interactive {
-            (*BUFFERED_STDIN).read_line(&mut s)?;
-        } else {
-            (*BUFFERED_STDIN).read_to_string(&mut s)?;
-        }
-
-        BUF_SPLIT_WHITESPACE = Box::leak(Box::new(Box::leak(s.into_boxed_str()).split_whitespace()));
-        Ok(())
-    }
-}
-
-#[inline]
-pub fn scan_string(interactive: bool) -> &'static str {
-    unsafe {
-        if BUF_SPLIT_WHITESPACE == 0 as *mut SplitWhitespace<'static> {
-            refill_buffer(interactive).unwrap();
-
-            return (*BUF_SPLIT_WHITESPACE).next().unwrap();
-        }
-
-        loop {
-            if let Some(s) = (*BUF_SPLIT_WHITESPACE).next() {
-                break s;
-            }
-
-            refill_buffer(interactive).expect("Error: Unknown Error");
-        }
-    }
-}
+pub use input::{get_input, set_interactive};
 
 #[macro_export]
 macro_rules! scan {
     // Terminator
-    ( @interactive : $interactive:literal $(, )? ) => {};
+    ( $(, )? ) => {};
     // Vec<Vec<....>>, ......
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] $(, $( $rest:tt )* )? ) => {
-        let $v = (0..$len).map(|_| { $crate::scan!(@interactive: $interactive, w: [ $( $inner )+ ]); w }).collect::<Vec<_>>();
-        $( $crate::scan!(@interactive: $interactive, $( $rest )*); )?
+    ( $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] $(, $( $rest:tt )* )? ) => {
+        let $v = (0..$len).map(|_| { $crate::scan!(w: [ $( $inner )+ ]); w }).collect::<Vec<_>>();
+        $( $crate::scan!($( $rest )*); )?
     };
     // Vec<$t>, .....
-    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ] $(, $( $rest:tt )*)? ) => {
-        let $v = (0..$len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>();
-        $( $crate::scan!(@interactive: $interactive, $( $rest )*); )?
+    ( $v:ident : [ $t:tt ; $len:expr ] $(, $( $rest:tt )* )? ) => {
+        let $v = (0..$len).map(|_| { $crate::scan!($v : $t); $v }).collect::<Vec<_>>();
+        $( $crate::scan!($( $rest )*); )?
     };
     // Expand tuple
-    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt )) => {
-        { $crate::scan_string($interactive).parse::<$t>().unwrap() }
+    ( @expandtuple, ( $t:tt )) => {
+        { $crate::scan!(w: $t); w }
     };
     // Expand tuple
-    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt $( , $rest:tt )* ) ) => {
+    ( @expandtuple, ( $t:tt $(, $rest:tt )* ) ) => {
         (
-            $crate::scan!(@interactive: $interactive, @expandtuple, ( $t )),
-            $( $crate::scan!(@interactive: $interactive, @expandtuple, ( $rest )), )*
+            $crate::scan!(@expandtuple, ( $t ))
+            $(, $crate::scan!(@expandtuple, ( $rest )) )*
         )
     };
     // let $v: ($t, $u, ....) = (.......)
-    ( @interactive : $interactive:literal, $v:ident : ( $( $rest:tt )* ) ) => {
-        let $v = $crate::scan!(@interactive: $interactive, @expandtuple, ( $( $rest )* ));
+    ( $v:ident : ( $( $rest:tt )* ) ) => {
+        let $v = $crate::scan!(@expandtuple, ( $( $rest )* ));
     };
     // let $v: $t = ......, .......
-    ( @interactive : $interactive:literal, $v:ident : $t:ty $(, $( $rest:tt )* )? ) => {
-        let $v = $crate::scan_string($interactive).parse::<$t>().unwrap();
-        $( $crate::scan!(@interactive: $interactive, $( $rest )*); )?
+    ( $v:ident : $t:tt $(, $( $rest:tt )* )? ) => {
+        $crate::read_value!($v : $t);
+        $( $crate::scan!($( $rest )*); )?
     };
     // ......
     ( $( $rest:tt )* ) => {
-        $crate::scan!(@interactive: false, $( $rest )*);
+        $crate::scan!($( $rest )*);
     };
 }
 
 #[macro_export]
 macro_rules! scani {
     ( $( $rest:tt )* ) => {
-        $crate::scan!(@interactive: true, $( $rest )*);
+        $crate::set_interactive();
+        $crate::scan!( $( $rest )* );
     };
+}
+
+#[macro_export]
+macro_rules! read_value {
+    ( $v:ident : i8 ) => { let $v = $crate::get_input().read_i8(); };
+    ( $v:ident : i16 ) => { let $v = $crate::get_input().read_i16(); };
+    ( $v:ident : i32 ) => { let $v = $crate::get_input().read_i32(); };
+    ( $v:ident : i64 ) => { let $v = $crate::get_input().read_i64(); };
+    ( $v:ident : i128 ) => { let $v = $crate::get_input().read_i128(); };
+    ( $v:ident : isize ) => { let $v = $crate::get_input().read_isize(); };
+    ( $v:ident : u8 ) => { let $v = $crate::get_input().read_u8(); };
+    ( $v:ident : u16 ) => { let $v = $crate::get_input().read_u16(); };
+    ( $v:ident : u32 ) => { let $v = $crate::get_input().read_u32(); };
+    ( $v:ident : u64 ) => { let $v = $crate::get_input().read_u64(); };
+    ( $v:ident : u128 ) => { let $v = $crate::get_input().read_u128(); };
+    ( $v:ident : usize ) => { let $v = $crate::get_input().read_usize(); };
+    ( $v:ident : char ) => { let $v = $crate::get_input().read_char(); };
+    ( $v:ident : String ) => { let $v = $crate::get_input().read_string(); };
+    ( $v:ident : $t:ty ) => { let $v: $t = $crate::get_input().read_string().parse().unwrap(); };
 }
