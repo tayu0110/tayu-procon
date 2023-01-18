@@ -178,7 +178,7 @@ fn init() -> &'static mut StdinLock<'static> {
 }
 
 #[inline(always)]
-fn get_stdin_source() -> &'static mut StdinLock<'static> { unsafe { STDIN.as_mut().unwrap_unchecked() } }
+fn get_stdin_source() -> &'static mut StdinLock<'static> { unsafe { STDIN.as_mut().unwrap() } }
 
 static mut INPUT: FastInput = FastInput::new();
 static mut STDIN: *mut StdinLock<'static> = 0 as *mut StdinLock<'static>;

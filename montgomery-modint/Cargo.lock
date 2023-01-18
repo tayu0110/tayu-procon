@@ -3,12 +3,12 @@
 version = 3
 
 [[package]]
-name = "iolib"
-version = "0.1.0"
-
-[[package]]
-name = "segtree"
+name = "montgomery-modint"
 version = "0.1.0"
 dependencies = [
- "iolib",
+ "numeric",
 ]
+
+[[package]]
+name = "numeric"
+version = "0.1.0"

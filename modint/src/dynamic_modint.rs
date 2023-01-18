@@ -27,7 +27,7 @@ impl DynamicModint {
     pub const fn add_raw(&self, rhs: u64) -> Self {
         let (t, fa) = self.val.overflowing_add(rhs);
         let (u, fs) = t.overflowing_sub(self.modulo);
-        let f = (fa || !fs) as u64;
+        let f = fa as u64 | !fs as u64;
         Self { val: f * u + (1 - f) * t, modulo: self.modulo }
     }
 
