@@ -20,29 +20,38 @@ pub fn gcd<T: Integer>(mut x: T, mut y: T) -> T {
 #[inline]
 pub fn lcm<T: Integer>(x: T, y: T) -> T { x / gcd(x, y) * y }
 
-/// Solve the equation "ax + by = gcd(a, b)".
-// ax + by = gcd(a, b)
-// bx' + (a % b)y' = gcd(a, b)
-//      if a % b == 0
-//          b  = gcd(a, b)
-//          && bx' = gcd(a, b) -> x' = 1, y' = 0;
-//      else
-//          bx' + (a - b * floor(a / b))y' = gcd(a, b)
-//          ay' - b(x' - floor(a / b)y')    = gcd(a, b)
-//              -> x = 'y, y = 'x - floor(a / b)'y
-pub fn ext_gcd<T: Integer>(a: T, x: &mut T, b: T, y: &mut T) -> T {
-    if b == T::zero() {
-        *x = T::one();
-        *y = T::zero();
-        return a;
+/// Solve the equation "ax + by = gcd(a, b)"
+/// Return (gcd(a, b), x, y)
+//  s * 1 + t * 0 = s    ...(1)  (sx = 1, sy = 0)
+//  s * 0 + t * 1 = t    ...(2)  (tx = 0, ty = 1)
+//       -> (1) - (2) * |s/t|
+//       -> s * (sx - tx * |s/t|) + t * (sy - ty * |s/t|) = s % t
+// Repeating this, the right-hand side becomes gcd(s, t)
+//  s * tx + t * ty = gcd(s, t)
+#[inline]
+pub fn ext_gcd<T: Integer>(a: T, b: T) -> (T, T, T) {
+    let (mut s, mut t) = (a, b);
+    let (mut sx, mut tx) = (T::one(), T::zero());
+    let (mut sy, mut ty) = (T::zero(), T::one());
+    while s % t != T::zero() {
+        let d = s / t;
+
+        let u = s % t;
+        let ux = sx - tx * d;
+        let uy = sy - ty * d;
+        s = t;
+        sx = tx;
+        sy = ty;
+        t = u;
+        tx = ux;
+        ty = uy;
     }
 
-    let g = ext_gcd(b, y, a % b, x);
-    *y -= a / b * *x;
-    g
+    (t, tx, ty)
 }
 
 /// Using p as the modulus, calculate a^n.
+#[inline]
 pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
     let mut res = 1;
     let mut pow = a;
@@ -54,6 +63,110 @@ pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
         n >>= 1;
     }
     res
+}
+
+/// Return an integer x less than lcm(m1, m2) satisfying x = a (mod m1) and x = b (mod m2) and lcm(m1, m2).
+/// If no integers satisfy the condition, return None.
+//      m1 = gcd(m1, m2) * p,   m2 = gcd(m1, m2) * q
+//          -> x = a (mod gcd(m1, m2)) && x = b (mod gcd(m1, m2))
+//      m1 * k + m2 * l = gcd(m1, m2) = d
+//          -> now, * s (= (b - a) / d)
+//      s * m1 * k + s * m2 * l = b - a
+//          -> a + s * m1 * k = b - s * m2 * l = x
+//          -> x = a (mod m1) && x = b (mod m2)
+#[inline]
+pub fn chinese_remainder_theorem(mut a: i64, mut m1: i64, mut b: i64, mut m2: i64) -> Option<(i64, i64)> {
+    if m1 < m2 {
+        std::mem::swap(&mut a, &mut b);
+        std::mem::swap(&mut m1, &mut m2);
+    }
+    let (a, b) = (a.rem_euclid(m1), b.rem_euclid(m2));
+    if m1 % m2 == 0 {
+        return if a % m2 != b { None } else { Some((a, m1)) };
+    }
+
+    let (d, k, _) = ext_gcd(m1, m2);
+    let u1 = m2 / d;
+
+    if a % d != b % d {
+        return None;
+    }
+
+    let x = (b - a) / d % u1 * k % u1;
+    let m = m1 * u1;
+    let res = (a + x * m1).rem_euclid(m);
+    Some((res, m))
+}
+
+/// Return a minimum integer x (mod modulo) satisfying x = a[i] (mod p[i]) for any i and p[1]*p[2]*p[3].... (mod modulo)
+/// Note: For any i, j (i != j), gcd(p[i], p[j]) MUST be 1.
+//      x = t1 + t2p1 + t3p1p2 + t4p1p2p3 + ...
+//          x  = a1 (mod p1)
+//              -> a1 = x % p1 = t1 (mod p1)
+//          x  = a2 (mod p2)
+//              -> a2 = x % p2 = t1 + t2p1 (mod p2)
+//              -> t2 = (a2 - t1) * p1^{-1} (mod p2)
+//          ... so, t[k] = ((...((a[k] - t[1])p[1,k]^{-1} - t[2])p[2,k]^{-1} - ...)p[k-2,k]^{-1} - t[k-1]))p[k-1,k]^{-1} (mod p[k])
+//                       = a[k]p[1,k]^{-1}p[2,k]^{-1}...p[k-1,k]^{-1} - t[1]p[1,k]^{-1}p[2,k]^{-1}...p[k-1,k]^{-1} - t[2]p[2,k]^{-1}p[3,k]^{-1}...p[k-1,k]^{-1} - ... - t[k-1]p[k-1,k]^{-1}
+//                       = a[k](p[1,k]p[2,k]...p[k-1,k])^{-1} - t[1](p[1,k]p[2,k]...p[k-1,k])^{-1} - t[2](p[2,k]p[3,k]...p[k-1,k])^{-1} - ... - t[k-1]p[k-1,k]^{-1}
+//                       = (a[k] - x[..k]) * (p[1,k]p[2,k]p[3,k]...p[k-1,k])^{-1}
+//                       = (a[k] - res[k]) * prod[k]^{-1}
+#[inline]
+pub fn garner(a: &[i64], p: &[i64], modulo: i64) -> (i64, i64) {
+    assert_eq!(a.len(), p.len());
+    // prod[i] = p[0]p[1]...p[i-1]
+    // res[i]  = t[0] + t[1]p[0] + t[2]p[0]p[1] + ... t[i-1]p[0]p[1]...p[i-2]
+    let mut prod = vec![1; p.len() + 1];
+    let mut res = vec![0; p.len() + 1];
+    for (i, (&a, &m)) in a.iter().zip(p.iter()).enumerate() {
+        let a = a % m;
+        let (_, inv, _) = ext_gcd(prod[i], m);
+        let t = ((a - res[i]) * inv).rem_euclid(m);
+        for (i, &p) in p.iter().enumerate().skip(i + 1) {
+            res[i] = (res[i] + (t * prod[i])) % p;
+            prod[i] = (prod[i] * m) % p;
+        }
+        res[p.len()] = (res[p.len()] + (t * prod[p.len()])) % modulo;
+        prod[p.len()] = (prod[p.len()] * m) % modulo;
+    }
+    (res[p.len()], prod[p.len()])
+}
+
+/// Return a minimum integer x (mod modulo) satisfying x = a[i] (mod p[i]) for any i and p[1]*p[2]*p[3].... (mod modulo)
+/// For any i, j (i != j), gcd(p[i], p[j]) = 1 is not required.
+/// If the condition is inconsistent and no solution exists, return None.
+#[inline]
+pub fn garner_prechecked(a: &[i64], p: &[i64], modulo: i64) -> Option<(i64, i64)> {
+    let mut p = p.to_vec();
+    for i in 0..a.len() {
+        for j in 0..i {
+            let mut g = gcd(p[i], p[j]);
+
+            if (a[i] - a[j]) % g != 0 {
+                return None;
+            }
+
+            p[i] /= g;
+            p[j] /= g;
+
+            let mut gi = gcd(p[i], g);
+            let mut gj = g / gi;
+
+            g = gcd(gi, gj);
+            gi *= g;
+            gj /= g;
+            while g != 1 {
+                g = gcd(gi, gj);
+                gi *= g;
+                gj /= g;
+            }
+
+            p[i] *= gi;
+            p[j] *= gj;
+        }
+    }
+
+    Some(garner(a, &p, modulo))
 }
 
 /// The given number is determined to be prime or not prime using the Miller-Rabin primality test.
@@ -92,7 +205,7 @@ pub fn factorize(mut n: u64) -> Vec<u64> {
         return vec![];
     }
 
-    let mut res = (0..n.trailing_zeros() as u64).map(|_| 2).collect::<Vec<u64>>();
+    let mut res = vec![2u64; n.trailing_zeros() as usize];
     n >>= n.trailing_zeros();
 
     while let Some(g) = pollard_rho(n) {
@@ -167,7 +280,7 @@ fn pollard_rho(n: u64) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ext_gcd, factorize, gcd, lcm, miller_rabin_test};
+    use super::{chinese_remainder_theorem, ext_gcd, factorize, gcd, lcm, miller_rabin_test};
 
     #[test]
     fn numeric_test() {
@@ -183,12 +296,15 @@ mod tests {
 
         assert_eq!(lcm(1000_000_000_000_000_000i64, 2000_000_000_000_000_000i64), 2000_000_000_000_000_000i64);
 
-        let (mut x, mut y) = (0, 0);
-        let g = ext_gcd(111, &mut x, 30, &mut y);
+        let (g, x, y) = ext_gcd(111, 30);
 
         assert_eq!(g, 3);
         assert_eq!(x, 3);
         assert_eq!(y, -11);
+
+        let (x, l) = chinese_remainder_theorem(2, 3, 3, 5).unwrap();
+        assert_eq!(x, 8);
+        assert_eq!(l, 15);
     }
 
     #[test]
