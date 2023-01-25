@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 modint = { package = "modint", path = "../modint" }
+math = { package = "math", path = "../math" }
 
 [dev-dependencies]
 iolib = { package = "iolib", path = "../iolib" }
