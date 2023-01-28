@@ -65,6 +65,116 @@ pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
     res
 }
 
+/// Return an integer x satisfying a^x = b (mod p)
+#[inline]
+pub fn mod_log(a: i64, b: i64, p: i64) -> Option<i64> { mod_log_with_lower_bound_constraint(a, b, p, 0) }
+
+/// Return an integer x satisfying a^x = b (mod p) and x >= lower
+/// If no integers satisfy the condition, return None.
+//      x = i * m + j (m = sqrt(p), 0 <= i,j <= m)
+//          -> b = a^x
+//               = a^(im+j)
+//           a^j = b * (a^{-m})^i
+//      So, we can pre-calculate a^{-m} and a^j (0 <= j <= m) and determine the existence of a^j for all i.
+pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -> Option<i64> {
+    let (a, b) = (a.rem_euclid(p), b.rem_euclid(p));
+
+    // if p == 1, a = b = 0 (mod 1), so return 1.
+    if p == 1 {
+        return Some(lower);
+    }
+    // if b == 1, always a^0 = b = 1, so return 0.
+    if b == 1 && lower <= 0 {
+        return Some(0);
+    }
+
+    let (g, inv, _) = ext_gcd(a, p);
+    // if gcd(a, p) != 1, g = gcd(a, p), a = g * a', p = g * p'
+    //      ->                (ga')^x = b (mod gp')
+    //      ->            (ga')^x - b = gp' * k
+    // so, b must also be a multiple of g.
+    //  b = g * b'
+    //      ->        (ga')^x - (gb') = gp'k
+    //      -> ga'(ga')^(x-1) - (gb') = gp'k
+    //      ->     a'(ga')^(x-1) - b' = p'k
+    //  now, gcd(a', p') = 1. so, a'^{-1} (mod p') always exists.
+    //      ->            (ga')^(x-1) = b'(a'^{-1}) (mod p')
+    //      ->                a^(x-1) = b'(a'^{-1}) (mod p')
+    if g != 1 {
+        if b % g != 0 {
+            return None;
+        }
+        let (na, nb, np) = (a / g, b / g, p / g);
+        let (_, inv, _) = ext_gcd(na, np);
+        let inv = inv.rem_euclid(np);
+        if let Some(res) = mod_log(a, nb * inv, np) {
+            return Some(res + 1);
+        } else {
+            return None;
+        }
+    }
+
+    let m = (p as f64).sqrt().ceil() as i64;
+    assert!(m * m >= p);
+    let mut now = 1;
+    // If there is no lower bound constraint, it is sufficient to have only the smallest index,
+    // but if there is a lower bound constraint, there may be a constraint boundary, so all the indices are kept in Vec.
+    let mut map = std::collections::HashMap::new();
+    for j in 0..m {
+        map.entry(now).or_insert(vec![]).push(j);
+        now = (now as i128 * a as i128 % p as i128) as i64;
+    }
+
+    let inv = mod_pow(inv.rem_euclid(p), m, p);
+    debug_assert_eq!((now as i128 * inv as i128).rem_euclid(p as i128), 1);
+
+    let mut now = 1;
+    for i in 0..=m {
+        let r = (b as i128 * now as i128 % p as i128) as i64;
+
+        if let Some(v) = map.get(&r) {
+            for j in v {
+                if i * m + j < lower {
+                    continue;
+                }
+                return Some(i * m + j);
+            }
+        }
+
+        now = (now as i128 * inv as i128 % p as i128) as i64;
+    }
+
+    None
+}
+
+/// Baby-step Giant-step Algorithm
+/// If an integer i satisfying f^{i}(a) = b (mod p) is found, return i. If not, return None.
+///     f(a: i64, i: i64) -> i64      : return an integer x satisfying f^{i}(a) = x (mod p)
+///     f_inv(a: i64, i: i64) -> i64  : return an integer x satisfying f^{-i}(a) = x (mod p). Also, f_inv(f(a, 1), 1) = a is required.
+pub fn baby_step_giant_step(a: i64, b: i64, p: i64, f: impl Fn(i64, i64) -> i64, f_inv: impl Fn(i64, i64) -> i64) -> Option<i64> {
+    let m = (p as f64).sqrt().ceil() as i64;
+    assert!(m * m >= p);
+
+    let mut map = std::collections::HashMap::new();
+    for j in 0..=m {
+        let now = f(a, j);
+        if !map.contains_key(&now) {
+            map.insert(now, j);
+        }
+    }
+
+    let mut now = f_inv(b, 0);
+    for i in 0..=m {
+        if let Some(j) = map.get(&now) {
+            return Some(i * m + j);
+        }
+
+        now = f_inv(now, m);
+    }
+
+    None
+}
+
 /// Return an integer x less than lcm(m1, m2) satisfying x = a (mod m1) and x = b (mod m2) and lcm(m1, m2).
 /// If no integers satisfy the condition, return None.
 //      m1 = gcd(m1, m2) * p,   m2 = gcd(m1, m2) * q
