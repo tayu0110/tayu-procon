@@ -22,7 +22,7 @@ impl<M: Clone> SegmentTree<M> {
         let size = vec.len();
         let mut tree = [vec![e.clone(); size], vec.clone()].concat();
 
-        for i in (0..(size << 1) - 1).rev().step_by(2).take_while(|i| i >> 1 > 0) {
+        for i in (0..(size << 1) - 1).rev().step_by(2).take_while(|i| i >> 1 > 0 as usize) {
             tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
 
@@ -115,18 +115,7 @@ where
         for i in (1..size).rev() {
             tree[i] = op(tree[i * 2], tree[i * 2 + 1]);
         }
-        Self {
-            n,
-            size,
-            log,
-            tree,
-            lazy,
-            op,
-            e,
-            id,
-            mapping,
-            composition,
-        }
+        Self { n, size, log, tree, lazy, op, e, id, mapping, composition }
     }
     pub fn set(&mut self, idx: usize, val: S) {
         assert!(idx < self.n);
@@ -285,14 +274,7 @@ where
 }
 
 pub fn range_add_range_sum_query(size: usize) -> LazySegtree<(i64, i64), i64> {
-    LazySegtree::from_vec(
-        &vec![(0i64, 1i64); size],
-        |l, r| (l.0 + r.0, l.1 + r.1),
-        || (0, 0),
-        || 0i64,
-        |f, x| (x.0 + f * x.1, x.1),
-        |f, g| f + g,
-    )
+    LazySegtree::from_vec(&vec![(0i64, 1i64); size], |l, r| (l.0 + r.0, l.1 + r.1), || (0, 0), || 0i64, |f, x| (x.0 + f * x.1, x.1), |f, g| f + g)
 }
 
 pub fn range_add_range_maximum_query(size: usize) -> LazySegtree<i64, i64> {

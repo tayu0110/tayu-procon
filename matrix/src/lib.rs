@@ -23,13 +23,13 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    const fn row(&self) -> usize { self.row }
+    pub fn row(&self) -> usize { self.row }
 
     #[inline]
-    const fn column(&self) -> usize { self.column }
+    pub fn column(&self) -> usize { self.column }
 
     #[inline]
-    fn set(&mut self, row: usize, column: usize, val: Mint<T>) {
+    pub fn set(&mut self, row: usize, column: usize, val: Mint<T>) {
         debug_assert!(row < self.row() && column < self.column());
         let c = self.column();
 
@@ -37,21 +37,21 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    const fn get(&self, row: usize, column: usize) -> Mint<T> {
+    pub fn get(&self, row: usize, column: usize) -> Mint<T> {
         debug_assert!(row < self.row() && column < self.column());
 
         self.matrix[row * self.column() + column]
     }
 
     #[inline]
-    fn id(size: usize) -> Self {
+    pub fn id(size: usize) -> Self {
         let mut matrix = vec![Mint::<T>::zero(); size * size];
         matrix.iter_mut().enumerate().filter(|(i, _)| i % (size + 1) == 0).for_each(|(_, v)| *v = Mint::one());
         Self { row: size, column: size, matrix: matrix.into_boxed_slice() }
     }
 
     #[inline]
-    fn add(&self, rhs: &Self) -> Self {
+    pub fn add(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x + *y).collect();
@@ -59,7 +59,7 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    fn sub(&self, rhs: &Self) -> Self {
+    pub fn sub(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
 
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x - *y).collect();
@@ -67,7 +67,7 @@ impl<T: Modulo> Matrix<T> {
     }
 
     #[inline]
-    fn mul(&self, rhs: &Self) -> Self { unsafe { self.mul_sub(rhs) } }
+    pub fn mul(&self, rhs: &Self) -> Self { unsafe { self.mul_sub(rhs) } }
 
     #[target_feature(enable = "avx2")]
     unsafe fn mul_sub(&self, rhs: &Self) -> Self {
@@ -86,7 +86,7 @@ impl<T: Modulo> Matrix<T> {
         Self { row: lrow, column: rcolumn, matrix }
     }
 
-    fn pow(&self, mut n: usize) -> Self {
+    pub fn pow(&self, mut n: usize) -> Self {
         debug_assert!(self.row() == self.column());
 
         let (mut ret, mut now) = (Self::id(self.row()), self.clone());
@@ -214,12 +214,7 @@ impl<T: One + Zero + Clone + Copy + Add<T, Output = T> + Sub + Mul<T, Output = T
     }
 
     #[inline]
-    pub fn transform(&self, x: T, y: T) -> (T, T) {
-        (
-            self.matrix[0] * x + self.matrix[1] * y + self.matrix[2],
-            self.matrix[3] * x + self.matrix[4] * y + self.matrix[5],
-        )
-    }
+    pub fn transform(&self, x: T, y: T) -> (T, T) { (self.matrix[0] * x + self.matrix[1] * y + self.matrix[2], self.matrix[3] * x + self.matrix[4] * y + self.matrix[5]) }
 }
 
 #[cfg(test)]
