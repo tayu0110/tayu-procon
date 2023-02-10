@@ -3,24 +3,28 @@ pub struct UnionFind {
 }
 
 impl UnionFind {
+    #[inline]
     pub fn new(size: usize) -> Self { UnionFind { tree: vec![-1; size] } }
 
+    #[inline]
     pub fn root(&mut self, index: usize) -> usize {
         if self.tree[index] < 0 {
-            index
-        } else {
-            self.tree[index] = self.root(self.tree[index] as usize) as i32;
-            self.tree[index] as usize
+            return index;
         }
+        self.tree[index] = self.root(self.tree[index] as usize) as i32;
+        self.tree[index] as usize
     }
 
+    #[inline]
     pub fn size(&mut self, index: usize) -> usize {
         let root = self.root(index);
         -self.tree[root] as usize
     }
 
+    #[inline]
     pub fn is_same(&mut self, left: usize, right: usize) -> bool { self.root(left) == self.root(right) }
 
+    #[inline]
     pub fn merge(&mut self, left: usize, right: usize) -> bool {
         let (mut rl, mut rr) = (self.root(left), self.root(right));
         if rl == rr {

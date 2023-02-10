@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Suffix Array
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,10 +121,7 @@ impl<'a> SuffixArray<'a> {
                 .map(|(i, c)| (i as u32, c))
                 .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
             Self::sa_is(rank as usize + 1, &new_s, sa);
-            lms_indices
-                .iter_mut()
-                .zip(sa.into_iter())
-                .for_each(|(lms, i)| *lms = *restore_index.get_unchecked(*i as usize));
+            lms_indices.iter_mut().zip(sa.into_iter()).for_each(|(lms, i)| *lms = *restore_index.get_unchecked(*i as usize));
         };
 
         Self::induced_sort(&lms_indices, &char_start, s, &types, sa);
@@ -220,6 +219,28 @@ impl<'a> SuffixArray<'a> {
         }
         lcpa
     }
+
+    pub fn iter(&'a self) -> Iter<'a> { Iter { iter: self.sa.iter() } }
+}
+
+impl<'a, T> Index<usize> for SuffixArray<'a, T> {
+    type Output = u32;
+    fn index(&self, index: usize) -> &Self::Output { &self.sa[index] }
+}
+
+impl<'a, T> IntoIterator for SuffixArray<'a, T> {
+    type Item = u32;
+    type IntoIter = std::vec::IntoIter<u32>;
+    fn into_iter(self) -> Self::IntoIter { self.sa.into_iter() }
+}
+
+pub struct Iter<'a> {
+    iter: std::slice::Iter<'a, u32>,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a u32;
+    fn next(&mut self) -> Option<Self::Item> { self.iter.next() }
 }
 
 #[cfg(test)]

@@ -11,8 +11,6 @@ fn main() {
 
     let sa = SuffixArray::new(&s);
 
-    let sa = sa.get_sa();
-
     write!(out, "{}", sa[0]).unwrap();
     for sa in sa.into_iter().skip(1) {
         write!(out, " {}", sa).unwrap();

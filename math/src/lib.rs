@@ -319,8 +319,10 @@ pub fn factorize(mut n: u64) -> Vec<u64> {
     n >>= n.trailing_zeros();
 
     while let Some(g) = pollard_rho(n) {
-        res.push(g);
-        n /= g;
+        while n % g == 0 {
+            res.push(g);
+            n /= g;
+        }
     }
 
     if n > 1 {
@@ -349,7 +351,7 @@ fn pollard_rho(n: u64) -> Option<u64> {
     }
 
     let m = (n as f64).powf(0.125).round() as i64 + 1;
-    let mont_zero = DynamicMontgomeryModint::new(0, n);
+    let mont_zero = DynamicMontgomeryModint::raw(0, n);
     let mont_one = mont_zero.one();
     let mut g = 1;
 

@@ -11,4 +11,5 @@ modint = { path = "../modint" }
 numeric = { package = "numeric", path = "../numeric" }
 
 [dev-dependencies]
+iolib = { path = "../iolib" }
 proconio = { version = "0.3.8" }
