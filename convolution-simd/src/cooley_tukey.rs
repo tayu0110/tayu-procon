@@ -91,15 +91,15 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
             _mm256_storeu_si256(a.as_mut_ptr() as *mut _, c0123);
         }
     } else if offset == 4 {
-        let mut w02 = AlignedArrayu32x8 { val: [Modint::<M>::one().val; 8] };
-        let mut w13 = AlignedArrayu32x8 { val: [0; 8] };
+        let w02 = &mut AlignedArrayu32x8 { val: [Modint::<M>::one().val; 8] }.val;
+        let w13 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
         for (i, exp_now) in (0..4).map(|i| (i, (i * exp))) {
-            w13.val[i] = twiddle[exp_now].val;
-            w02.val[i + 4] = twiddle[exp_now * 2].val;
-            w13.val[i + 4] = twiddle[exp_now * 3].val;
+            w13[i] = twiddle[exp_now].val;
+            w02[i + 4] = twiddle[exp_now * 2].val;
+            w13[i + 4] = twiddle[exp_now * 3].val;
         }
-        let w02 = _mm256_load_si256(w02.val.as_mut_ptr() as *mut _);
-        let w13 = _mm256_load_si256(w13.val.as_mut_ptr() as *mut _);
+        let w02 = _mm256_load_si256(w02.as_mut_ptr() as *mut _);
+        let w13 = _mm256_load_si256(w13.as_mut_ptr() as *mut _);
 
         for a in a.chunks_exact_mut(16) {
             let c02 = _mm256_loadu_si256(a[0..8].as_ptr() as *const _);
@@ -129,9 +129,9 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
             _mm256_storeu_si256(a[8..].as_mut_ptr() as *mut _, _mm256_set_m128i(_mm256_castsi256_si128(c3), _mm256_castsi256_si128(c2)));
         }
     } else {
-        let mut w1 = AlignedArrayu32x8 { val: [0; 8] };
-        let mut w2 = AlignedArrayu32x8 { val: [0; 8] };
-        let mut w3 = AlignedArrayu32x8 { val: [0; 8] };
+        let w1 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
+        let w2 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
+        let w3 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
         for top in (0..deg).step_by(width) {
             let mut exp_now = 0;
             for (((v0, v1), v2), v3) in a[top..top + offset]
@@ -146,15 +146,15 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
                 let c3 = _mm256_loadu_si256(v3.as_ptr() as *const _);
 
                 for i in 0..8 {
-                    *w1.val.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now).val;
-                    *w2.val.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 2).val;
-                    *w3.val.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 3).val;
+                    *w1.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now).val;
+                    *w2.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 2).val;
+                    *w3.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 3).val;
                     exp_now += exp;
                 }
                 let (w1, w2, w3) = (
-                    _mm256_load_si256(w1.val.as_ptr() as *const _),
-                    _mm256_load_si256(w2.val.as_ptr() as *const _),
-                    _mm256_load_si256(w3.val.as_ptr() as *const _),
+                    _mm256_load_si256(w1.as_ptr() as *const _),
+                    _mm256_load_si256(w2.as_ptr() as *const _),
+                    _mm256_load_si256(w3.as_ptr() as *const _),
                 );
 
                 let c1 = montgomery_multiplication_u32x8(w1, c1, modulo, modulo_inv);
