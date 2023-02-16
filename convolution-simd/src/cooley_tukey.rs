@@ -5,8 +5,8 @@ use modint::{Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    _mm256_castsi128_si256, _mm256_castsi256_si128, _mm256_extracti128_si256, _mm256_load_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32,
-    _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
+    _mm256_castsi256_si128, _mm256_extracti128_si256, _mm256_load_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32, _mm256_storeu_si256,
+    _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
 };
 
 type Modint<M> = MontgomeryModint<M>;
@@ -24,6 +24,9 @@ unsafe fn radix_2_kernel_cooley_tukey_avx2<M: Modulo>(width: usize, a: &mut [Mod
 }
 
 #[inline]
+#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
+#[target_feature(enable = "avx")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usize, a: &mut [Modint<M>], twiddle: &[Modint<M>]) {
     let log = width.trailing_zeros();
@@ -68,21 +71,23 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
             let c0213 = _mm256_loadu_si256(a.as_ptr() as *const _);
             let c0213 = montgomery_multiplication_u32x8(w, c0213, modulo, modulo_inv);
 
-            let (c0, c1, c2, c3) = (
-                _mm256_shuffle_epi32(c0213, 0b11_01_10_00),
-                _mm256_shuffle_epi32(_mm256_castsi128_si256(_mm256_extracti128_si256(c0213, 1)), 0b11_01_10_00),
-                _mm256_shuffle_epi32(c0213, 0b01_11_00_10),
-                _mm256_shuffle_epi32(_mm256_castsi128_si256(_mm256_extracti128_si256(c0213, 1)), 0b01_11_00_10),
-            );
+            let (c0, c1) = {
+                let c01 = _mm256_shuffle_epi32(c0213, 0b11_01_10_00);
+                (_mm256_castsi256_si128(c01), _mm256_extracti128_si256(c01, 1))
+            };
+            let (c2, c3) = {
+                let c23 = _mm256_shuffle_epi32(c0213, 0b01_11_00_10);
+                (_mm256_castsi256_si128(c23), _mm256_extracti128_si256(c23, 1))
+            };
 
-            let (c0, c1, c2, c3) = radix_4_innerx4(c0, c1, c2, c3, modulo, modulo_inv, prim_root);
+            let (c0, c1, c2, c3) = radix_4_innerx4_sse(c0, c1, c2, c3, _mm256_castsi256_si128(modulo), _mm256_castsi256_si128(modulo_inv), _mm256_castsi256_si128(prim_root));
 
             // c0       = [c00, 0, c10, 0, 0, 0, 0, 0], c2 = [c02, 0, c12, 0, 0, 0, 0, 0]
             // c02      = [c00, 0, c10, 0, c02, 0, c12, 0]
-            let c02 = _mm256_set_m128i(_mm256_castsi256_si128(c2), _mm256_castsi256_si128(c0));
+            let c02 = _mm256_set_m128i(c2, c0);
             // c1       = [c01, 0, c11, 0, 0, 0, 0, 0], c3 = [c03, 0, c13, 0, 0, 0, 0, 0]
             // c13      = [c01, 0, c11, 0, c03, 0, c13, 0]
-            let c13 = _mm256_set_m128i(_mm256_castsi256_si128(c3), _mm256_castsi256_si128(c1));
+            let c13 = _mm256_set_m128i(c3, c1);
             // c0123    = [c00, c01, c10, c11, c02, c03, c12, c13]
             let c0123 = _mm256_unpacklo_epi64(_mm256_unpacklo_epi32(c02, c13), _mm256_unpackhi_epi32(c02, c13));
             // c0123    = [c00, c10, c01, c11, c02, c12, c03, c13]
@@ -115,18 +120,10 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
                 _mm256_extracti128_si256(c13, 1),
             );
 
-            let (c0, c1, c2, c3) = radix_4_innerx8(
-                _mm256_castsi128_si256(c0),
-                _mm256_castsi128_si256(c1),
-                _mm256_castsi128_si256(c2),
-                _mm256_castsi128_si256(c3),
-                modulo,
-                modulo_inv,
-                prim_root,
-            );
+            let (c0, c1, c2, c3) = radix_4_innerx4_sse(c0, c1, c2, c3, _mm256_castsi256_si128(modulo), _mm256_castsi256_si128(modulo_inv), _mm256_castsi256_si128(prim_root));
 
-            _mm256_storeu_si256(a[0..8].as_mut_ptr() as *mut _, _mm256_set_m128i(_mm256_castsi256_si128(c1), _mm256_castsi256_si128(c0)));
-            _mm256_storeu_si256(a[8..].as_mut_ptr() as *mut _, _mm256_set_m128i(_mm256_castsi256_si128(c3), _mm256_castsi256_si128(c2)));
+            _mm256_storeu_si256(a[0..8].as_mut_ptr() as *mut _, _mm256_set_m128i(c1, c0));
+            _mm256_storeu_si256(a[8..].as_mut_ptr() as *mut _, _mm256_set_m128i(c3, c2));
         }
     } else {
         let w1 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
@@ -173,6 +170,9 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
 }
 
 #[inline]
+#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
+#[target_feature(enable = "avx")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2<M: Modulo>(deg: usize, log: usize, a: &mut [Modint<M>], cache: &FftCache<Modint<M>>) {
     let twiddle = cache.twiddle_factors_inv();

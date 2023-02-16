@@ -5,8 +5,8 @@ use modint::{Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    _mm256_castsi128_si256, _mm256_castsi256_si128, _mm256_load_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32, _mm256_storeu_si256,
-    _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm_load_si128, _mm_loadu_si128,
+    _mm256_castsi256_si128, _mm256_load_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32, _mm256_storeu_si256, _mm256_unpackhi_epi32,
+    _mm256_unpacklo_epi32, _mm256_unpacklo_epi64, _mm_load_si128, _mm_loadu_si128,
 };
 
 type Modint<M> = MontgomeryModint<M>;
@@ -24,6 +24,9 @@ unsafe fn radix_2_kernel_gentleman_sande_avx2<M: Modulo>(width: usize, a: &mut [
 }
 
 #[inline]
+#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
+#[target_feature(enable = "avx")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn radix_4_kernel_gentleman_sande_avx2<M: Modulo>(deg: usize, width: usize, a: &mut [Modint<M>], twiddle: &[Modint<M>]) {
     let log = width.trailing_zeros();
@@ -83,22 +86,14 @@ pub unsafe fn radix_4_kernel_gentleman_sande_avx2<M: Modulo>(deg: usize, width: 
             let c2 = _mm_load_si128(c2.as_ptr() as *const _);
             let c3 = _mm_load_si128(c3.as_ptr() as *const _);
 
-            let (c0, c1, c2, c3) = radix_4_innerx4(
-                _mm256_castsi128_si256(c0),
-                _mm256_castsi128_si256(c1),
-                _mm256_castsi128_si256(c2),
-                _mm256_castsi128_si256(c3),
-                modulo,
-                modulo_inv,
-                prim_root,
-            );
+            let (c0, c1, c2, c3) = radix_4_innerx2_sse(c0, c1, c2, c3, _mm256_castsi256_si128(modulo), _mm256_castsi256_si128(modulo_inv), _mm256_castsi256_si128(prim_root));
 
             // c0       = [c00, 0, c10, 0, 0, 0, 0, 0], c1 = [c01, 0, c11, 0, 0, 0, 0, 0]
             // c01      = [c00, 0, c10, 0, c01, 0, c11, 0]
-            let c01 = _mm256_set_m128i(_mm256_castsi256_si128(c1), _mm256_castsi256_si128(c0));
+            let c01 = _mm256_set_m128i(c1, c0);
             // c2       = [c02, 0, c12, 0, 0, 0, 0, 0], c3 = [c03, 0, c13, 0, 0, 0, 0, 0]
             // c23      = [c02, 0, c12, 0, c03, 0, c13, 0]
-            let c23 = _mm256_set_m128i(_mm256_castsi256_si128(c3), _mm256_castsi256_si128(c2));
+            let c23 = _mm256_set_m128i(c3, c2);
             // c0123    = [c00, c02, c10, c12, c01, c03, c11, c13]
             let c0123 = _mm256_unpacklo_epi64(_mm256_unpacklo_epi32(c01, c23), _mm256_unpackhi_epi32(c01, c23));
             // c0123    = [c00, c10, c02, c12, c01, c11, c03, c13]
@@ -124,21 +119,13 @@ pub unsafe fn radix_4_kernel_gentleman_sande_avx2<M: Modulo>(deg: usize, width: 
             let c2 = _mm_loadu_si128(a[8..12].as_ptr() as *const _);
             let c3 = _mm_loadu_si128(a[12..16].as_ptr() as *const _);
 
-            let (c0, c1, c2, c3) = radix_4_innerx8(
-                _mm256_castsi128_si256(c0),
-                _mm256_castsi128_si256(c1),
-                _mm256_castsi128_si256(c2),
-                _mm256_castsi128_si256(c3),
-                modulo,
-                modulo_inv,
-                prim_root,
-            );
+            let (c0, c1, c2, c3) = radix_4_innerx4_sse(c0, c1, c2, c3, _mm256_castsi256_si128(modulo), _mm256_castsi256_si128(modulo_inv), _mm256_castsi256_si128(prim_root));
 
-            let c02 = _mm256_set_m128i(_mm256_castsi256_si128(c2), _mm256_castsi256_si128(c0));
+            let c02 = _mm256_set_m128i(c2, c0);
             let c02 = montgomery_multiplication_u32x8(w02, c02, modulo, modulo_inv);
             _mm256_storeu_si256(a[..8].as_mut_ptr() as *mut _, c02);
 
-            let c13 = _mm256_set_m128i(_mm256_castsi256_si128(c3), _mm256_castsi256_si128(c1));
+            let c13 = _mm256_set_m128i(c3, c1);
             let c13 = montgomery_multiplication_u32x8(w13, c13, modulo, modulo_inv);
             _mm256_storeu_si256(a[8..16].as_mut_ptr() as *mut _, c13);
         }
@@ -161,6 +148,8 @@ pub unsafe fn radix_4_kernel_gentleman_sande_avx2<M: Modulo>(deg: usize, width: 
                 let c3 = _mm256_loadu_si256(v3.as_ptr() as *const _);
 
                 let (c0, c1, c2, c3) = radix_4_innerx8(c0, c1, c2, c3, modulo, modulo_inv, prim_root);
+                _mm256_storeu_si256(v0.as_ptr() as *mut _, c0);
+
                 for i in 0..8 {
                     *w1.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now).val;
                     *w2.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 2).val;
@@ -168,28 +157,27 @@ pub unsafe fn radix_4_kernel_gentleman_sande_avx2<M: Modulo>(deg: usize, width: 
                     exp_now += exp;
                 }
 
-                let (w1, w2, w3) = (
-                    _mm256_load_si256(w1.as_ptr() as *const _),
-                    _mm256_load_si256(w2.as_ptr() as *const _),
-                    _mm256_load_si256(w3.as_ptr() as *const _),
+                _mm256_storeu_si256(
+                    v2.as_ptr() as *mut _,
+                    montgomery_multiplication_u32x8(_mm256_load_si256(w1.as_ptr() as *const _), c1, modulo, modulo_inv),
                 );
-
-                let (c1, c2, c3) = (
-                    montgomery_multiplication_u32x8(w1, c1, modulo, modulo_inv),
-                    montgomery_multiplication_u32x8(w2, c2, modulo, modulo_inv),
-                    montgomery_multiplication_u32x8(w3, c3, modulo, modulo_inv),
+                _mm256_storeu_si256(
+                    v1.as_ptr() as *mut _,
+                    montgomery_multiplication_u32x8(_mm256_load_si256(w2.as_ptr() as *const _), c2, modulo, modulo_inv),
                 );
-
-                _mm256_storeu_si256(v0.as_ptr() as *mut _, c0);
-                _mm256_storeu_si256(v2.as_ptr() as *mut _, c1);
-                _mm256_storeu_si256(v1.as_ptr() as *mut _, c2);
-                _mm256_storeu_si256(v3.as_ptr() as *mut _, c3);
+                _mm256_storeu_si256(
+                    v3.as_ptr() as *mut _,
+                    montgomery_multiplication_u32x8(_mm256_load_si256(w3.as_ptr() as *const _), c3, modulo, modulo_inv),
+                );
             }
         }
     }
 }
 
 #[inline]
+#[target_feature(enable = "sse2")]
+#[target_feature(enable = "sse4.1")]
+#[target_feature(enable = "avx")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn gentleman_sande_radix_4_butterfly_montgomery_modint_avx2<M: Modulo>(deg: usize, log: usize, a: &mut [Modint<M>], cache: &FftCache<Modint<M>>) {
     let twiddle = cache.twiddle_factors();
