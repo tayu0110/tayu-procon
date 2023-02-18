@@ -1,5 +1,5 @@
+use simple_rand::{gen_seed, xor_shift};
 use std::cell::RefCell;
-use std::time::SystemTime;
 
 const CHARS: u64 = 1 << 8;
 const MOD: u64 = (1 << 61) - 1;
@@ -40,11 +40,8 @@ fn gcd(mut a: u64, mut b: u64) -> u64 {
 }
 
 fn get_rand() -> u64 {
-    let mut ns = (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() % (MOD - 1) as u128) as u64 + 1;
-    while gcd(ns, MOD - 1) != 1 {
-        ns = (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos() % (MOD - 1) as u128) as u64 + 1;
-    }
-    ns
+    let seed = gen_seed();
+    xor_shift(seed).skip_while(|&ns| gcd(ns, MOD - 1) != 1).next().unwrap()
 }
 
 fn get_base() -> u64 {

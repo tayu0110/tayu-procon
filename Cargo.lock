@@ -168,8 +168,15 @@ name = "segtree"
 version = "0.1.0"
 
 [[package]]
+name = "simple-rand"
+version = "0.1.0"
+
+[[package]]
 name = "string"
 version = "0.1.0"
+dependencies = [
+ "simple-rand",
+]
 
 [[package]]
 name = "suffix-array"

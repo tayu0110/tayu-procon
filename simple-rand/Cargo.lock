@@ -3,17 +3,5 @@
 version = 3
 
 [[package]]
-name = "iolib"
-version = "0.1.0"
-
-[[package]]
 name = "simple-rand"
 version = "0.1.0"
-
-[[package]]
-name = "string"
-version = "0.1.0"
-dependencies = [
- "iolib",
- "simple-rand",
-]
