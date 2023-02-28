@@ -1,10 +1,8 @@
-#![allow(dead_code)]
-
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
-pub const BIT_SIZE: usize = std::mem::size_of::<u128>();
+pub const BIT_SIZE: usize = std::mem::size_of::<u128>() << 3;
 pub const LOG: u32 = BIT_SIZE.count_zeros();
-struct Bitset {
+pub struct Bitset {
     size: usize,
     bits: Vec<u128>,
 }

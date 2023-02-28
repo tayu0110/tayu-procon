@@ -9,6 +9,7 @@ edition = "2021"
 bitset = { path = "./bitset" }
 complex = { path = "./complex" }
 convolution = { path = "./convolution" }
+convolution-simd = { path = "./convolution-simd" }
 fenwick-tree = { path = "./fenwick-tree" }
 flow = { path = "./flow" }
 geometry = { path = "./geometry" }
@@ -21,6 +22,7 @@ modint = { path = "./modint" }
 numeric = { path = "./numeric" }
 rational = { path = "./rational" }
 segtree = { path = "./segtree" }
+simple-rand = { path = "./simple-rand" }
 string = { path = "./string" }
 suffix-array = { path = "./suffix-array" }
 trie = { path = "./trie" }

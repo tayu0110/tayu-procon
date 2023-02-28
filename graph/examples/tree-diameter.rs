@@ -12,7 +12,7 @@ fn main() {
     tree.reroot_with_diameter();
 
     let root = tree.root();
-    let dist = dijkstra_heap(root, &tree.clone().into());
+    let dist = dijkstra_heap(root, &tree);
     let max = dist.iter().max().unwrap();
     let (mut now, _) = dist.iter().enumerate().filter(|(_, v)| v == &max).last().unwrap();
 

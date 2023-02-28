@@ -1,6 +1,7 @@
 pub use bitset;
 pub use complex;
 pub use convolution;
+pub use convolution_simd;
 pub use fenwick_tree;
 pub use flow;
 pub use geometry;
@@ -13,6 +14,7 @@ pub use modint;
 pub use numeric;
 pub use rational;
 pub use segtree;
+pub use simple_rand;
 pub use string;
 pub use suffix_array;
 pub use trie;

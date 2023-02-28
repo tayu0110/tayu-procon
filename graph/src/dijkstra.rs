@@ -1,9 +1,9 @@
-use super::{Direction, Graph};
+use super::{Direction, Graph, GraphLike};
 
 /// Find the single starting point shortest path by Dijkstra's algorithm.  
 /// The computational complexity is O(ElogV), where E is the number of edges and V is the number of vertices, because a BinaryHeap is used.  
 /// If there is an unreachable vertex, the distance of that vertex is std::i64::MAX  
-pub fn dijkstra_heap<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
+pub fn dijkstra_heap(from: usize, graph: &impl GraphLike) -> Vec<i64> {
     let mut res = vec![std::i64::MAX; graph.size()];
 
     let mut nt = std::collections::BinaryHeap::new();

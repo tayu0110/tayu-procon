@@ -3,6 +3,7 @@ mod cycle_detect;
 mod dijkstra;
 mod error;
 mod graph_inner;
+mod graphlike;
 mod lca;
 mod low_link;
 mod nth_ancestor;
@@ -17,6 +18,7 @@ pub use cycle_detect::*;
 pub use dijkstra::*;
 pub use error::*;
 pub use graph_inner::*;
+pub use graphlike::*;
 pub use lca::*;
 pub use low_link::*;
 pub use nth_ancestor::*;
@@ -47,35 +49,36 @@ pub struct Edge {
 }
 
 pub struct Neighbors<'a> {
-    inner: std::slice::Iter<'a, Edge>,
+    inner: Box<dyn Iterator<Item = &'a usize> + 'a>,
 }
 
 impl<'a> Iterator for Neighbors<'a> {
     type Item = &'a usize;
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next().map(|Edge { to, weight: _ }| to) }
+    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
 }
 
 pub struct Edges<'a> {
-    inner: std::slice::Iter<'a, Edge>,
+    inner: Box<dyn Iterator<Item = (&'a usize, &'a i64)> + 'a>,
 }
 
 impl<'a> Iterator for Edges<'a> {
     type Item = (&'a usize, &'a i64);
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next().map(|Edge { to, weight }| (to, weight)) }
+    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
 }
 
 pub struct EdgesMut<'a> {
-    inner: std::slice::IterMut<'a, Edge>,
+    inner: Box<dyn Iterator<Item = (&'a usize, &'a mut i64)> + 'a>,
 }
 
 impl<'a> Iterator for EdgesMut<'a> {
     type Item = (&'a usize, &'a mut i64);
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next().map(|Edge { to, weight }| (&*to, weight)) }
+    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{bellman_ford, dijkstra_heap, dijkstra_v2, low_link, scc, topological_sort, warshall_floyd, DirectedGraph, UnDirectedGraph};
+    use std::i64::MAX;
 
     #[test]
     fn graph_test() {
@@ -86,85 +89,29 @@ mod tests {
         //       ^
         //       |
         //       7
-        let weighted_edges = vec![
-            (0, 1, 3),
-            (1, 8, 5),
-            (2, 0, 1),
-            (2, 5, 9),
-            (3, 0, 7),
-            (3, 9, 3),
-            (4, 6, 2),
-            (4, 5, 4),
-            (7, 0, 8),
-            (8, 2, 6),
-            (8, 4, 1),
-        ];
+        let weighted_edges = vec![(0, 1, 3), (1, 8, 5), (2, 0, 1), (2, 5, 9), (3, 0, 7), (3, 9, 3), (4, 6, 2), (4, 5, 4), (7, 0, 8), (8, 2, 6), (8, 4, 1)];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
 
         let dist = dijkstra_heap(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
+        assert_eq!(dist, vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX]);
 
         let dist = dijkstra_v2(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX]);
+        assert_eq!(dist, vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX]);
 
         let dists = warshall_floyd(&dir);
         assert_eq!(
             dists,
             vec![
-                vec![0, 3, 14, std::i64::MAX, 9, 13, 11, std::i64::MAX, 8, std::i64::MAX],
-                vec![12, 0, 11, std::i64::MAX, 6, 10, 8, std::i64::MAX, 5, std::i64::MAX],
-                vec![1, 4, 0, std::i64::MAX, 10, 9, 12, std::i64::MAX, 9, std::i64::MAX],
-                vec![7, 10, 21, 0, 16, 20, 18, std::i64::MAX, 15, 3],
-                vec![
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    0,
-                    4,
-                    2,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX
-                ],
-                vec![
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    0,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX
-                ],
-                vec![
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    0,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX
-                ],
-                vec![8, 11, 22, std::i64::MAX, 17, 21, 19, 0, 16, std::i64::MAX],
-                vec![7, 10, 6, std::i64::MAX, 1, 5, 3, std::i64::MAX, 0, std::i64::MAX],
-                vec![
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    std::i64::MAX,
-                    0
-                ]
+                vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX],
+                vec![12, 0, 11, MAX, 6, 10, 8, MAX, 5, MAX],
+                vec![1, 4, 0, MAX, 10, 9, 12, MAX, 9, MAX],
+                vec![7, 10, 21, 0, 16, 20, 18, MAX, 15, 3],
+                vec![MAX, MAX, MAX, MAX, 0, 4, 2, MAX, MAX, MAX],
+                vec![MAX, MAX, MAX, MAX, MAX, 0, MAX, MAX, MAX, MAX],
+                vec![MAX, MAX, MAX, MAX, MAX, MAX, 0, MAX, MAX, MAX],
+                vec![8, 11, 22, MAX, 17, 21, 19, 0, 16, MAX],
+                vec![7, 10, 6, MAX, 1, 5, 3, MAX, 0, MAX],
+                vec![MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, 0]
             ]
         );
 
@@ -188,18 +135,7 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, 2),
-            (2, 3, -3),
-            (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4),
-        ];
+        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, 2), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         let dist = bellman_ford(0, &dir).unwrap();
@@ -303,18 +239,7 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, -5),
-            (2, 3, -3),
-            (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4),
-        ];
+        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, -5), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!
@@ -330,18 +255,7 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![
-            (0, 1, 1),
-            (1, 2, -5),
-            (2, 3, -3),
-            (2, 5, -6),
-            (3, 4, 4),
-            (4, 1, 1),
-            (5, 6, 3),
-            (6, 7, 7),
-            (7, 8, -9),
-            (8, 5, 4),
-        ];
+        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, -5), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!

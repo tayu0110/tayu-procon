@@ -28,6 +28,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "convolution-simd"
+version = "0.1.0"
+dependencies = [
+ "math",
+ "modint",
+]
+
+[[package]]
 name = "fenwick-tree"
 version = "0.1.0"
 
@@ -189,6 +197,7 @@ dependencies = [
  "bitset",
  "complex",
  "convolution",
+ "convolution-simd",
  "fenwick-tree",
  "flow",
  "geometry",
@@ -203,6 +212,7 @@ dependencies = [
  "rand",
  "rational",
  "segtree",
+ "simple-rand",
  "string",
  "suffix-array",
  "trie",

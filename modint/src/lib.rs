@@ -154,6 +154,22 @@ impl<M: Modulo> DivAssign for Modint<M> {
     }
 }
 
+impl<M: Modulo> From<u32> for Modint<M> {
+    fn from(value: u32) -> Self { Self::new(value as u64) }
+}
+
+impl<M: Modulo> From<u64> for Modint<M> {
+    fn from(value: u64) -> Self { Self::new(value) }
+}
+
+impl<M: Modulo> From<i32> for Modint<M> {
+    fn from(value: i32) -> Self { Self::new_signed(value as i64) }
+}
+
+impl<M: Modulo> From<i64> for Modint<M> {
+    fn from(value: i64) -> Self { Self::new_signed(value) }
+}
+
 pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Modint<M> {
     let mut fact = vec![Modint::<M>::one()];
     fact.append(

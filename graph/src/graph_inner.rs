@@ -57,13 +57,25 @@ impl<'a, D: Direction> Graph<D> {
     }
 
     #[inline]
-    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> { Neighbors { inner: self.graph[index].iter() } }
+    pub fn neighbors(&'a self, index: usize) -> Neighbors<'a> {
+        Neighbors {
+            inner: Box::new(self.graph[index].iter().map(|Edge { to, weight: _ }| to)),
+        }
+    }
 
     #[inline]
-    pub fn edges(&'a self, index: usize) -> Edges<'a> { Edges { inner: self.graph[index].iter() } }
+    pub fn edges(&'a self, index: usize) -> Edges<'a> {
+        Edges {
+            inner: Box::new(self.graph[index].iter().map(|Edge { to, weight }| (to, weight))),
+        }
+    }
 
     #[inline]
-    pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> { EdgesMut { inner: self.graph[index].iter_mut() } }
+    pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
+        EdgesMut {
+            inner: Box::new(self.graph[index].iter_mut().map(|Edge { to, weight }| (&*to, weight))),
+        }
+    }
 
     pub fn rev_graph(&self) -> Self {
         let mut graph = vec![vec![]; self.size];

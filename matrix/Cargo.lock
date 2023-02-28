@@ -20,6 +20,7 @@ dependencies = [
  "modint",
  "numeric",
  "proconio",
+ "simple-rand",
 ]
 
 [[package]]
@@ -41,3 +42,7 @@ checksum = "a419339c658e4bb054e62cb6aa1cd948e7042c72aa328761097bd35dc01de1b5"
 dependencies = [
  "lazy_static",
 ]
+
+[[package]]
+name = "simple-rand"
+version = "0.1.0"

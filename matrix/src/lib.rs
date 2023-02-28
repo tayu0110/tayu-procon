@@ -1,20 +1,22 @@
-use modint::{Modint, Modulo};
-use numeric::{One, Zero};
-use std::convert::From;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+mod affine_transform;
+mod element;
 
-#[derive(Clone)]
-pub struct Matrix<T: Modulo> {
+pub use crate::affine_transform::*;
+use crate::element::MatrixElement;
+use std::{convert::From, fmt::Debug};
+
+#[derive(Debug, Clone)]
+pub struct Matrix<T: MatrixElement> {
     row: usize,
     column: usize,
-    matrix: Vec<Modint<T>>,
+    matrix: Vec<T>,
 }
 
-impl<T: Modulo> Matrix<T> {
+impl<T: MatrixElement + Debug> Matrix<T> {
     #[inline]
     pub fn new(row: usize, column: usize) -> Self {
         debug_assert!(row > 0 && column > 0);
-        Matrix { row, column, matrix: vec![Modint::zero(); row * column] }
+        Matrix { row, column, matrix: vec![T::zero(); row * column] }
     }
 
     #[inline]
@@ -24,31 +26,28 @@ impl<T: Modulo> Matrix<T> {
     pub fn column(&self) -> usize { self.column }
 
     #[inline]
-    pub fn set(&mut self, row: usize, column: usize, val: Modint<T>) {
+    pub fn set(&mut self, row: usize, column: usize, val: T) {
         debug_assert!(row < self.row() && column < self.column());
         let c = self.column();
-
         self.matrix[c * row + column] = val;
     }
 
     #[inline]
-    pub fn get(&self, row: usize, column: usize) -> Modint<T> {
+    pub fn get(&self, row: usize, column: usize) -> T {
         debug_assert!(row < self.row() && column < self.column());
-
         unsafe { *self.matrix.get_unchecked(row * self.column() + column) }
     }
 
     #[inline]
     pub fn id(size: usize) -> Self {
-        let mut matrix = vec![Modint::<T>::zero(); size * size];
-        matrix.iter_mut().enumerate().filter(|(i, _)| i % (size + 1) == 0).for_each(|(_, v)| *v = Modint::one());
-        Self { row: size, column: size, matrix: matrix }
+        let mut matrix = vec![T::zero(); size * size];
+        matrix.iter_mut().enumerate().filter(|(i, _)| i % (size + 1) == 0).for_each(|(_, v)| *v = T::one());
+        Self { row: size, column: size, matrix }
     }
 
     #[inline]
     pub fn add(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
-
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x + *y).collect();
         Self { row: self.row(), column: self.column(), matrix }
     }
@@ -56,27 +55,19 @@ impl<T: Modulo> Matrix<T> {
     #[inline]
     pub fn sub(&self, rhs: &Self) -> Self {
         debug_assert!(self.row() == rhs.row() && self.column() == rhs.column());
-
         let matrix = self.matrix.iter().zip(rhs.matrix.iter()).map(|(x, y)| *x - *y).collect();
         Self { row: self.row(), column: self.column(), matrix }
     }
 
     #[inline]
-    pub fn mul(&self, rhs: &Self) -> Self { unsafe { self.mul_sub(rhs) } }
-
-    #[cfg(target_arch = "x86_64")]
-    #[target_feature(enable = "avx2")]
-    unsafe fn mul_sub(&self, rhs: &Self) -> Self {
+    pub fn mul(&self, rhs: &Self) -> Self {
         let (lrow, lcolumn, rrow, rcolumn) = (self.row(), self.column(), rhs.row(), rhs.column());
-
         debug_assert!(lcolumn == rrow);
-
-        let mut matrix = vec![Modint::zero(); lrow * rcolumn];
+        let mut matrix = vec![T::zero(); lrow * rcolumn];
         for (s, t) in matrix.chunks_exact_mut(rcolumn).zip(self.matrix.chunks_exact(lcolumn)) {
             for (v, u) in t.iter().zip(rhs.matrix.chunks_exact(rcolumn)) {
                 for (x, y) in s.iter_mut().zip(u.iter()) {
-                    let res = x.val() + (v.val() as u64 * y.val() as u64 % T::MOD as u64) as u32;
-                    *x = if res < T::MOD { Modint::raw(res) } else { Modint::raw(res - T::MOD) };
+                    *x = *x + *v * *y;
                 }
             }
         }
@@ -96,132 +87,88 @@ impl<T: Modulo> Matrix<T> {
         }
         ret
     }
+
+    pub fn determinant(&self) -> T {
+        let mut res = T::one();
+
+        let mut matrix = self.matrix.clone();
+        for i in 0..self.row() {
+            let irow = i * self.column();
+            if matrix[irow + i].is_zero() {
+                for j in i + 1..self.row() {
+                    let jrow = j * self.column();
+                    if !matrix[jrow + i].is_zero() {
+                        for k in 0..self.column() {
+                            matrix[irow + k] = matrix[irow + k] + matrix[jrow + k];
+                        }
+                        break;
+                    }
+
+                    if j == self.row() - 1 {
+                        return T::zero();
+                    }
+                }
+            }
+
+            res = res * matrix[irow + i];
+            for j in i + 1..self.row() {
+                let jrow = j * self.column();
+                let t = matrix[jrow + i] / matrix[irow + i];
+                for k in i..self.column() {
+                    matrix[jrow + k] = matrix[jrow + k] - t * matrix[irow + k];
+                }
+            }
+        }
+
+        res
+    }
+
+    pub fn rank(&self) -> usize {
+        let mut matrix = self.matrix.clone();
+        let mut next_row = 0;
+        for i in 0..self.column() {
+            if matrix[next_row * self.column() + i].is_zero() {
+                for j in next_row + 1..self.row() {
+                    if !matrix[j * self.column() + i].is_zero() {
+                        for k in 0..self.column() {
+                            matrix.swap(next_row * self.column() + k, j * self.column() + k);
+                        }
+
+                        break;
+                    }
+                }
+            }
+
+            if matrix[next_row * self.column() + i].is_zero() {
+                continue;
+            }
+
+            for j in 0..self.row() {
+                if j == next_row {
+                    continue;
+                }
+                let jrow = j * self.column();
+                let t = matrix[jrow + i] / matrix[next_row * self.column() + i];
+                for k in i..self.column() {
+                    matrix[jrow + k] = matrix[jrow + k] - t * matrix[next_row * self.column() + k];
+                }
+            }
+
+            next_row += 1;
+        }
+
+        next_row
+    }
 }
 
-impl<T: Modulo> From<Vec<Vec<Modint<T>>>> for Matrix<T> {
-    fn from(from: Vec<Vec<Modint<T>>>) -> Self {
+impl<T: MatrixElement + From<U>, U> From<Vec<Vec<U>>> for Matrix<T> {
+    fn from(from: Vec<Vec<U>>) -> Self {
         Self {
             row: from.len(),
             column: from[0].len(),
-            matrix: from.into_iter().flatten().collect(),
+            matrix: from.into_iter().flatten().map(|v| T::from(v)).collect(),
         }
     }
-}
-
-impl<T: Modulo> From<Vec<Vec<i64>>> for Matrix<T> {
-    fn from(from: Vec<Vec<i64>>) -> Self {
-        Self {
-            row: from.len(),
-            column: from[0].len(),
-            matrix: from.into_iter().flatten().map(|v| Modint::<T>::new_signed(v)).collect(),
-        }
-    }
-}
-
-impl<T: Modulo> From<Vec<Vec<i32>>> for Matrix<T> {
-    fn from(from: Vec<Vec<i32>>) -> Self {
-        Self {
-            row: from.len(),
-            column: from[0].len(),
-            matrix: from.into_iter().flatten().map(|v| Modint::<T>::new_signed(v as i64)).collect(),
-        }
-    }
-}
-
-impl<T: Modulo> From<Vec<Vec<u32>>> for Matrix<T> {
-    fn from(from: Vec<Vec<u32>>) -> Self {
-        Self {
-            row: from.len(),
-            column: from[0].len(),
-            matrix: from.into_iter().flatten().map(|v| Modint::<T>::new(v as u64)).collect(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AffineTransformation<T: One + Zero + Clone + Copy + Add<T, Output = T> + Sub + Mul<T, Output = T> + Div + Neg> {
-    matrix: [T; 9],
-}
-
-impl<T: One + Zero + Clone + Copy + Add<T, Output = T> + Sub + Mul<T, Output = T> + Div + Neg<Output = T>> AffineTransformation<T> {
-    #[inline]
-    pub fn new() -> Self {
-        let mut matrix = [T::zero(); 9];
-        matrix[0] = T::one();
-        matrix[4] = T::one();
-        matrix[8] = T::one();
-        Self { matrix }
-    }
-
-    #[inline]
-    // | 1 0 x | | a b c |   | a+gx b+hx c+ix |
-    // | 0 1 y | | d e f | = | d+gy e+hy f+iy |
-    // | 0 0 1 | | g h i |   |   g    h    i  |
-    pub fn translation(&self, dx: T, dy: T) -> Self {
-        let mut matrix = self.matrix.clone();
-        (0..3).for_each(|i| matrix[i] = matrix[i] + matrix[i + 6] * dx);
-        (3..6).for_each(|i| matrix[i] = matrix[i] + matrix[i + 3] * dy);
-        Self { matrix }
-    }
-
-    #[inline]
-    // if x { x = -1 } else { x = 1 }
-    // if y { y = -1 } else { y = 1 }
-    // | x 0 0 | | a b c |   | ax bx cx |
-    // | 0 y 0 | | d e f | = | dy ey fy |
-    // | 0 0 1 | | g h i |   | g  h  i  |
-    pub fn reflection(&self, x: bool, y: bool) -> Self {
-        let mut matrix = self.matrix.clone();
-        if x {
-            (0..3).for_each(|i| matrix[i] = -matrix[i]);
-        }
-        if y {
-            (3..6).for_each(|i| matrix[i] = -matrix[i]);
-        }
-        Self { matrix }
-    }
-
-    #[inline]
-    // | x 0 0 | | a b c |   | ax bx cx |
-    // | 0 y 0 | | d e f | = | dy ey fy |
-    // | 0 0 1 | | g h i |   | g  h  i  |
-    pub fn scale(&self, x: T, y: T) -> Self {
-        let mut matrix = self.matrix.clone();
-        (0..3).for_each(|i| {
-            matrix[i] = matrix[i] * x;
-            matrix[i + 3] = matrix[i + 3] * y;
-        });
-        Self { matrix }
-    }
-
-    #[inline]
-    // | cos(-PI/2) -sin(-PI/2) 0 | | a b c |   |  0 1 0 | | a b c |   |  d  e  f |
-    // | sin(-PI/2)  cos(-PI/2) 0 | | d e f | = | -1 0 0 | | d e f | = | -a -b -c |
-    // | 0           0          1 | | g h i |   |  0 0 1 | | g h i |   |  g  h  i |
-    pub fn rotate_clockwise(&self) -> Self {
-        let mut matrix = self.matrix.clone();
-        (0..3).for_each(|i| {
-            matrix.swap(i, i + 3);
-            matrix[i + 3] = -matrix[i + 3];
-        });
-        Self { matrix }
-    }
-
-    #[inline]
-    // | cos(PI/2) -sin(PI/2) 0 | | a b c |   | 0 -1 0 | | a b c |   | -d -e -f |
-    // | sin(PI/2)  cos(PI/2) 0 | | d e f | = | 1  0 0 | | d e f | = |  a  b  c |
-    // | 0          0         1 | | g h i |   | 0  0 1 | | g h i |   |  g  h  i |
-    pub fn rotate_counterclockwise(&self) -> Self {
-        let mut matrix = self.matrix.clone();
-        (0..3).for_each(|i| {
-            matrix.swap(i, i + 3);
-            matrix[i] = -matrix[i];
-        });
-        Self { matrix }
-    }
-
-    #[inline]
-    pub fn transform(&self, x: T, y: T) -> (T, T) { (self.matrix[0] * x + self.matrix[1] * y + self.matrix[2], self.matrix[3] * x + self.matrix[4] * y + self.matrix[5]) }
 }
 
 #[cfg(test)]
@@ -233,46 +180,16 @@ mod tests {
     fn matrix_test() {
         let matrix_i64: Vec<Vec<i64>> = vec![vec![3, 2, 1], vec![4, 2, 2], vec![5, 1, 3]];
         let matrix_i32: Vec<Vec<i32>> = vec![vec![2, 5, 4], vec![5, 1, 2], vec![4, 2, 3]];
-        let flattened_matrix_i64: Vec<Modint<Mod998244353>> = vec![
-            Modint::raw(3),
-            Modint::raw(2),
-            Modint::raw(1),
-            Modint::raw(4),
-            Modint::raw(2),
-            Modint::raw(2),
-            Modint::raw(5),
-            Modint::raw(1),
-            Modint::raw(3),
-        ];
-        let flattened_matrix_i32: Vec<Modint<Mod998244353>> = vec![
-            Modint::raw(2),
-            Modint::raw(5),
-            Modint::raw(4),
-            Modint::raw(5),
-            Modint::raw(1),
-            Modint::raw(2),
-            Modint::raw(4),
-            Modint::raw(2),
-            Modint::raw(3),
-        ];
+        let flattened_matrix_i64: Vec<Modint<Mod998244353>> = vec![3.into(), 2.into(), 1.into(), 4.into(), 2.into(), 2.into(), 5.into(), 1.into(), 3.into()];
+        let flattened_matrix_i32: Vec<Modint<Mod998244353>> = vec![2.into(), 5.into(), 4.into(), 5.into(), 1.into(), 2.into(), 4.into(), 2.into(), 3.into()];
 
-        let a = Matrix::<Mod998244353>::from(matrix_i64);
-        let b = Matrix::<Mod998244353>::from(matrix_i32);
+        let a = Matrix::<Modint<Mod998244353>>::from(matrix_i64);
+        let b = Matrix::<Modint<Mod998244353>>::from(matrix_i32);
 
-        assert_eq!(Matrix::<Mod998244353>::new(4, 3).matrix, vec![Modint::zero(); 12]);
+        assert_eq!(Matrix::<Modint<Mod998244353>>::new(4, 3).matrix, vec![Modint::zero(); 12]);
         assert_eq!(
-            Matrix::<Mod998244353>::id(3).matrix,
-            vec![
-                Modint::raw(1),
-                Modint::raw(0),
-                Modint::raw(0),
-                Modint::raw(0),
-                Modint::raw(1),
-                Modint::raw(0),
-                Modint::raw(0),
-                Modint::raw(0),
-                Modint::raw(1)
-            ]
+            Matrix::<Modint<Mod998244353>>::id(3).matrix,
+            vec![1.into(), 0.into(), 0.into(), 0.into(), 1.into(), 0.into(), 0.into(), 0.into(), 1.into()]
         );
         assert_eq!(a.matrix, flattened_matrix_i64.clone());
         assert_eq!(b.matrix, flattened_matrix_i32.clone());
@@ -280,60 +197,27 @@ mod tests {
         //     |3 2 1|       |2 5 4|
         // a = |4 2 2| , b = |5 1 2|
         //     |5 1 3|       |4 2 3|
-        assert_eq!(
-            a.add(&b).matrix,
-            vec![
-                Modint::raw(5),
-                Modint::raw(7),
-                Modint::raw(5),
-                Modint::raw(9),
-                Modint::raw(3),
-                Modint::raw(4),
-                Modint::raw(9),
-                Modint::raw(3),
-                Modint::raw(6)
-            ]
-        );
+        assert_eq!(a.add(&b).matrix, vec![5.into(), 7.into(), 5.into(), 9.into(), 3.into(), 4.into(), 9.into(), 3.into(), 6.into()]);
         assert_eq!(
             a.sub(&b).matrix,
-            vec![
-                Modint::raw(1),
-                Modint::raw(998244350),
-                Modint::raw(998244350),
-                Modint::raw(998244352),
-                Modint::raw(1),
-                Modint::raw(0),
-                Modint::raw(1),
-                Modint::raw(998244352),
-                Modint::raw(0)
-            ]
+            vec![1.into(), 998244350.into(), 998244350.into(), 998244352.into(), 1.into(), 0.into(), 1.into(), 998244352.into(), 0.into(),]
         );
         assert_eq!(
             a.mul(&b).matrix,
-            vec![
-                Modint::raw(20),
-                Modint::raw(19),
-                Modint::raw(19),
-                Modint::raw(26),
-                Modint::raw(26),
-                Modint::raw(26),
-                Modint::raw(27),
-                Modint::raw(32),
-                Modint::raw(31)
-            ]
+            vec![20.into(), 19.into(), 19.into(), 26.into(), 26.into(), 26.into(), 27.into(), 32.into(), 31.into()]
         );
         assert_eq!(
             a.pow(324355).matrix,
             vec![
-                Modint::raw(957495479),
-                Modint::raw(800953849),
-                Modint::raw(608722515),
-                Modint::raw(419297532),
-                Modint::raw(552242599),
-                Modint::raw(607036125),
-                Modint::raw(417611142),
-                Modint::raw(618274426),
-                Modint::raw(347086574)
+                957495479.into(),
+                800953849.into(),
+                608722515.into(),
+                419297532.into(),
+                552242599.into(),
+                607036125.into(),
+                417611142.into(),
+                618274426.into(),
+                347086574.into()
             ]
         );
     }

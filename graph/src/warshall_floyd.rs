@@ -1,6 +1,6 @@
-use super::{Direction, Graph};
+use super::GraphLike;
 
-pub fn warshall_floyd<D: Direction>(graph: &Graph<D>) -> Vec<Vec<i64>> {
+pub fn warshall_floyd(graph: &impl GraphLike) -> Vec<Vec<i64>> {
     let mut res = vec![vec![std::i64::MAX; graph.size()]; graph.size()];
 
     for from in 0..graph.size() {
