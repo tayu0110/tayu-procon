@@ -1,7 +1,7 @@
-use std::arch::x86_64::{__m128i, _mm256_min_epu32, _mm256_setzero_si256, _mm_add_epi32, _mm_blend_epi32, _mm_min_epu32, _mm_mul_epu32, _mm_mullo_epi32, _mm_shuffle_epi32, _mm_sub_epi32};
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    __m256i, _mm256_add_epi32, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_cmpgt_epi32, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_shuffle_epi32, _mm256_store_si256, _mm256_sub_epi32,
+    __m128i, __m256i, _mm256_add_epi32, _mm256_blend_epi32, _mm256_blendv_epi8, _mm256_cmpgt_epi32, _mm256_min_epu32, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_setzero_si256, _mm256_shuffle_epi32,
+    _mm256_store_si256, _mm256_sub_epi32, _mm_add_epi32, _mm_blend_epi32, _mm_min_epu32, _mm_mul_epu32, _mm_mullo_epi32, _mm_shuffle_epi32, _mm_sub_epi32,
 };
 
 #[repr(C, align(32))]
