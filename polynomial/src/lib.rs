@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Sub};
 
-use convolution_simd::convolution;
+use convolution_simd::{convolution, dot, fft_cache::FftCache, intt, ntt};
 use modint::{Modulo, MontgomeryModint};
 
 #[derive(Debug, Clone)]
@@ -19,19 +19,37 @@ impl<M: Modulo> Polynomial<M> {
 
     pub fn inv(&self) -> Self {
         let deg = self.deg();
-        let mut g = Self { coefficients: vec![self.coefficients[0].inv()] };
+        let mut g = vec![0; deg.next_power_of_two()];
+        g[0] = self.coefficients[0].inv().val();
         let mut size = 1;
         while size < deg {
-            let mut ng = g.clone().scale(2);
-            let t = self.clone() * g.clone() * g;
-            ng = ng - t;
-            g = ng;
+            let mut f = self.coefficients.iter().copied().take(2 * size).map(|v| v.val()).collect::<Vec<_>>();
+            f.resize(2 * size, 0);
+            let hg = if size >= 4 {
+                let cache = FftCache::<MontgomeryModint<M>>::new((2 * size).trailing_zeros() as usize);
+
+                let (f_ntt, g_ntt) = (ntt(f, &cache), ntt(g[0..2 * size].to_vec(), &cache));
+                let fg = dot::<M>(f_ntt, g_ntt.clone());
+                let mut h = intt(fg, &cache);
+                h[..size].iter_mut().for_each(|h| *h = 0);
+                let h_ntt = ntt(h, &cache);
+                let hg = dot::<M>(h_ntt, g_ntt);
+                intt(hg, &cache)
+            } else {
+                let mut h = convolution::<M>(f, g[0..2 * size].to_vec());
+                h.resize(2 * size, 0);
+                convolution::<M>(g[0..2 * size].to_vec(), h)
+            };
+            g[size..].iter_mut().zip(&hg[size..2 * size]).for_each(|(p, &v)| {
+                let (r, f) = p.overflowing_sub(v);
+                *p = if f { r.wrapping_add(M::MOD) } else { r };
+            });
             size <<= 1;
-            g.coefficients.resize(size, MontgomeryModint::zero());
         }
 
-        g.coefficients.resize(deg, MontgomeryModint::zero());
-        g
+        Self {
+            coefficients: g[0..deg].into_iter().map(|v| MontgomeryModint::new(*v)).collect(),
+        }
     }
 }
 
@@ -129,11 +147,11 @@ mod tests {
 
     #[test]
     fn polynomial_inverse_test() {
-        let coef = vec![5, 4, 3, 2, 1];
+        let coef = vec![907649121, 290651129, 813718295, 770591820, 913049957, 587190944, 411145555, 899491439, 722412549, 182227749];
         let poly = Polynomial::<Mod998244353>::from(coef);
         let inv = poly.inv().coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
 
-        assert_eq!(inv, vec![598946612, 718735934, 862483121, 635682004, 163871793]);
+        assert_eq!(inv, vec![827228041, 288540417, 325694325, 929405258, 743378152, 901428113, 379325593, 870509167, 978731889, 911693879]);
     }
 
     #[test]
