@@ -273,7 +273,7 @@ mod tests_cooley_tukey {
     const N: u32 = 1 << 13;
 
     #[test]
-    fn cooley_tukey_radix_8_montgomery_modint_test() {
+    fn cooley_tukey_radix_4_montgomery_modint_test() {
         let data: Vec<Modint> = (1..=N).map(|v| Modint::new(v)).collect();
         let mut data1 = data.clone();
         fft_cooley_tukey_radix_4_montgomery_modint_avx2(&mut data1);
