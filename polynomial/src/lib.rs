@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
 use convolution_simd::{convolution, dot, fft_cache::FftCache, intt, ntt};
 use modint::{Modulo, MontgomeryModint};
@@ -9,16 +9,20 @@ pub struct Polynomial<M: Modulo> {
 }
 
 impl<M: Modulo> Polynomial<M> {
+    #[inline]
     pub fn deg(&self) -> usize { self.coefficients.len() }
 
+    #[inline]
     pub fn scale(mut self, s: u32) -> Self {
         let s = MontgomeryModint::new(s);
         self.coefficients.iter_mut().for_each(|v| *v *= s);
-        Self { coefficients: self.coefficients }
+        self
     }
 
-    pub fn inv(&self) -> Self {
-        let deg = self.deg();
+    // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
+    // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
+    // reference: https://judge.yosupo.jp/submission/68532
+    pub fn inv(&self, deg: usize) -> Self {
         let mut g = vec![0; deg.next_power_of_two()];
         g[0] = self.coefficients[0].inv().val();
         let mut size = 1;
@@ -51,6 +55,20 @@ impl<M: Modulo> Polynomial<M> {
             coefficients: g[0..deg].into_iter().map(|v| MontgomeryModint::new(*v)).collect(),
         }
     }
+
+    #[inline]
+    pub fn shrink(&mut self) {
+        let garbage_cnt = self.coefficients.iter().rev().take_while(|&&v| v == MontgomeryModint::zero()).count();
+        self.coefficients.resize(self.deg() - garbage_cnt, MontgomeryModint::zero());
+    }
+
+    #[inline]
+    pub fn div_rem(self, rhs: Self) -> (Self, Self) {
+        let q = self.clone() / rhs.clone();
+        let mut r = self - rhs * q.clone();
+        r.shrink();
+        (q, r)
+    }
 }
 
 impl<M: Modulo> Add<Self> for Polynomial<M> {
@@ -68,15 +86,9 @@ impl<M: Modulo> Add<Self> for Polynomial<M> {
 
 impl<M: Modulo> Sub<Self> for Polynomial<M> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        let (mut l, mut r) = (self.coefficients, rhs.coefficients);
-        r.iter_mut().for_each(|v| *v = MontgomeryModint::zero() - *v);
-        if l.len() < r.len() {
-            std::mem::swap(&mut l, &mut r);
-        }
-
-        l.iter_mut().zip(r.iter()).for_each(|(l, r)| *l += *r);
-        Polynomial { coefficients: l }
+    fn sub(self, mut rhs: Self) -> Self::Output {
+        rhs.coefficients.iter_mut().for_each(|v| *v = MontgomeryModint::zero() - *v);
+        self + rhs
     }
 }
 
@@ -84,10 +96,34 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         let coefficients = convolution::<M>(self.coefficients.into_iter().map(|a| a.val()).collect(), rhs.coefficients.into_iter().map(|a| a.val()).collect());
-        Polynomial {
-            coefficients: coefficients.into_iter().map(|a| MontgomeryModint::raw(a)).collect(),
-        }
+        coefficients.into()
     }
+}
+
+impl<M: Modulo> Div<Self> for Polynomial<M> {
+    type Output = Self;
+    fn div(mut self, mut rhs: Self) -> Self::Output {
+        let (n, m) = (self.deg(), rhs.deg());
+
+        if n < m {
+            return Self { coefficients: vec![] };
+        }
+
+        let k = n - m + 1;
+        self.coefficients.reverse();
+        rhs.coefficients.reverse();
+        let rhs_inv = rhs.inv(k);
+        let mut fg = self * rhs_inv;
+        fg.coefficients.resize(k, MontgomeryModint::zero());
+        fg.coefficients.reverse();
+        fg.shrink();
+        fg
+    }
+}
+
+impl<M: Modulo> Rem<Self> for Polynomial<M> {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output { self.div_rem(rhs).1 }
 }
 
 impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
@@ -123,11 +159,8 @@ mod tests {
 
     #[test]
     fn polynomial_sub_test() {
-        let coef = vec![5, 4, 3, 2, 1];
-        let poly = Polynomial::<Mod998244353>::from(coef);
-
-        let coef = vec![1, 2, 4, 8, 16];
-        let poly2 = Polynomial::<Mod998244353>::from(coef);
+        let poly = Polynomial::<Mod998244353>::from(vec![5, 4, 3, 2, 1]);
+        let poly2 = Polynomial::<Mod998244353>::from(vec![1, 2, 4, 8, 16]);
 
         let sub = (poly - poly2).coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
         assert_eq!(sub, vec![4, 2, 998244352, 998244347, 998244338]);
@@ -135,21 +168,35 @@ mod tests {
 
     #[test]
     fn polynomial_mul_test() {
-        let coef = vec![5, 4, 3, 2, 1];
-        let poly = Polynomial::<Mod998244353>::from(coef);
-
-        let coef = vec![1, 2, 4, 8, 16];
-        let poly2 = Polynomial::<Mod998244353>::from(coef);
+        let poly = Polynomial::<Mod998244353>::from(vec![5, 4, 3, 2, 1]);
+        let poly2 = Polynomial::<Mod998244353>::from(vec![1, 2, 4, 8, 16]);
 
         let mul = (poly * poly2).coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
         assert_eq!(mul, vec![5, 14, 31, 64, 129, 98, 68, 40, 16]);
     }
 
     #[test]
+    fn polynomial_div_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![0, 0, 0, 0, 0, 0, 1]);
+        let poly2 = Polynomial::<Mod998244353>::from(vec![998244352, 998244352, 1]);
+
+        let div = (poly / poly2).coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        assert_eq!(div, vec![5, 3, 2, 1, 1]);
+    }
+
+    #[test]
+    fn polynomial_rem_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![0, 0, 0, 0, 0, 0, 1]);
+        let poly2 = Polynomial::<Mod998244353>::from(vec![998244352, 998244352, 1]);
+
+        let rem = (poly % poly2).coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        assert_eq!(rem, vec![5, 8]);
+    }
+
+    #[test]
     fn polynomial_inverse_test() {
-        let coef = vec![907649121, 290651129, 813718295, 770591820, 913049957, 587190944, 411145555, 899491439, 722412549, 182227749];
-        let poly = Polynomial::<Mod998244353>::from(coef);
-        let inv = poly.inv().coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let poly = Polynomial::<Mod998244353>::from(vec![907649121, 290651129, 813718295, 770591820, 913049957, 587190944, 411145555, 899491439, 722412549, 182227749]);
+        let inv = poly.inv(poly.deg()).coefficients.into_iter().map(|v| v.val()).collect::<Vec<_>>();
 
         assert_eq!(inv, vec![827228041, 288540417, 325694325, 929405258, 743378152, 901428113, 379325593, 870509167, 978731889, 911693879]);
     }

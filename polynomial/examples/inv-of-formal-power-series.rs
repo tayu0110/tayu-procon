@@ -1,3 +1,4 @@
+// https://judge.yosupo.jp/problem/inv_of_formal_power_series
 use iolib::scan;
 use modint::Mod998244353;
 use polynomial::Polynomial;
@@ -10,7 +11,7 @@ fn main() {
     scan!(n: usize, a: [u32; n]);
 
     let poly = Polynomial::<Mod998244353>::from(a);
-    let inv: Vec<u32> = poly.inv().into();
+    let inv: Vec<u32> = poly.inv(poly.deg()).into();
 
     write!(out, "{}", inv[0]).unwrap();
     for inv in inv.into_iter().skip(1) {
