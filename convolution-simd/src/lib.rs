@@ -5,7 +5,6 @@ pub mod gentleman_sande;
 
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{_mm256_loadu_si256, _mm256_set1_epi32, _mm256_setzero_si256, _mm256_storeu_si256};
-use std::ptr::copy_nonoverlapping;
 
 use common::{_mm256_add_mod_epi32, montgomery_multiplication_u32x8, montgomery_reduction_u32x8};
 use cooley_tukey::cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2;
@@ -13,6 +12,7 @@ use fft_cache::FftCache;
 use gentleman_sande::gentleman_sande_radix_4_butterfly_montgomery_modint_avx2;
 use math::{ext_gcd, garner};
 use modint::{Mod645922817, Mod754974721, Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint};
+use std::ptr::copy_nonoverlapping;
 
 #[inline]
 pub fn ntt<M: Modulo>(mut a: Vec<u32>, cache: &FftCache<MontgomeryModint<M>>) -> Vec<u32> {
@@ -156,40 +156,26 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
 
     let modulo = unsafe { _mm256_set1_epi32(Mod998244353::MOD as i32) };
     let modulo_inv = unsafe { _mm256_set1_epi32(Mod998244353::MOD_INV as i32) };
-    let initialize = |mut a: Vec<u32>| -> Vec<MontgomeryModint<_>> {
-        unsafe {
-            let r2 = _mm256_set1_epi32(Mod998244353::R2 as i32);
-            a.chunks_exact_mut(8).for_each(|v| {
-                let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), r2, modulo, modulo_inv);
-                _mm256_storeu_si256(v.as_mut_ptr() as _, res);
-            });
-        }
-        a.into_iter().map(|v| MontgomeryModint::<Mod998244353>::from_mont_expr(v)).collect::<Vec<_>>()
-    };
 
     a.resize((len_a + 7) / 8 * 8, 0);
     b.resize((len_b + 7) / 8 * 8, 0);
-    let a = initialize(a);
-    let b = initialize(b);
 
     let cache = FftCache::<MontgomeryModint<Mod998244353>>::new(width.trailing_zeros() as usize);
 
     let x = a
         .chunks(width >> 1)
         .map(|a| {
-            let mut x = vec![MontgomeryModint::zero(); width];
+            let mut x = vec![0u32; width];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            unsafe { gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(x.len(), x.len().trailing_zeros() as usize, &mut x, &cache) }
-            x
+            ntt(x, &cache)
         })
         .collect::<Vec<_>>();
     let y = b
         .chunks(width >> 1)
         .map(|a| {
-            let mut x = vec![MontgomeryModint::zero(); width];
+            let mut x = vec![0u32; width];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            unsafe { gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(x.len(), x.len().trailing_zeros() as usize, &mut x, &cache) }
-            x
+            ntt(x, &cache)
         })
         .collect::<Vec<_>>();
 
@@ -199,7 +185,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         for i in 0..=s {
             if let (Some(x), Some(y)) = (x.get(i), y.get(s - i)) {
                 p.iter_mut()
-                    .zip(dot::<Mod998244353>(x.iter().cloned().map(|v| v.val).collect(), y.iter().cloned().map(|v| v.val).collect()))
+                    .zip(dot::<Mod998244353>(x.clone(), y.clone()))
                     .for_each(|(p, v)| *p += MontgomeryModint::<Mod998244353>::raw(v));
             }
         }
@@ -223,20 +209,28 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
             let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), ninv, modulo, modulo_inv);
             _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_reduction_u32x8(res, modulo, modulo_inv));
         }
-        res.into_iter().take(deg).map(|v| v.val_mont_expr()).collect()
+        res.into_iter().take(deg).map(|v| v.val).collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{convolution, convolution_1e97, convolution_mod_2_64};
-    use modint::Mod998244353;
+    use modint::{Mod4194304001, Mod998244353};
 
     #[test]
     fn convolution_test() {
         let a = vec![1, 2, 3, 4];
         let b = vec![1, 2, 4, 8];
         let c = convolution::<Mod998244353>(a, b);
+        assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
+    }
+
+    #[test]
+    fn convolution_large_mod_test() {
+        let a = vec![1, 2, 3, 4];
+        let b = vec![1, 2, 4, 8];
+        let c = convolution::<Mod4194304001>(a, b);
         assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
     }
 
