@@ -69,6 +69,37 @@ impl<M: Modulo> Polynomial<M> {
         r.shrink();
         (q, r)
     }
+
+    pub fn multipoint_evaluation(&self, xs: Vec<MontgomeryModint<M>>) -> Vec<MontgomeryModint<M>> {
+        let len = xs.len();
+        let m = len.next_power_of_two();
+        let mut subproduct_tree = vec![Self { coefficients: vec![MontgomeryModint::one()] }; m * 2];
+        for (i, &x) in xs.iter().enumerate() {
+            subproduct_tree[i + m] = Self {
+                coefficients: vec![MontgomeryModint::zero() - x, MontgomeryModint::one()],
+            };
+        }
+        for i in (2..2 * m).step_by(2).rev() {
+            subproduct_tree[i / 2] = subproduct_tree[i].clone() * subproduct_tree[i + 1].clone();
+        }
+        let mut subremainder_tree = vec![Self { coefficients: vec![] }; m * 2];
+        if subproduct_tree[1].deg() == 0 {
+            return vec![MontgomeryModint::zero(); len];
+        }
+        subremainder_tree[1] = self.clone() % subproduct_tree[1].clone();
+        for i in 2..2 * m {
+            if subproduct_tree[i].deg() == 0 {
+                continue;
+            }
+            subremainder_tree[i] = subremainder_tree[i / 2].clone() % subproduct_tree[i].clone();
+        }
+
+        subremainder_tree[m..]
+            .into_iter()
+            .take(len)
+            .map(|v| if v.deg() == 0 { MontgomeryModint::zero() } else { v.coefficients[0] })
+            .collect()
+    }
 }
 
 impl<M: Modulo> Add<Self> for Polynomial<M> {
@@ -137,8 +168,6 @@ impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
 impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
     fn into(self) -> Vec<u32> { self.coefficients.into_iter().map(|v| v.val()).collect() }
 }
-
-pub fn multipoint_evaluation() {}
 
 #[cfg(test)]
 mod tests {
