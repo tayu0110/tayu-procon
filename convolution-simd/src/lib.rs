@@ -54,7 +54,7 @@ pub fn intt<M: Modulo>(a: Vec<u32>, cache: &FftCache<MontgomeryModint<M>>) -> Ve
 }
 
 #[inline]
-pub fn dot<M: Modulo>(mut a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
+pub fn dot<M: Modulo>(mut a: Vec<u32>, b: &[u32]) -> Vec<u32> {
     unsafe {
         let modulo = _mm256_set1_epi32(M::MOD as i32);
         let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
@@ -80,7 +80,7 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     let a = ntt(a, &cache);
     let b = ntt(b, &cache);
 
-    let a = dot::<M>(a, b);
+    let a = dot::<M>(a, &b);
 
     let c = intt(a, &cache);
     c.into_iter().take(deg).collect()
@@ -184,9 +184,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     for s in 0..(x.len() + y.len() - 1) {
         for i in 0..=s {
             if let (Some(x), Some(y)) = (x.get(i), y.get(s - i)) {
-                p.iter_mut()
-                    .zip(dot::<Mod998244353>(x.clone(), y.clone()))
-                    .for_each(|(p, v)| *p += MontgomeryModint::<Mod998244353>::raw(v));
+                p.iter_mut().zip(dot::<Mod998244353>(x.clone(), &y)).for_each(|(p, v)| *p += MontgomeryModint::<Mod998244353>::raw(v));
             }
         }
         unsafe { cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2(width, width.trailing_zeros() as usize, &mut p, &cache) }

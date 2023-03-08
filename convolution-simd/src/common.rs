@@ -5,16 +5,6 @@ use std::arch::x86_64::{
     _mm256_sub_epi32, _mm256_xor_si256, _mm_add_epi32, _mm_and_si128, _mm_blend_epi32, _mm_cmpeq_epi32, _mm_max_epu32, _mm_min_epu32, _mm_mul_epu32, _mm_mullo_epi32, _mm_shuffle_epi32, _mm_sub_epi32,
 };
 
-#[repr(C, align(32))]
-pub struct AlignedArrayu32x8 {
-    pub val: [u32; 8],
-}
-
-#[repr(C, align(32))]
-pub struct AlignedArrayu64x4 {
-    pub val: [u64; 4],
-}
-
 #[inline]
 #[target_feature(enable = "avx")]
 #[target_feature(enable = "avx2")]
@@ -118,6 +108,10 @@ pub unsafe fn _mm_sub_mod_epi32(a: __m128i, b: __m128i, modulo: __m128i) -> __m1
 #[inline]
 #[target_feature(enable = "avx2")]
 pub unsafe fn _mm256_debug_print(a: __m256i, var_name: &str) {
+    #[repr(C, align(32))]
+    struct AlignedArrayu32x8 {
+        pub val: [u32; 8],
+    }
     let mut dest = AlignedArrayu32x8 { val: [0u32; 8] };
     _mm256_store_si256(dest.val.as_mut_ptr() as *mut _, a);
     eprintln!("{}: {:?}", var_name, dest.val);

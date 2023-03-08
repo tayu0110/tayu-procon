@@ -5,7 +5,7 @@ use modint::{Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    _mm256_castsi256_si128, _mm256_extracti128_si256, _mm256_load_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_shuffle_epi32, _mm256_storeu_si256,
+    _mm256_castsi256_si128, _mm256_extracti128_si256, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_set_epi32, _mm256_set_m128i, _mm256_setr_epi32, _mm256_shuffle_epi32, _mm256_storeu_si256,
     _mm256_unpackhi_epi32, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
 };
 
@@ -96,15 +96,26 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
             _mm256_storeu_si256(a.as_mut_ptr() as *mut _, c0123);
         }
     } else if offset == 4 {
-        let w02 = &mut AlignedArrayu32x8 { val: [Modint::<M>::one().val; 8] }.val;
-        let w13 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
-        for (i, exp_now) in (0..4).map(|i| (i, (i * exp))) {
-            w13[i] = twiddle[exp_now].val;
-            w02[i + 4] = twiddle[exp_now * 2].val;
-            w13[i + 4] = twiddle[exp_now * 3].val;
-        }
-        let w02 = _mm256_load_si256(w02.as_mut_ptr() as *mut _);
-        let w13 = _mm256_load_si256(w13.as_mut_ptr() as *mut _);
+        let w02 = _mm256_setr_epi32(
+            M::R as i32,
+            M::R as i32,
+            M::R as i32,
+            M::R as i32,
+            twiddle[0].val as i32,
+            twiddle[exp * 2].val as i32,
+            twiddle[exp * 4].val as i32,
+            twiddle[exp * 6].val as i32,
+        );
+        let w13 = _mm256_setr_epi32(
+            twiddle[0].val as i32,
+            twiddle[exp].val as i32,
+            twiddle[exp * 2].val as i32,
+            twiddle[exp * 3].val as i32,
+            twiddle[0].val as i32,
+            twiddle[exp * 3].val as i32,
+            twiddle[exp * 6].val as i32,
+            twiddle[exp * 9].val as i32,
+        );
 
         for a in a.chunks_exact_mut(16) {
             let c02 = _mm256_loadu_si256(a[0..8].as_ptr() as *const _);
@@ -126,9 +137,6 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
             _mm256_storeu_si256(a[8..].as_mut_ptr() as *mut _, _mm256_set_m128i(c3, c2));
         }
     } else {
-        let w1 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
-        let w2 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
-        let w3 = &mut AlignedArrayu32x8 { val: [0; 8] }.val;
         for top in (0..deg).step_by(width) {
             let mut exp_now = 0;
             for (((v0, v1), v2), v3) in a[top..top + offset]
@@ -137,33 +145,54 @@ pub unsafe fn radix_4_kernel_cooley_tukey_avx2<M: Modulo>(deg: usize, width: usi
                 .zip(a[top + offset..top + offset * 2].chunks_exact(8))
                 .zip(a[top + offset * 3..top + offset * 4].chunks_exact(8))
             {
-                let c0 = _mm256_loadu_si256(v0.as_ptr() as *const _);
-                let c1 = _mm256_loadu_si256(v1.as_ptr() as *const _);
-                let c2 = _mm256_loadu_si256(v2.as_ptr() as *const _);
-                let c3 = _mm256_loadu_si256(v3.as_ptr() as *const _);
-
-                for i in 0..8 {
-                    *w1.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now).val;
-                    *w2.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 2).val;
-                    *w3.get_unchecked_mut(i) = twiddle.get_unchecked(exp_now * 3).val;
-                    exp_now += exp;
-                }
-                let (w1, w2, w3) = (
-                    _mm256_load_si256(w1.as_ptr() as *const _),
-                    _mm256_load_si256(w2.as_ptr() as *const _),
-                    _mm256_load_si256(w3.as_ptr() as *const _),
+                let w1 = _mm256_setr_epi32(
+                    twiddle.get_unchecked(exp_now).val as i32,
+                    twiddle.get_unchecked(exp_now + exp).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 2).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 3).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 4).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 5).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 6).val as i32,
+                    twiddle.get_unchecked(exp_now + exp * 7).val as i32,
                 );
-
+                let c1 = _mm256_loadu_si256(v1.as_ptr() as *const _);
                 let c1 = montgomery_multiplication_u32x8(w1, c1, modulo, modulo_inv);
+
+                let w2 = _mm256_setr_epi32(
+                    twiddle.get_unchecked(exp_now * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 2) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 3) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 4) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 5) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 6) * 2).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 7) * 2).val as i32,
+                );
+                let c2 = _mm256_loadu_si256(v2.as_ptr() as *const _);
                 let c2 = montgomery_multiplication_u32x8(w2, c2, modulo, modulo_inv);
+
+                let w3 = _mm256_setr_epi32(
+                    twiddle.get_unchecked(exp_now * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 2) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 3) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 4) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 5) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 6) * 3).val as i32,
+                    twiddle.get_unchecked((exp_now + exp * 7) * 3).val as i32,
+                );
+                let c3 = _mm256_loadu_si256(v3.as_ptr() as *const _);
                 let c3 = montgomery_multiplication_u32x8(w3, c3, modulo, modulo_inv);
 
+                let c0 = _mm256_loadu_si256(v0.as_ptr() as *const _);
                 let (c0, c1, c2, c3) = radix_4_innerx8(c0, c1, c2, c3, modulo, modulo_inv, prim_root);
 
                 _mm256_storeu_si256(v0.as_ptr() as *mut _, c0);
                 _mm256_storeu_si256(v2.as_ptr() as *mut _, c1);
                 _mm256_storeu_si256(v1.as_ptr() as *mut _, c2);
                 _mm256_storeu_si256(v3.as_ptr() as *mut _, c3);
+
+                exp_now += exp << 3;
             }
         }
     }
