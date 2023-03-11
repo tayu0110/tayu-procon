@@ -1,6 +1,6 @@
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
-use convolution_simd::{convolution, dot, fft_cache::FftCache, intt, ntt, Nttable};
+use convolution_simd::{fft_cache::FftCache, Nttable};
 use modint::{Modulo, MontgomeryModint};
 
 #[derive(Debug, Clone)]
@@ -42,40 +42,52 @@ impl<M: Modulo> Polynomial<M> {
         self
     }
 
+    #[inline]
+    fn mul_with_cache(mut self, mut rhs: Self, cache: &FftCache<MontgomeryModint<M>>) -> Self {
+        let len = self.deg() + rhs.deg() - 1;
+        let deg = len.next_power_of_two();
+        assert_eq!(deg, cache.twiddle_factors().len() - 1);
+        self.resize(deg);
+        rhs.resize(deg);
+        let (l, r) = (self.coefficients.ntt_with_cache(&cache), rhs.coefficients.ntt_with_cache(&cache));
+        let mut res: Self = l.dot(&r).intt_with_cache(&cache).into();
+        res.resize(len);
+        res
+    }
+
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
     // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
     // reference: https://judge.yosupo.jp/submission/68532
-    pub fn inv(&self, deg: usize) -> Self {
-        let mut g = vec![0; deg.next_power_of_two()];
-        g[0] = self.coefficients[0].inv().val();
+    fn inv_with_cache(&self, deg: usize, cache: &Vec<FftCache<MontgomeryModint<M>>>) -> Self {
+        let mut g = vec![MontgomeryModint::zero(); deg.next_power_of_two()];
+        g[0] = self.coefficients[0].inv();
         let mut size = 1;
         while size < deg {
-            let mut f = self.coefficients.iter().copied().take(2 * size).map(|v| v.val()).collect::<Vec<_>>();
-            f.resize(2 * size, 0);
+            let mut f = self.coefficients.iter().take(2 * size).cloned().collect::<Vec<_>>();
+            f.resize(2 * size, MontgomeryModint::zero());
             let hg = if size >= 8 {
-                let cache = FftCache::<MontgomeryModint<M>>::new((2 * size).trailing_zeros() as usize);
-
-                let (f_ntt, g_ntt) = (ntt(f, &cache), ntt(g[0..2 * size].to_vec(), &cache));
-                let fg = dot::<M>(f_ntt, &g_ntt);
-                let mut h = intt(fg, &cache);
-                h[..size].iter_mut().for_each(|h| *h = 0);
-                let h_ntt = ntt(h, &cache);
-                let hg = dot::<M>(h_ntt, &g_ntt);
-                intt(hg, &cache)
+                let cache = &cache[(2 * size).trailing_zeros() as usize];
+                let g_ntt = g[0..2 * size].to_vec().ntt_with_cache(&cache);
+                let fg = f.ntt_with_cache(&cache).dot(&g_ntt);
+                let mut h = fg.intt_with_cache(&cache);
+                h[..size].iter_mut().for_each(|h| *h = MontgomeryModint::zero());
+                h.ntt_with_cache(&cache).dot(&g_ntt).intt_with_cache(&cache)
             } else {
-                let h = <Vec<u32> as Into<Polynomial<M>>>::into(f) * g[0..size].to_vec().into();
-                (h * g[0..size].to_vec().into()).coefficients.into_iter().map(|v| v.val()).collect()
+                let h = <Vec<MontgomeryModint<M>> as Into<Polynomial<M>>>::into(f) * g[0..size].to_vec().into();
+                (h * g[0..size].to_vec().into()).into()
             };
-            g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| {
-                let (r, f) = p.overflowing_sub(v);
-                *p = if f { r.wrapping_add(M::MOD) } else { r };
-            });
+            g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| *p -= v);
             size <<= 1;
         }
 
-        Self {
-            coefficients: g[0..deg].into_iter().map(|v| MontgomeryModint::new(*v)).collect(),
-        }
+        g.resize(deg, MontgomeryModint::zero());
+        g.into()
+    }
+
+    #[inline]
+    pub fn inv(&self, deg: usize) -> Self {
+        let cache = Self::gen_caches(deg);
+        self.inv_with_cache(deg, &cache)
     }
 
     #[inline]
@@ -108,8 +120,7 @@ impl<M: Modulo> Polynomial<M> {
         let deg = self.deg();
         self.reverse();
         self.resize(rhs.deg());
-        let fg = self.coefficients.ntt_with_cache(&cache).dot(&rhs.coefficients);
-        fg.intt_with_cache(&cache)[deg - 1..].to_vec().into()
+        self.coefficients.ntt_with_cache(&cache).dot(&rhs.coefficients).intt_with_cache(&cache)[deg - 1..].to_vec().into()
     }
 
     fn gen_caches(size: usize) -> Vec<FftCache<MontgomeryModint<M>>> {
@@ -127,15 +138,22 @@ impl<M: Modulo> Polynomial<M> {
             return vec![];
         }
 
-        let mut subproduct_tree = vec![Self { coefficients: vec![MontgomeryModint::one()] }; len * 2];
+        let caches = Self::gen_caches(len.max(self.deg()).next_power_of_two() * 2);
+        let mut subproduct_tree = vec![Self { coefficients: vec![] }; len * 2];
         for i in 0..len {
             subproduct_tree[len + i] = vec![-xs[i], MontgomeryModint::one()].into();
         }
         for i in (1..len).rev() {
-            subproduct_tree[i] = subproduct_tree[i * 2].clone() * subproduct_tree[i * 2 + 1].clone();
+            subproduct_tree[i] = if subproduct_tree[i * 2].deg() <= 8 {
+                subproduct_tree[i * 2].clone() * subproduct_tree[i * 2 + 1].clone()
+            } else {
+                let ndeg = (subproduct_tree[i * 2].deg() + subproduct_tree[i * 2 + 1].deg() - 1).next_power_of_two();
+                subproduct_tree[i * 2]
+                    .clone()
+                    .mul_with_cache(subproduct_tree[i * 2 + 1].clone(), &caches[ndeg.trailing_zeros() as usize])
+            };
         }
 
-        let caches = Self::gen_caches(len.max(self.deg()).next_power_of_two() * 2);
         subproduct_tree.reverse();
         subproduct_tree.pop().unwrap();
 
@@ -144,7 +162,7 @@ impl<M: Modulo> Polynomial<M> {
         let deg = self.deg();
         t.reverse();
         self.resize(2 * deg.next_power_of_two());
-        uptree[len * 2 - 1] = t.inv(deg).middle_product(
+        uptree[len * 2 - 1] = t.inv_with_cache(deg, &caches).middle_product(
             &self.coefficients.ntt_with_cache(&caches[(deg.next_power_of_two() * 2).trailing_zeros() as usize]).into(),
             &caches[(deg.next_power_of_two() * 2).trailing_zeros() as usize],
         );
@@ -158,9 +176,10 @@ impl<M: Modulo> Polynomial<M> {
             let mut u = uptree.pop().unwrap();
             let deg = (u.deg() + dl.max(dr)).next_power_of_two();
             u.resize(deg);
-            let nu = u.coefficients.ntt_with_cache(&caches[deg.trailing_zeros() as usize]).into();
-            uptree[len * 2 - i * 2] = r.middle_product(&nu, &caches[deg.trailing_zeros() as usize]).prefix(dl);
-            uptree[len * 2 - i * 2 - 1] = l.middle_product(&nu, &caches[deg.trailing_zeros() as usize]).prefix(dr);
+            let cache_index = deg.trailing_zeros() as usize;
+            let nu = u.coefficients.ntt_with_cache(&caches[cache_index]).into();
+            uptree[len * 2 - i * 2] = r.middle_product(&nu, &caches[cache_index]).prefix(dl);
+            uptree[len * 2 - i * 2 - 1] = l.middle_product(&nu, &caches[cache_index]).prefix(dr);
         }
 
         uptree
@@ -202,7 +221,9 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
         if self.deg().min(rhs.deg()) <= 8 {
             return self.naive_multiply(rhs);
         }
-        convolution::<M>(self.coefficients.into_iter().map(|a| a.val()).collect(), rhs.coefficients.into_iter().map(|a| a.val()).collect()).into()
+        let deg = (self.deg() + rhs.deg() - 1).next_power_of_two();
+        let cache = FftCache::new(deg.trailing_zeros() as usize);
+        self.mul_with_cache(rhs, &cache)
     }
 }
 
