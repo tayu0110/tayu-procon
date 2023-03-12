@@ -26,6 +26,16 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
+    pub fn derivative(self) -> Self {
+        let coef = self.coefficients[1..]
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| *p * MontgomeryModint::raw(i as u32 + 1))
+            .collect::<Vec<_>>();
+        coef.into()
+    }
+
+    #[inline]
     fn naive_multiply(mut self, mut rhs: Self) -> Self {
         if self.deg() < rhs.deg() {
             std::mem::swap(&mut self, &mut rhs);
@@ -273,8 +283,53 @@ impl<M: Modulo> Into<Vec<MontgomeryModint<M>>> for Polynomial<M> {
     fn into(self) -> Vec<MontgomeryModint<M>> { self.coefficients }
 }
 
+pub fn lagrange_interpolation<M: Modulo>(xs: Vec<MontgomeryModint<M>>, fs: Vec<MontgomeryModint<M>>) -> Polynomial<M> {
+    let len = xs.len();
+    let mut stack: Vec<Polynomial<M>> = xs.iter().map(|&x| vec![-x, MontgomeryModint::one()].into()).collect::<Vec<_>>();
+
+    let mut den = stack.clone();
+    den.reverse();
+    while stack.len() > 1 {
+        let mut new = vec![];
+        while let Some(p) = stack.pop() {
+            if let Some(np) = stack.pop() {
+                new.push(p * np);
+            } else {
+                new.push(p);
+            }
+        }
+        den.extend(new.iter().cloned().rev());
+        stack = new;
+    }
+
+    let g = stack.pop().unwrap();
+    den.reverse();
+    let gs = g.clone().derivative().multipoint_evaluation(xs);
+    let mut num: Vec<Polynomial<M>> = fs.into_iter().zip(gs.into_iter()).map(|(f, g)| vec![f / g].into()).collect::<Vec<_>>();
+    while num.len() > 1 {
+        let mut new_num = vec![];
+        while let Some(n) = num.pop() {
+            let d = den.pop().unwrap();
+            if let Some(nn) = num.pop() {
+                let nd = den.pop().unwrap();
+                new_num.push(n * nd + nn * d);
+            } else {
+                new_num.push(n);
+            }
+        }
+
+        num = new_num;
+    }
+
+    let mut num = num.pop().unwrap();
+    num.resize(len);
+    num
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::lagrange_interpolation;
+
     use super::Polynomial;
     use modint::Mod998244353;
 
@@ -341,5 +396,14 @@ mod tests {
         let ys = poly.multipoint_evaluation(xs);
 
         assert_eq!(ys, vec![586.into(), 985.into(), 1534.into(), 2257.into(), 3178.into()]);
+    }
+
+    #[test]
+    fn lagrange_interpolation_test() {
+        let xs = vec![5.into(), 6.into(), 7.into(), 8.into(), 9.into()];
+        let fs = vec![586.into(), 985.into(), 1534.into(), 2257.into(), 3178.into()];
+
+        let res = lagrange_interpolation::<Mod998244353>(xs, fs);
+        assert_eq!(res.coefficients, vec![1.into(), 2.into(), 3.into(), 4.into(), 0.into()]);
     }
 }
