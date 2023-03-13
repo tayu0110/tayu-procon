@@ -309,6 +309,34 @@ pub fn miller_rabin_test(p: u64) -> bool {
     })
 }
 
+pub fn divisors_enumeration(n: u64) -> Vec<u64> {
+    let mut f = factorize(n);
+    f.sort();
+
+    let mut t = vec![];
+    for f in f {
+        match t.last_mut() {
+            Some((c, cnt)) if *c == f => *cnt += 1,
+            _ => t.push((f, 1)),
+        }
+    }
+
+    let mut res = vec![1];
+    for (c, cnt) in t {
+        let mut now = 1;
+        let len = res.len();
+        for _ in 0..cnt {
+            now *= c;
+            for i in 0..len {
+                let new = res[i] * now;
+                res.push(new);
+            }
+        }
+    }
+
+    res
+}
+
 /// Returns the result of prime factorization of integer n.
 pub fn factorize(mut n: u64) -> Vec<u64> {
     if n == 1 {
@@ -392,6 +420,8 @@ fn pollard_rho(n: u64) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use crate::divisors_enumeration;
+
     use super::{chinese_remainder_theorem, ext_gcd, factorize, gcd, lcm, miller_rabin_test};
 
     #[test]
@@ -449,5 +479,17 @@ mod tests {
         let mut f = factorize(999381247093216751);
         f.sort();
         assert_eq!(f, vec![999665081, 999716071]);
+    }
+
+    #[test]
+    fn divisors_enumeration_test() {
+        let mut f = divisors_enumeration(12);
+        f.sort();
+
+        assert_eq!(f, vec![1, 2, 3, 4, 6, 12]);
+
+        let mut f = divisors_enumeration(999381247093216751);
+        f.sort();
+        assert_eq!(f, vec![1, 999665081, 999716071, 999381247093216751]);
     }
 }
