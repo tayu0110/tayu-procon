@@ -1,6 +1,6 @@
-use std::marker;
+use std::{fmt::Debug, marker};
 
-pub trait Modulo: Clone + marker::Copy + PartialEq + Eq {
+pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     const MOD: u32;
     // MOD * MOD_INV = 1 mod R
     const MOD_INV: u32 = {
@@ -20,7 +20,7 @@ pub trait Modulo: Clone + marker::Copy + PartialEq + Eq {
 macro_rules! impl_modulo {
     ( $({ $name:ident, $modulo:literal, $prim_root:literal },)* ) => {
         $(
-            #[derive(Clone, marker::Copy, PartialEq, Eq)]
+            #[derive(Debug, Clone, marker::Copy, PartialEq, Eq)]
             pub enum $name {}
             impl Modulo for $name {
                 const MOD: u32 = $modulo;

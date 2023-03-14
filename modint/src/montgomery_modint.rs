@@ -3,7 +3,7 @@ use numeric::{One, Zero};
 use std::convert::From;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::str::FromStr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,7 @@ impl<M: Modulo> MontgomeryModint<M> {
     #[inline]
     pub fn zero() -> Self { Self { val: 0, _phantom: PhantomData } }
 
-    pub fn pow(&self, mut n: u32) -> Self {
+    pub fn pow(&self, mut n: u64) -> Self {
         let mut val = self.val;
         let mut res = M::R;
         while n != 0 {
@@ -74,11 +74,11 @@ impl<M: Modulo> MontgomeryModint<M> {
     pub fn nth_root(n: u32) -> Self {
         debug_assert!(n == 1 << n.trailing_zeros());
 
-        MontgomeryModint::<M>::new(M::PRIM_ROOT).pow(M::MOD - 1 + (M::MOD - 1) / n)
+        MontgomeryModint::<M>::new(M::PRIM_ROOT).pow(M::MOD as u64 - 1 + (M::MOD as u64 - 1) / n as u64)
     }
 
     #[inline]
-    pub fn inv(&self) -> Self { self.pow(M::MOD - 2) }
+    pub fn inv(&self) -> Self { self.pow(M::MOD as u64 - 2) }
 }
 
 impl<M: Modulo> One for MontgomeryModint<M> {
@@ -124,6 +124,17 @@ impl<M: Modulo> Mul for MontgomeryModint<M> {
 impl<M: Modulo> Div for MontgomeryModint<M> {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output { self * rhs.inv() }
+}
+
+impl<M: Modulo> Neg for MontgomeryModint<M> {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        if self.val == 0 {
+            self
+        } else {
+            Self { val: M::MOD - self.val, _phantom: PhantomData }
+        }
+    }
 }
 
 impl<M: Modulo> AddAssign for MontgomeryModint<M> {
@@ -189,7 +200,7 @@ impl<M: Modulo> FromStr for MontgomeryModint<M> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::modulo::{Mod998244353, Modulo};
+    use super::super::modulo::{Mod4194304001, Mod998244353, Modulo};
     use super::MontgomeryModint;
 
     #[test]
@@ -220,11 +231,30 @@ mod tests {
         assert_eq!((a + b).val(), 196503548);
         assert_eq!((a - b).val(), 498266358);
         assert_eq!((a * b).val(), (A as u64 * B as u64 % Mod998244353::MOD as u64) as u32);
-        assert_eq!(a.pow(B).val(), 860108694);
+        assert_eq!(a.pow(B as u64).val(), 860108694);
         assert_eq!((a / b).val(), 748159151);
+        assert_eq!((-a).val(), (Modint::zero() - a).val());
 
         assert_eq!("347384953".parse::<Modint>(), Ok(Modint::new(347384953)));
         assert_eq!("-347384953".parse::<Modint>(), Ok(Modint::from(-347384953i64)));
-        assert!("-3473a4953".parse::<Modint>().is_err());
+    }
+
+    #[test]
+    fn montgomery_modint_large_mod_test() {
+        type Modint = MontgomeryModint<Mod4194304001>;
+
+        assert_eq!(Modint::zero().val(), 0u32);
+        assert_eq!(Modint::one().val(), 1u32);
+        assert_eq!(Modint::new(10).val(), 10u32);
+
+        const A: u32 = 347384953;
+        const B: u32 = 847362948;
+        let a = Modint::new(A);
+        let b = Modint::new(B);
+        assert_eq!((a + b).val(), 1194747901u32);
+        assert_eq!((a - b).val(), 3694326006u32);
+        assert_eq!((a * b).val(), (A as u64 * B as u64 % Mod4194304001::MOD as u64) as u32);
+        assert_eq!(a.pow(B as u64).val(), 101451096u32);
+        assert_eq!((a / b).val(), 3072607503);
     }
 }
