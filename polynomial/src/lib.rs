@@ -304,7 +304,7 @@ pub fn lagrange_interpolation<M: Modulo>(xs: Vec<MontgomeryModint<M>>, fs: Vec<M
 
     let g = stack.pop().unwrap();
     den.reverse();
-    let gs = g.clone().derivative().multipoint_evaluation(xs);
+    let gs = g.derivative().multipoint_evaluation(xs);
     let mut num: Vec<Polynomial<M>> = fs.into_iter().zip(gs.into_iter()).map(|(f, g)| vec![f / g].into()).collect::<Vec<_>>();
     while num.len() > 1 {
         let mut new_num = vec![];
