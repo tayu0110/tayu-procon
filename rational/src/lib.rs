@@ -8,10 +8,10 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 /// Represent rational numbers.
 /// The denominator is always retained as a positive number.
 // numerator / denominator
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Clone, Copy, Eq, Ord, Hash, Default)]
 pub struct Rational {
-    numerator: i64,
-    denominator: i64,
+    pub numerator: i64,
+    pub denominator: i64,
 }
 
 impl Rational {
@@ -23,10 +23,7 @@ impl Rational {
         }
         let g = gcd(num.abs(), den.abs());
         let num = if num / num.abs() == den / den.abs() { num.abs() } else { -num.abs() };
-        Self {
-            numerator: num / g,
-            denominator: den.abs() / g,
-        }
+        Self { numerator: num / g, denominator: den.abs() / g }
     }
 
     pub fn is_nan(&self) -> bool { self.denominator == 0 }
@@ -83,10 +80,7 @@ impl Div for Rational {
     fn div(self, rhs: Self) -> Self::Output {
         assert!(!self.is_nan());
 
-        self * Self {
-            numerator: rhs.denominator,
-            denominator: rhs.numerator,
-        }
+        self * Self { numerator: rhs.denominator, denominator: rhs.numerator }
     }
 }
 
@@ -120,6 +114,25 @@ impl DivAssign for Rational {
 
         *self = self.clone() / rhs;
     }
+}
+
+impl PartialOrd for Rational {
+    fn ge(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) >= self.denominator as i128 * other.numerator as i128 }
+    fn gt(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) > self.denominator as i128 * other.numerator as i128 }
+    fn le(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) <= self.denominator as i128 * other.numerator as i128 }
+    fn lt(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) < self.denominator as i128 * other.numerator as i128 }
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.is_nan() || other.is_nan() {
+            None
+        } else {
+            (self.numerator as i128 * other.denominator as i128).partial_cmp(&(self.denominator as i128 * other.numerator as i128))
+        }
+    }
+}
+
+impl PartialEq for Rational {
+    fn eq(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator == other.numerator && self.denominator == other.denominator }
+    fn ne(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && !self.eq(other) }
 }
 
 impl std::fmt::Display for Rational {
@@ -177,18 +190,8 @@ impl Zero for Rational {
 }
 
 impl Numeric for Rational {
-    fn max_value() -> Self {
-        Self {
-            numerator: i64::max_value(),
-            denominator: 1,
-        }
-    }
-    fn min_value() -> Self {
-        Self {
-            numerator: i64::min_value(),
-            denominator: 1,
-        }
-    }
+    fn max_value() -> Self { Self { numerator: i64::max_value(), denominator: 1 } }
+    fn min_value() -> Self { Self { numerator: i64::min_value(), denominator: 1 } }
 }
 
 impl IntoFloat for Rational {
@@ -197,12 +200,7 @@ impl IntoFloat for Rational {
 }
 
 impl<T: Into<i64>> From<T> for Rational {
-    fn from(from: T) -> Self {
-        Self {
-            numerator: from.into(),
-            denominator: 1,
-        }
-    }
+    fn from(from: T) -> Self { Self { numerator: from.into(), denominator: 1 } }
 }
 
 impl TryInto<f64> for Rational {
