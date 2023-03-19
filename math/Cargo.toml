@@ -8,7 +8,7 @@ license = "CC0-1.0"
 
 [dependencies]
 numeric = { package = "numeric", path = "../numeric" }
-modint = { package = "modint", path = "../modint" }
+arbitrary-montgomery-modint = { version = "0.1.0", path = "../modint/arbitrary-montgomery-modint" }
 
 [dev-dependencies]
 iolib = { package = "iolib", path = "../iolib" }

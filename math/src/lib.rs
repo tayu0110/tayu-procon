@@ -1,4 +1,4 @@
-use modint::DynamicMontgomeryModint;
+use arbitrary_montgomery_modint::ArbitraryMontgomeryModint;
 use numeric::Integer;
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -287,12 +287,12 @@ pub fn miller_rabin_test(p: u64) -> bool {
 
     let s = (p - 1).trailing_zeros();
     let t = (p - 1) >> s;
-    let mont_zero = DynamicMontgomeryModint::raw(0, p);
+    let mont_zero = ArbitraryMontgomeryModint::raw(0, p);
     let mont_one = mont_zero.one();
     let mont_neg_one = mont_zero - mont_one;
 
     vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().map(|&a| a % p).filter(|&a| a != 0).all(|a| {
-        let a = DynamicMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
+        let a = ArbitraryMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
         let at = a.pow(t);
         // a^t = 1 (mod p) or a^t = -1 (mod p)
         if at == mont_one || at == mont_neg_one {
@@ -379,11 +379,11 @@ fn pollard_rho(n: u64) -> Option<u64> {
     }
 
     let m = (n as f64).powf(0.125).round() as i64 + 1;
-    let mont_zero = DynamicMontgomeryModint::raw(0, n);
+    let mont_zero = ArbitraryMontgomeryModint::raw(0, n);
     let mont_one = mont_zero.one();
     let mut g = 1;
 
-    for c in (1..n).map(|c| DynamicMontgomeryModint::from_same_mod_unchecked(c, mont_zero)) {
+    for c in (1..n).map(|c| ArbitraryMontgomeryModint::from_same_mod_unchecked(c, mont_zero)) {
         let mut y = mont_zero;
         let mut q = mont_one;
 
