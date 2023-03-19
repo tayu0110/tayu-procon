@@ -1,6 +1,6 @@
 use super::common::*;
 use super::FftCache;
-use modint::{Modulo, MontgomeryModint};
+use montgomery_modint::{Modulo, MontgomeryModint};
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -208,7 +208,7 @@ pub unsafe fn gentleman_sande_radix_4_butterfly_montgomery_modint_avx2<M: Modulo
 mod tests_gentleman_sande {
     use super::super::FftCache;
     use super::{gentleman_sande_radix_4_butterfly_montgomery_modint_avx2, radix_2_kernel_gentleman_sande_avx2, radix_4_kernel_gentleman_sande_avx2};
-    use modint::{Mod998244353, MontgomeryModint};
+    use montgomery_modint::{Mod998244353, MontgomeryModint};
 
     type Modint = MontgomeryModint<Mod998244353>;
 

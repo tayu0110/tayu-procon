@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/atc001/tasks/fft_c
 use convolution_simd::convolution;
-use modint::Mod998244353;
+use montgomery_modint::Mod998244353;
 use proconio::{fastout, input};
 
 #[fastout]

@@ -1,4 +1,4 @@
-use modint::{Modulo, MontgomeryModint};
+use montgomery_modint::{Modulo, MontgomeryModint};
 
 pub struct FftCache<T: Clone + Copy> {
     // prim_roots[i]^(2^i) == 1
@@ -35,8 +35,6 @@ impl<M: Modulo> FftCache<MontgomeryModint<M>> {
     #[inline]
     pub fn new(size: usize) -> Self {
         debug_assert!(size <= (M::MOD - 1).trailing_zeros() as usize);
-
-        let size = std::cmp::max(size, 3);
 
         let mut prim_roots = vec![MontgomeryModint::zero(); size + 1];
         prim_roots[size] = MontgomeryModint::<M>::nth_root(1 << size);

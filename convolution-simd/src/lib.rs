@@ -2,6 +2,7 @@ mod common;
 pub mod cooley_tukey;
 pub mod fft_cache;
 pub mod gentleman_sande;
+pub mod traits;
 
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{_mm256_loadu_si256, _mm256_set1_epi32, _mm256_setzero_si256, _mm256_storeu_si256};
@@ -11,25 +12,50 @@ use cooley_tukey::cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2;
 use fft_cache::FftCache;
 use gentleman_sande::gentleman_sande_radix_4_butterfly_montgomery_modint_avx2;
 use math::{ext_gcd, garner};
-use modint::{Mod645922817, Mod754974721, Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint};
+use montgomery_modint::{Mod645922817, Mod754974721, Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint};
 use std::ptr::copy_nonoverlapping;
+pub use traits::Nttable;
 
 #[inline]
 pub fn ntt<M: Modulo>(mut a: Vec<u32>, cache: &FftCache<MontgomeryModint<M>>) -> Vec<u32> {
     let n = a.len();
     let log = n.trailing_zeros() as usize;
-    let modulo = unsafe { _mm256_set1_epi32(M::MOD as i32) };
-    let modulo_inv = unsafe { _mm256_set1_epi32(M::MOD_INV as i32) };
 
-    unsafe {
-        let r2 = _mm256_set1_epi32(M::R2 as i32);
-        a.chunks_exact_mut(8).for_each(|v| {
-            let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), r2, modulo, modulo_inv);
-            _mm256_storeu_si256(v.as_mut_ptr() as _, res);
-        });
-        let mut a = a.into_iter().map(|v| MontgomeryModint::<M>::from_mont_expr(v)).collect::<Vec<_>>();
-        gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(n, log, &mut a, &cache);
-        a.into_iter().map(|v| v.val).collect()
+    if n == 1 {
+        vec![MontgomeryModint::<M>::new(a[0]).val]
+    } else if n == 2 {
+        let (c0, c1) = (MontgomeryModint::<M>::new(a[0]), MontgomeryModint::new(a[1]));
+        vec![(c0 + c1).val, (c0 - c1).val]
+    } else if n == 4 {
+        let im = FftCache::<MontgomeryModint<M>>::new(2).prim_root(2);
+        let (c0, c1, c2, c3) = (
+            MontgomeryModint::<M>::new(a[0]),
+            MontgomeryModint::<M>::new(a[1]),
+            MontgomeryModint::<M>::new(a[2]),
+            MontgomeryModint::<M>::new(a[3]),
+        );
+        let (c0, c1, c2, c3) = {
+            let c0pc2 = c0 + c2;
+            let c0mc2 = c0 - c2;
+            let c1pc3 = c1 + c3;
+            let c1mc3 = c1 - c3;
+            let c1mc3im = c1mc3 * im;
+            (c0pc2 + c1pc3, c0mc2 + c1mc3im, c0pc2 - c1pc3, c0mc2 - c1mc3im)
+        };
+        vec![c0.val, c2.val, c1.val, c3.val]
+    } else {
+        unsafe {
+            let modulo = _mm256_set1_epi32(M::MOD as i32);
+            let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
+            let r2 = _mm256_set1_epi32(M::R2 as i32);
+            a.chunks_exact_mut(8).for_each(|v| {
+                let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), r2, modulo, modulo_inv);
+                _mm256_storeu_si256(v.as_mut_ptr() as _, res);
+            });
+            let mut a = a.into_iter().map(|v| MontgomeryModint::<M>::from_mont_expr(v)).collect::<Vec<_>>();
+            gentleman_sande_radix_4_butterfly_montgomery_modint_avx2(n, log, &mut a, &cache);
+            a.into_iter().map(|v| v.val).collect()
+        }
     }
 }
 
@@ -37,24 +63,57 @@ pub fn ntt<M: Modulo>(mut a: Vec<u32>, cache: &FftCache<MontgomeryModint<M>>) ->
 pub fn intt<M: Modulo>(a: Vec<u32>, cache: &FftCache<MontgomeryModint<M>>) -> Vec<u32> {
     let n = a.len();
     let log = n.trailing_zeros() as usize;
-    let modulo = unsafe { _mm256_set1_epi32(M::MOD as i32) };
-    let modulo_inv = unsafe { _mm256_set1_epi32(M::MOD_INV as i32) };
 
-    let mut a = a.into_iter().map(|v| MontgomeryModint::from_mont_expr(v)).collect::<Vec<_>>();
-
-    unsafe {
-        cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2(n, log, &mut a, &cache);
-        let ninv = _mm256_set1_epi32(MontgomeryModint::<M>::new(n as u32).inv().val_mont_expr() as i32);
-        for v in a.chunks_exact_mut(8) {
-            let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), ninv, modulo, modulo_inv);
-            _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_reduction_u32x8(res, modulo, modulo_inv));
+    if n == 1 {
+        vec![MontgomeryModint::<M>::from_mont_expr(a[0]).val()]
+    } else if n == 2 {
+        let (c0, c1) = (MontgomeryModint::<M>::from_mont_expr(a[0]), MontgomeryModint::from_mont_expr(a[1]));
+        let div2 = MontgomeryModint::raw(2).inv();
+        vec![((c0 + c1) * div2).val(), ((c0 - c1) * div2).val()]
+    } else if n == 4 {
+        let im = FftCache::<MontgomeryModint<M>>::new(2).prim_root_inv(2);
+        let (c0, c1, c2, c3) = (
+            MontgomeryModint::<M>::from_mont_expr(a[0]),
+            MontgomeryModint::<M>::from_mont_expr(a[1]),
+            MontgomeryModint::<M>::from_mont_expr(a[2]),
+            MontgomeryModint::<M>::from_mont_expr(a[3]),
+        );
+        let (c0, c1, c2, c3) = {
+            let c0pc2 = c0 + c2;
+            let c0mc2 = c0 - c2;
+            let c1pc3 = c1 + c3;
+            let c1mc3 = c1 - c3;
+            let c1mc3im = c1mc3 * im;
+            (c0pc2 + c1pc3, c0mc2 + c1mc3im, c0pc2 - c1pc3, c0mc2 - c1mc3im)
+        };
+        let div4 = MontgomeryModint::raw(4).inv();
+        vec![(c0 * div4).val(), (c2 * div4).val(), (c1 * div4).val(), (c3 * div4).val()]
+    } else {
+        let mut a = a.into_iter().map(|v| MontgomeryModint::from_mont_expr(v)).collect::<Vec<_>>();
+        unsafe {
+            let modulo = _mm256_set1_epi32(M::MOD as i32);
+            let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
+            cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2(n, log, &mut a, &cache);
+            let ninv = _mm256_set1_epi32(MontgomeryModint::<M>::new(n as u32).inv().val as i32);
+            for v in a.chunks_exact_mut(8) {
+                let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), ninv, modulo, modulo_inv);
+                _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_reduction_u32x8(res, modulo, modulo_inv));
+            }
+            a.into_iter().map(|v| v.val_mont_expr()).collect()
         }
-        a.into_iter().map(|v| v.val_mont_expr()).collect()
     }
 }
 
 #[inline]
 pub fn dot<M: Modulo>(mut a: Vec<u32>, b: &[u32]) -> Vec<u32> {
+    if a.len() < 8 {
+        return a
+            .into_iter()
+            .zip(b)
+            .map(|(a, b)| (MontgomeryModint::<M>::from_mont_expr(a) * MontgomeryModint::from_mont_expr(*b)).val)
+            .collect();
+    }
+
     unsafe {
         let modulo = _mm256_set1_epi32(M::MOD as i32);
         let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
@@ -77,12 +136,12 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
 
     let cache = FftCache::<MontgomeryModint<M>>::new(log);
 
-    let a = ntt(a, &cache);
-    let b = ntt(b, &cache);
+    let a = a.ntt_with_cache(&cache);
+    let b = b.ntt_with_cache(&cache);
 
-    let a = dot::<M>(a, &b);
+    let a = <Vec<u32> as Nttable<M>>::dot(a, &b);
 
-    let c = intt(a, &cache);
+    let c = a.intt_with_cache(&cache);
     c.into_iter().take(deg).collect()
 }
 
@@ -214,7 +273,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::{convolution, convolution_1e97, convolution_mod_2_64};
-    use modint::{Mod4194304001, Mod998244353};
+    use montgomery_modint::{Mod4194304001, Mod998244353};
 
     #[test]
     fn convolution_test() {

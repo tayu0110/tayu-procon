@@ -1,6 +1,6 @@
 use super::common::*;
 use super::FftCache;
-use modint::{Modulo, MontgomeryModint};
+use montgomery_modint::{Modulo, MontgomeryModint};
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -222,7 +222,7 @@ pub unsafe fn cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2<M: Modul
 mod tests_cooley_tukey {
     use super::super::FftCache;
     use super::{cooley_tukey_radix_4_butterfly_inv_montgomery_modint_avx2, radix_2_kernel_cooley_tukey_avx2, radix_4_kernel_cooley_tukey_avx2};
-    use modint::{Mod998244353, MontgomeryModint};
+    use montgomery_modint::{Mod998244353, MontgomeryModint};
 
     type Modint = MontgomeryModint<Mod998244353>;
 
