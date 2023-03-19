@@ -1,181 +1,15 @@
-mod dynamic_modint;
-mod dynamic_montgomery_modint;
-mod modulo;
-mod montgomery_modint;
-
-pub use dynamic_modint::*;
-pub use dynamic_montgomery_modint::*;
-pub use modulo::*;
+pub use arbitrary_modint::*;
+pub use arbitrary_montgomery_modint::*;
+pub use modint_common::*;
 pub use montgomery_modint::*;
+pub use static_modint::*;
 
-use numeric::{One, Zero};
-use std::marker::{self, PhantomData};
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Modint<M: Modulo> {
-    val: u32,
-    _p: PhantomData<fn() -> M>,
-}
-
-impl<M: Modulo> One for Modint<M> {
-    #[inline]
-    fn one() -> Self { Self::one() }
-}
-
-impl<M: Modulo> Zero for Modint<M> {
-    #[inline]
-    fn zero() -> Self { Self::zero() }
-}
-
-impl<M: Modulo> Modint<M> {
-    #[inline]
-    pub fn new(val: u64) -> Self { Modint { val: (val % M::MOD as u64) as u32, _p: PhantomData } }
-
-    pub fn new_signed(val: i64) -> Self { Modint { val: val.rem_euclid(M::MOD as i64) as u32, _p: PhantomData } }
-
-    #[inline]
-    pub fn raw(val: u32) -> Self {
-        debug_assert!(val < M::MOD);
-        Modint { val, _p: marker::PhantomData }
-    }
-
-    #[inline]
-    pub fn zero() -> Self { Modint { val: 0, _p: marker::PhantomData } }
-
-    #[inline]
-    pub fn one() -> Self { Modint { val: 1, _p: marker::PhantomData } }
-
-    #[inline]
-    pub fn modulo() -> u32 { M::MOD }
-
-    #[inline]
-    pub fn val(&self) -> u32 { self.val }
-
-    pub fn pow(&self, mut exp: u32) -> Self {
-        let (mut val, mut res) = (self.val as u64, 1);
-        while exp > 0 {
-            if exp & 1 == 1 {
-                res = (res * val) % M::MOD as u64;
-            }
-            val = (val * val) % M::MOD as u64;
-            exp >>= 1;
-        }
-        Self { val: res as u32, _p: PhantomData }
-    }
-
-    #[inline]
-    pub fn inv(&self) -> Self { self.pow(M::MOD - 2) }
-
-    #[inline]
-    pub fn nth_root(n: u32) -> Self {
-        debug_assert!(n == 1 << n.trailing_zeros());
-        Modint::raw(M::PRIM_ROOT).pow(M::MOD - 1 + (M::MOD - 1) / n)
-    }
-
-    #[inline]
-    pub fn add_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
-        let res = self.val + rhs;
-        Modint::raw(if res >= M::MOD { res - M::MOD } else { res })
-    }
-
-    #[inline]
-    pub fn sub_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
-        let (res, f) = self.val.overflowing_sub(rhs);
-        Modint::raw(if f { res.wrapping_add(M::MOD) } else { res })
-    }
-
-    #[inline]
-    pub fn mul_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
-        Modint::new(self.val as u64 * rhs as u64)
-    }
-
-    #[inline]
-    pub fn div_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
-        *self / Modint::raw(rhs)
-    }
-}
-
-impl<M: Modulo> Default for Modint<M> {
-    fn default() -> Self { Modint::zero() }
-}
-
-impl<M: Modulo> std::fmt::Debug for Modint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
-}
-
-impl<M: Modulo> std::fmt::Display for Modint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
-}
-
-impl<M: Modulo> Add for Modint<M> {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { self.add_raw(rhs.val) }
-}
-
-impl<M: Modulo> AddAssign for Modint<M> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
-}
-
-impl<M: Modulo> Sub for Modint<M> {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { self.sub_raw(rhs.val) }
-}
-
-impl<M: Modulo> SubAssign for Modint<M> {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
-}
-
-impl<M: Modulo> Mul for Modint<M> {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output { self.mul_raw(rhs.val) }
-}
-
-impl<M: Modulo> MulAssign for Modint<M> {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
-}
-
-impl<M: Modulo> Div for Modint<M> {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        debug_assert!(rhs.val != 0);
-        self * rhs.inv()
-    }
-}
-
-impl<M: Modulo> DivAssign for Modint<M> {
-    fn div_assign(&mut self, rhs: Self) {
-        debug_assert!(rhs.val != 0);
-        *self *= rhs.inv()
-    }
-}
-
-impl<M: Modulo> From<u32> for Modint<M> {
-    fn from(value: u32) -> Self { Self::new(value as u64) }
-}
-
-impl<M: Modulo> From<u64> for Modint<M> {
-    fn from(value: u64) -> Self { Self::new(value) }
-}
-
-impl<M: Modulo> From<i32> for Modint<M> {
-    fn from(value: i32) -> Self { Self::new_signed(value as i64) }
-}
-
-impl<M: Modulo> From<i64> for Modint<M> {
-    fn from(value: i64) -> Self { Self::new_signed(value) }
-}
-
-pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Modint<M> {
-    let mut fact = vec![Modint::<M>::one()];
+pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> StaticModint<M> {
+    let mut fact = vec![StaticModint::<M>::one()];
     fact.append(
         &mut (1..=size)
-            .scan(Modint::<M>::one(), |s, v| {
-                *s *= Modint::new(v as u64);
+            .scan(StaticModint::<M>::one(), |s, v| {
+                *s *= StaticModint::new(v as u64);
                 Some(*s)
             })
             .collect(),
@@ -187,7 +21,7 @@ pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Modint<M> {
         &mut (1..=size)
             .rev()
             .scan(inv, |s, v| {
-                *s *= Modint::new(v as u64);
+                *s *= StaticModint::new(v as u64);
                 Some(*s)
             })
             .collect(),
@@ -196,7 +30,7 @@ pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Modint<M> {
 
     move |n: usize, k: usize| {
         if n < k {
-            Modint::zero()
+            StaticModint::zero()
         } else {
             fact[n] * ifact[k] * ifact[n - k]
         }
@@ -205,7 +39,7 @@ pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> Modint<M> {
 
 #[cfg(test)]
 mod tests {
-    use super::{combination, Mod1000000007, Mod998244353, Modint, Modulo};
+    use super::{combination, Mod1000000007, Mod998244353, Modulo, StaticModint};
 
     #[test]
     fn modint_test() {
@@ -214,8 +48,8 @@ mod tests {
 
         const A: u32 = 347384953;
         const B: u32 = 847362948;
-        let a = Modint::<Mod998244353>::raw(A);
-        let b = Modint::<Mod998244353>::raw(B);
+        let a = StaticModint::<Mod998244353>::raw(A);
+        let b = StaticModint::<Mod998244353>::raw(B);
         assert_eq!((a + b).val(), 196503548);
         assert_eq!((a - b).val(), 498266358);
         assert_eq!((a * b).val(), 17486571);
@@ -225,8 +59,8 @@ mod tests {
         assert_eq!(a.mul_raw(B).val(), 17486571);
         assert_eq!(a.div_raw(B).val(), 748159151);
         assert_eq!(a.pow(B).val(), 860108694);
-        assert_eq!(Modint::<Mod998244353>::nth_root(1 << 20).val(), 565042129);
-        assert_eq!(Modint::<Mod998244353>::nth_root(4).pow(4), Modint::one());
+        assert_eq!(StaticModint::<Mod998244353>::nth_root(1 << 20).val(), 565042129);
+        assert_eq!(StaticModint::<Mod998244353>::nth_root(4).pow(4), StaticModint::one());
     }
 
     #[test]

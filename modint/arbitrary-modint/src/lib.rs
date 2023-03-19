@@ -1,16 +1,16 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// DynamicModint
+/// ArbitraryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct DynamicModint {
+pub struct ArbitraryModint {
     val: u64,
     modulo: u64,
 }
 
-impl DynamicModint {
+impl ArbitraryModint {
     #[inline]
     pub const fn new(val: u64, modulo: u64) -> Self { Self::raw(val % modulo, modulo) }
 
@@ -96,42 +96,42 @@ impl DynamicModint {
     }
 }
 
-impl std::fmt::Debug for DynamicModint {
+impl std::fmt::Debug for ArbitraryModint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
 }
 
-impl std::fmt::Display for DynamicModint {
+impl std::fmt::Display for ArbitraryModint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
 }
 
-impl Add for DynamicModint {
+impl Add for ArbitraryModint {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output { self.add_raw(rhs.val) }
 }
 
-impl AddAssign for DynamicModint {
+impl AddAssign for ArbitraryModint {
     fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
-impl Sub for DynamicModint {
+impl Sub for ArbitraryModint {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output { self.sub_raw(rhs.val) }
 }
 
-impl SubAssign for DynamicModint {
+impl SubAssign for ArbitraryModint {
     fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-impl Mul for DynamicModint {
+impl Mul for ArbitraryModint {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output { self.mul_raw(rhs.val) }
 }
 
-impl MulAssign for DynamicModint {
+impl MulAssign for ArbitraryModint {
     fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
-impl Div for DynamicModint {
+impl Div for ArbitraryModint {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         debug_assert!(rhs.val != 0);
@@ -139,7 +139,7 @@ impl Div for DynamicModint {
     }
 }
 
-impl DivAssign for DynamicModint {
+impl DivAssign for ArbitraryModint {
     fn div_assign(&mut self, rhs: Self) {
         debug_assert!(rhs.val != 0);
         *self *= rhs.inv()
@@ -148,7 +148,7 @@ impl DivAssign for DynamicModint {
 
 #[cfg(test)]
 mod tests {
-    use super::DynamicModint;
+    use super::ArbitraryModint;
 
     #[test]
     fn dynamic_modint_test() {
@@ -156,8 +156,8 @@ mod tests {
         const A: u64 = 347384953;
         const B: u64 = 847362948;
 
-        const MA: DynamicModint = DynamicModint::new(A, MOD);
-        const MB: DynamicModint = DynamicModint::new(B, MOD);
+        const MA: ArbitraryModint = ArbitraryModint::new(A, MOD);
+        const MB: ArbitraryModint = ArbitraryModint::new(B, MOD);
 
         let ma_inv = MA.inv();
         let mb_inv = MB.inv();
@@ -180,8 +180,8 @@ mod tests {
         const A: u64 = 48375902915869447;
         const B: u64 = 98372873839201592;
 
-        const MA: DynamicModint = DynamicModint::new(A, MOD);
-        const MB: DynamicModint = DynamicModint::new(B, MOD);
+        const MA: ArbitraryModint = ArbitraryModint::new(A, MOD);
+        const MB: ArbitraryModint = ArbitraryModint::new(B, MOD);
 
         let ma_inv = MA.inv();
         let mb_inv = MB.inv();

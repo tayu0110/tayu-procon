@@ -1,4 +1,5 @@
-use super::modulo::*;
+use iolib::{FastInput, Readable};
+pub use modint_common::*;
 use numeric::{One, Zero};
 use std::convert::From;
 use std::marker::PhantomData;
@@ -198,10 +199,14 @@ impl<M: Modulo> FromStr for MontgomeryModint<M> {
     }
 }
 
+impl<M: Modulo> Readable for MontgomeryModint<M> {
+    fn read(src: &mut FastInput) -> Self { MontgomeryModint::from(u32::read(src)) }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::super::modulo::{Mod4194304001, Mod998244353, Modulo};
     use super::MontgomeryModint;
+    use modint_common::{Mod4194304001, Mod998244353, Modulo};
 
     #[test]
     fn constant_value_test() {

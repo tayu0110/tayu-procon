@@ -1,7 +1,7 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// DynamicMontgomeryModint
+/// ArbitraryMontgomeryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // t <- MR(T) = floor(T/R) - floor((TN' mod R)*N/R)
 //  if t < 0 then return t + N else return t
@@ -21,7 +21,7 @@ const fn montgomery_multiplication(lhs: u64, rhs: u64, modulo: u64, modulo_inv: 
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct DynamicMontgomeryModint {
+pub struct ArbitraryMontgomeryModint {
     pub val: u64,
     modulo: u64,
     modulo_inv: u64,
@@ -29,7 +29,7 @@ pub struct DynamicMontgomeryModint {
     r2: u64,
 }
 
-impl DynamicMontgomeryModint {
+impl ArbitraryMontgomeryModint {
     #[inline]
     pub const fn new(val: u64, modulo: u64) -> Self { Self::raw(val % modulo, modulo) }
 
@@ -110,7 +110,7 @@ impl DynamicMontgomeryModint {
     pub fn inv(&self) -> Self { self.pow(self.modulo - 2) }
 }
 
-impl Add for DynamicMontgomeryModint {
+impl Add for ArbitraryMontgomeryModint {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         let (t, fa) = self.val.overflowing_add(rhs.val);
@@ -125,7 +125,7 @@ impl Add for DynamicMontgomeryModint {
     }
 }
 
-impl Sub for DynamicMontgomeryModint {
+impl Sub for ArbitraryMontgomeryModint {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         let (val, f) = self.val.overflowing_sub(rhs.val);
@@ -139,7 +139,7 @@ impl Sub for DynamicMontgomeryModint {
     }
 }
 
-impl Mul for DynamicMontgomeryModint {
+impl Mul for ArbitraryMontgomeryModint {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         Self {
@@ -152,42 +152,42 @@ impl Mul for DynamicMontgomeryModint {
     }
 }
 
-impl Div for DynamicMontgomeryModint {
+impl Div for ArbitraryMontgomeryModint {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output { self * rhs.inv() }
 }
 
-impl AddAssign for DynamicMontgomeryModint {
+impl AddAssign for ArbitraryMontgomeryModint {
     fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
-impl SubAssign for DynamicMontgomeryModint {
+impl SubAssign for ArbitraryMontgomeryModint {
     fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-impl MulAssign for DynamicMontgomeryModint {
+impl MulAssign for ArbitraryMontgomeryModint {
     fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
-impl DivAssign for DynamicMontgomeryModint {
+impl DivAssign for ArbitraryMontgomeryModint {
     fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
 }
 
-impl std::fmt::Debug for DynamicMontgomeryModint {
+impl std::fmt::Debug for ArbitraryMontgomeryModint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
 }
 
-impl std::fmt::Display for DynamicMontgomeryModint {
+impl std::fmt::Display for ArbitraryMontgomeryModint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::DynamicMontgomeryModint;
+    use super::ArbitraryMontgomeryModint;
 
     #[test]
     fn dynamic_montgomery_modint_test() {
-        type Modint = DynamicMontgomeryModint;
+        type Modint = ArbitraryMontgomeryModint;
 
         const MOD: u64 = 998244353;
         const A: u64 = 347384953;
