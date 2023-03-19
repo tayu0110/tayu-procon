@@ -1,7 +1,7 @@
 // https://onlinejudge.u-aizu.ac.jp/problems/2983
 use iolib::scan;
 use matrix::Matrix;
-use modint::{Mod1000000007, MontgomeryModint};
+use montgomery_modint::{Mod1000000007, MontgomeryModint};
 use simple_rand::{gen_seed, xor_shift};
 
 type Modint = MontgomeryModint<Mod1000000007>;

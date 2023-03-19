@@ -174,21 +174,21 @@ impl<T: MatrixElement + From<U>, U> From<Vec<Vec<U>>> for Matrix<T> {
 #[cfg(test)]
 mod tests {
     use super::Matrix;
-    use modint::{Mod998244353, Modint};
+    use static_modint::{Mod998244353, StaticModint};
 
     #[test]
     fn matrix_test() {
         let matrix_i64: Vec<Vec<i64>> = vec![vec![3, 2, 1], vec![4, 2, 2], vec![5, 1, 3]];
         let matrix_i32: Vec<Vec<i32>> = vec![vec![2, 5, 4], vec![5, 1, 2], vec![4, 2, 3]];
-        let flattened_matrix_i64: Vec<Modint<Mod998244353>> = vec![3.into(), 2.into(), 1.into(), 4.into(), 2.into(), 2.into(), 5.into(), 1.into(), 3.into()];
-        let flattened_matrix_i32: Vec<Modint<Mod998244353>> = vec![2.into(), 5.into(), 4.into(), 5.into(), 1.into(), 2.into(), 4.into(), 2.into(), 3.into()];
+        let flattened_matrix_i64: Vec<StaticModint<Mod998244353>> = vec![3.into(), 2.into(), 1.into(), 4.into(), 2.into(), 2.into(), 5.into(), 1.into(), 3.into()];
+        let flattened_matrix_i32: Vec<StaticModint<Mod998244353>> = vec![2.into(), 5.into(), 4.into(), 5.into(), 1.into(), 2.into(), 4.into(), 2.into(), 3.into()];
 
-        let a = Matrix::<Modint<Mod998244353>>::from(matrix_i64);
-        let b = Matrix::<Modint<Mod998244353>>::from(matrix_i32);
+        let a = Matrix::<StaticModint<Mod998244353>>::from(matrix_i64);
+        let b = Matrix::<StaticModint<Mod998244353>>::from(matrix_i32);
 
-        assert_eq!(Matrix::<Modint<Mod998244353>>::new(4, 3).matrix, vec![Modint::zero(); 12]);
+        assert_eq!(Matrix::<StaticModint<Mod998244353>>::new(4, 3).matrix, vec![StaticModint::zero(); 12]);
         assert_eq!(
-            Matrix::<Modint<Mod998244353>>::id(3).matrix,
+            Matrix::<StaticModint<Mod998244353>>::id(3).matrix,
             vec![1.into(), 0.into(), 0.into(), 0.into(), 1.into(), 0.into(), 0.into(), 0.into(), 1.into()]
         );
         assert_eq!(a.matrix, flattened_matrix_i64.clone());

@@ -1,5 +1,7 @@
-use modint::{Modint, Modulo, MontgomeryModint};
+use modint_common::Modulo;
+use montgomery_modint::MontgomeryModint;
 use numeric::{One, Zero};
+use static_modint::StaticModint;
 use std::ops::{Add, Div, Mul, Sub};
 
 pub trait MatrixElement: Clone + Copy + Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<Self, Output = Self> + Div<Self, Output = Self> + PartialEq + One + Zero + Sized {
@@ -19,8 +21,8 @@ macro_rules! impl_matrix_element_for_integer {
 
 impl_matrix_element_for_integer!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize,);
 
-impl<M: Modulo> MatrixElement for Modint<M> {
-    fn is_zero(self) -> bool { self == Modint::<M>::zero() }
+impl<M: Modulo> MatrixElement for StaticModint<M> {
+    fn is_zero(self) -> bool { self == StaticModint::<M>::zero() }
     fn abs(self) -> Self { self }
 }
 impl<M: Modulo> MatrixElement for MontgomeryModint<M> {

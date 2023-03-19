@@ -7,8 +7,10 @@ license = "CC0-1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-modint = { path = "../modint" }
+modint-common = { version = "0.1.0", path = "../modint/modint-common" }
+montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
 numeric = { package = "numeric", path = "../numeric" }
+static-modint = { version = "0.1.0", path = "../modint/static-modint" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
