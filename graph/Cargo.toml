@@ -11,3 +11,5 @@ unionfind = { path = "../unionfind" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
+montgomery-modint = { path = "../modint/montgomery-modint" }
+segtree = { path = "../segtree" }
