@@ -5,14 +5,10 @@ pub fn nth_ancestor<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -
     const MAX_RANK_LOG: usize = 25;
     let mut doubling = vec![vec![std::usize::MAX; tree.size()]; MAX_RANK_LOG];
 
-    if tree.par[tree.root()] != std::usize::MAX {
-        tree.rebuild();
-    }
-
     for log in 0..MAX_RANK_LOG {
         for now in 0..tree.size() {
             if log == 0 {
-                doubling[log][now] = tree.par[now];
+                doubling[log][now] = tree.parent(now);
             } else {
                 let to = doubling[log - 1][now];
                 if to != std::usize::MAX {

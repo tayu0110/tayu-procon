@@ -6,10 +6,6 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     let mut doubling = vec![vec![std::usize::MAX; tree.size()]; MAX_RANK_LOG];
     let mut rank = vec![std::usize::MAX; tree.size()];
 
-    if tree.par[tree.root()] != std::usize::MAX {
-        tree.rebuild();
-    }
-
     let mut nt = std::collections::VecDeque::new();
     nt.push_back((tree.root(), 0));
     while let Some((now, r)) = nt.pop_front() {
@@ -18,7 +14,8 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
         }
         rank[now] = r;
 
-        for &to in tree.neighbors(now).filter(|&&to| to != tree.par[now]) {
+        let parent = tree.parent(now);
+        for &to in tree.neighbors(now).filter(|&&to| to != parent) {
             nt.push_back((to, r + 1));
         }
     }
@@ -26,7 +23,7 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     for log in 0..MAX_RANK_LOG {
         for now in 0..tree.size() {
             if log == 0 {
-                doubling[log][now] = tree.par[now];
+                doubling[log][now] = tree.parent(now);
             } else {
                 let to = doubling[log - 1][now];
                 if to != std::usize::MAX {

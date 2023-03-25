@@ -15,13 +15,13 @@ fn main() {
         t[v].push(u);
     }
 
-    let tree = t.try_into().unwrap();
-    let path_query = path_query(&tree);
+    let tree = t.into();
+    let (path_query, index) = path_query(&tree);
 
     let mut p = {
         let mut np = vec![(Modint::zero(), Modint::zero()); n];
         for i in 0..n {
-            np[path_query(i, i)[0].0] = (p[i].0.into(), p[i].1.into());
+            np[index(i)] = (p[i].0.into(), p[i].1.into());
         }
 
         np
@@ -37,7 +37,7 @@ fn main() {
 
         if t == 0 {
             scan!(p: usize, c: u32, d: u32);
-            let idx = path_query(p, p)[0].0;
+            let idx = index(p);
             st.set(idx, (c.into(), d.into()));
             st_rev.set(n - 1 - idx, (c.into(), d.into()));
         } else {

@@ -28,9 +28,10 @@ pub fn heavy_light_decomposition(tree: &UnDirectedTree) -> Vec<usize> {
     children
 }
 
-/// Returns a function f for the list that performed the HL decomposition of the tree.
+/// Returns a function f and g for the list that performed the HL decomposition of the tree.
 /// f(u: usize, v: usize) -> Vec<(usize, usize)>; Returns a sequence of O(log N) intervals representing the path [u, v].
-pub fn path_query(tree: &UnDirectedTree) -> impl Fn(usize, usize) -> Vec<(usize, usize)> {
+/// g(v: usize) -> usize; Returns the index of the vertex v.
+pub fn path_query(tree: &UnDirectedTree) -> (impl Fn(usize, usize) -> Vec<(usize, usize)>, impl Fn(usize) -> usize) {
     let children = heavy_light_decomposition(tree);
 
     let n = children.len();
@@ -55,17 +56,15 @@ pub fn path_query(tree: &UnDirectedTree) -> impl Fn(usize, usize) -> Vec<(usize,
         if index[i as usize] == std::u32::MAX {
             let mut now = i as usize;
             while now as u32 != std::u32::MAX {
-                for &to in tree.neighbors(now) {
-                    if to != children[now] && index[to] == std::u32::MAX {
-                        leader.push(LeaderInfo {
-                            self_index: to as u32,
-                            parent_index: now as u32,
-                            height: leader[group[i as usize] as usize].height + 1,
-                        });
-                        group[to] = groups;
-                        groups += 1;
-                        next.push_back(to as u32);
-                    }
+                for &to in tree.neighbors(now).filter(|&&to| to != children[now] && index[to] == std::u32::MAX) {
+                    leader.push(LeaderInfo {
+                        self_index: to as u32,
+                        parent_index: now as u32,
+                        height: leader[group[i as usize] as usize].height + 1,
+                    });
+                    group[to] = groups;
+                    groups += 1;
+                    next.push_back(to as u32);
                 }
                 index[now] = cnt;
                 group[now] = group[i as usize];
@@ -75,31 +74,53 @@ pub fn path_query(tree: &UnDirectedTree) -> impl Fn(usize, usize) -> Vec<(usize,
         }
     }
 
-    move |mut u: usize, mut v: usize| -> Vec<(usize, usize)> {
-        let mut front = vec![];
-        let mut back = vec![];
-        while group[u] != group[v] {
-            let lu = leader[group[u] as usize].clone();
-            let lv = leader[group[v] as usize].clone();
+    let index2 = index.clone();
 
-            if lu.height < lv.height {
-                back.push((index[lv.self_index as usize] as usize, index[v] as usize));
-                v = lv.parent_index as usize;
-            } else if lu.height == lv.height {
-                back.push((index[lv.self_index as usize] as usize, index[v] as usize));
-                v = lv.parent_index as usize;
-                front.push((index[u] as usize, index[lu.self_index as usize] as usize));
-                u = lu.parent_index as usize;
-            } else {
-                front.push((index[u] as usize, index[lu.self_index as usize] as usize));
-                u = lu.parent_index as usize;
+    (
+        move |mut u: usize, mut v: usize| -> Vec<(usize, usize)> {
+            if u == v {
+                return vec![(index[u] as usize, index[v] as usize)];
             }
-        }
 
-        front.push((index[u] as usize, index[v] as usize));
-        front.extend(back.into_iter().rev());
-        front
-    }
+            let mut front = vec![];
+            let mut back = vec![];
+            while group[u] != group[v] {
+                let lu = leader[group[u] as usize].clone();
+                let lv = leader[group[v] as usize].clone();
+
+                if lu.height <= lv.height {
+                    match back.last_mut() {
+                        Some((l, _)) if *l == index[v] as usize => *l = index[lv.self_index as usize] as usize,
+                        _ => back.push((index[lv.self_index as usize] as usize, index[v] as usize)),
+                    }
+                    v = lv.parent_index as usize;
+                }
+
+                if lu.height >= lv.height {
+                    match front.last_mut() {
+                        Some((_, r)) if *r == index[lu.self_index as usize] as usize => *r = index[lu.self_index as usize] as usize,
+                        _ => front.push((index[u] as usize, index[lu.self_index as usize] as usize)),
+                    }
+                    u = lu.parent_index as usize;
+                }
+            }
+
+            match front.last_mut() {
+                Some((_, r)) if *r == index[u] as usize => *r = index[v] as usize,
+                _ => front.push((index[u] as usize, index[v] as usize)),
+            }
+
+            if let Some((bl, br)) = back.pop() {
+                match front.last_mut() {
+                    Some((_, r)) if *r == br => *r = bl,
+                    _ => front.push((bl, br)),
+                }
+            }
+            front.extend(back.into_iter().rev());
+            front
+        },
+        move |v: usize| index2[v] as usize,
+    )
 }
 
 #[cfg(test)]

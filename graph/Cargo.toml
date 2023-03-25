@@ -10,6 +10,7 @@ license = "CC0-1.0"
 unionfind = { path = "../unionfind" }
 
 [dev-dependencies]
+fenwick-tree = { path = "../fenwick-tree" }
 iolib = { path = "../iolib" }
 montgomery-modint = { path = "../modint/montgomery-modint" }
 segtree = { path = "../segtree" }
