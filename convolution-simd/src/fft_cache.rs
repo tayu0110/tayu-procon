@@ -1,65 +1,52 @@
 use montgomery_modint::{Modulo, MontgomeryModint};
 
-pub struct FftCache<T: Clone + Copy> {
-    // prim_roots[i]^(2^i) == 1
-    prim_roots: Vec<T>,
-    // prim_roots_inv[i] == prim_roots_inv[i].conjugate
-    prim_roots_inv: Vec<T>,
-    // twiddle_factors[i]^(deg/i) == 1
-    twiddle_factors: Vec<T>,
-    // twiddle_factors_inv[i] == twiddle_factors[i].conjugate
-    twiddle_factors_inv: Vec<T>,
+// AtCoder-Library like FftCache
+// reference: https://github.com/atcoder/ac-library/blob/master/atcoder/convolution.hpp
+type Modint<M> = MontgomeryModint<M>;
+pub struct FftCache<M: Modulo> {
+    pub root: Vec<Modint<M>>,
+    pub iroot: Vec<Modint<M>>,
+    pub rate2: Vec<Modint<M>>,
+    pub irate2: Vec<Modint<M>>,
+    pub rate3: Vec<Modint<M>>,
+    pub irate3: Vec<Modint<M>>,
 }
 
-impl<T: Clone + Copy> FftCache<T> {
-    #[inline]
-    pub fn prim_root(&self, nth: usize) -> T { self.prim_roots[nth] }
+impl<M: Modulo> FftCache<M> {
+    const RANK2: usize = (M::MOD - 1).trailing_zeros() as usize;
+    pub fn new() -> Self {
+        let mut root = vec![Modint::one(); Self::RANK2 + 1];
+        let mut iroot = vec![Modint::one(); Self::RANK2 + 1];
+        let mut rate2 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
+        let mut irate2 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
+        let mut rate3 = vec![Modint::one(); Self::RANK2.saturating_sub(2)];
+        let mut irate3 = vec![Modint::one(); Self::RANK2.saturating_sub(2)];
 
-    #[inline]
-    pub fn prim_root_inv(&self, nth: usize) -> T { self.prim_roots_inv[nth] }
-
-    #[inline]
-    pub fn prim_roots(&self) -> &Vec<T> { &self.prim_roots }
-
-    #[inline]
-    pub fn prim_roots_inv(&self) -> &Vec<T> { &self.prim_roots_inv }
-
-    #[inline]
-    pub fn twiddle_factors(&self) -> &Vec<T> { &self.twiddle_factors }
-
-    #[inline]
-    pub fn twiddle_factors_inv(&self) -> &Vec<T> { &self.twiddle_factors_inv }
-}
-
-impl<M: Modulo> FftCache<MontgomeryModint<M>> {
-    #[inline]
-    pub fn new(size: usize) -> Self {
-        debug_assert!(size <= (M::MOD - 1).trailing_zeros() as usize);
-
-        let mut prim_roots = vec![MontgomeryModint::zero(); size + 1];
-        prim_roots[size] = MontgomeryModint::<M>::nth_root(1 << size);
-        let mut prim_roots_inv = vec![MontgomeryModint::zero(); size + 1];
-        prim_roots_inv[size] = prim_roots[size].inv();
-        for i in (0..size).rev() {
-            prim_roots[i] = prim_roots[i + 1] * prim_roots[i + 1];
-            prim_roots_inv[i] = prim_roots_inv[i + 1] * prim_roots_inv[i + 1];
+        root[Self::RANK2] = MontgomeryModint::<M>::nth_root(1 << Self::RANK2);
+        iroot[Self::RANK2] = root[Self::RANK2].inv();
+        for i in (0..Self::RANK2).rev() {
+            root[i] = root[i + 1] * root[i + 1];
+            iroot[i] = iroot[i + 1] * iroot[i + 1];
         }
 
-        let mut twiddle_factors = vec![MontgomeryModint::<M>::one(); (1 << size) + 1];
-        twiddle_factors[1] = prim_roots[size];
-        let mut twiddle_factors_inv = vec![MontgomeryModint::<M>::one(); (1 << size) + 1];
-        twiddle_factors_inv[1] = prim_roots_inv[size];
-
-        for i in 1..(1 << size) {
-            twiddle_factors[i + 1] = twiddle_factors[i] * prim_roots[size];
-            twiddle_factors_inv[i + 1] = twiddle_factors_inv[i] * prim_roots_inv[size];
+        let mut prod = Modint::one();
+        let mut iprod = Modint::one();
+        for i in 0..Self::RANK2.saturating_sub(1) {
+            rate2[i] = root[i + 2] * prod;
+            irate2[i] = iroot[i + 2] * iprod;
+            prod *= iroot[i + 2];
+            iprod *= root[i + 2];
         }
 
-        Self {
-            prim_roots,
-            prim_roots_inv,
-            twiddle_factors,
-            twiddle_factors_inv,
+        let mut prod = Modint::one();
+        let mut iprod = Modint::one();
+        for i in 0..Self::RANK2.saturating_sub(2) {
+            rate3[i] = root[i + 3] * prod;
+            irate3[i] = iroot[i + 3] * iprod;
+            prod *= iroot[i + 3];
+            iprod *= root[i + 3];
         }
+
+        Self { root, iroot, rate2, irate2, rate3, irate3 }
     }
 }
