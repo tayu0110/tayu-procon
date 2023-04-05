@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/polynomial_interpolation
 use iolib::scan;
-use modint::{Mod998244353, MontgomeryModint};
+use montgomery_modint::{Mod998244353, MontgomeryModint};
 use polynomial::lagrange_interpolation;
 
 type Modint = MontgomeryModint<Mod998244353>;

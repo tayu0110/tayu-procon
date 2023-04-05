@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/inv_of_formal_power_series
 use iolib::scan;
-use modint::Mod998244353;
+use montgomery_modint::Mod998244353;
 use polynomial::Polynomial;
 
 fn main() {

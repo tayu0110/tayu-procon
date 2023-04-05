@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/multipoint_evaluation
 use iolib::scan;
-use modint::{Mod998244353, MontgomeryModint};
+use montgomery_modint::{Mod998244353, MontgomeryModint};
 use polynomial::Polynomial;
 
 fn main() {

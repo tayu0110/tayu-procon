@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/division_of_polynomials
 use iolib::scan;
-use modint::Mod998244353;
+use montgomery_modint::Mod998244353;
 use polynomial::Polynomial;
 
 fn main() {
