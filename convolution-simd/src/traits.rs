@@ -62,8 +62,8 @@ fn convert_u32_to_modint<M: Modulo>(mut a: Vec<u32>) -> Vec<MontgomeryModint<M>>
                 let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), r2, modulo, modulo_inv);
                 _mm256_storeu_si256(v.as_mut_ptr() as _, res);
             });
+            transmute(a)
         }
-        a.into_iter().map(|a| MontgomeryModint::from_mont_expr(a)).collect()
     }
 }
 
@@ -79,7 +79,7 @@ fn convert_modint_to_u32<M: Modulo>(mut a: Vec<MontgomeryModint<M>>) -> Vec<u32>
                 let res = montgomery_reduction_u32x8(_mm256_loadu_si256(v.as_ptr() as _), modulo, modulo_inv);
                 _mm256_storeu_si256(v.as_mut_ptr() as _, res);
             });
+            transmute(a)
         }
-        a.into_iter().map(|a| a.val).collect()
     }
 }

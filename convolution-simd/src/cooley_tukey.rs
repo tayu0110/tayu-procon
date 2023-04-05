@@ -5,6 +5,7 @@ use montgomery_modint::{Modulo, MontgomeryModint};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{_mm256_loadu_si256, _mm256_set1_epi32, _mm256_storeu_si256};
+use std::ptr::copy_nonoverlapping;
 
 type Modint<M> = MontgomeryModint<M>;
 
@@ -13,23 +14,46 @@ type Modint<M> = MontgomeryModint<M>;
 unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
-    for block in 0..blocks {
-        let top = block * width;
-        if rot == Modint::one() {
-            for now in top..top + offset {
-                let c = a[now + offset];
-                a[now + offset] = a[now] - c;
-                a[now] += c;
+    if offset == 1 && blocks >= 8 {
+        let modulo = _mm256_set1_epi32(M::MOD as i32);
+        let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
+        let mut r = [Modint::zero(); 8];
+        let mut buf = [[Modint::zero(); 8]; 2];
+        for block in (0..blocks).step_by(8) {
+            let top = block * width;
+            for i in 0..8 {
+                r[i] = rot;
+                if block + i + 1 != blocks {
+                    rot *= rate[(block + i).trailing_ones() as usize];
+                }
             }
-        } else {
+            let rot = _mm256_loadu_si256(r.as_ptr() as _);
+            for i in 0..8 {
+                buf[0][i] = a[top + i * 2];
+                buf[1][i] = a[top + i * 2 + 1];
+            }
+            let c0 = _mm256_loadu_si256(buf[0].as_ptr() as _);
+            let c1 = montgomery_multiplication_u32x8(_mm256_loadu_si256(buf[1].as_ptr() as _), rot, modulo, modulo_inv);
+
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c0, c1, modulo));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, _mm256_sub_mod_epi32(c0, c1, modulo));
+
+            for i in 0..8 {
+                a[top + i * 2] = buf[0][i];
+                a[top + i * 2 + 1] = buf[1][i];
+            }
+        }
+    } else {
+        for block in 0..blocks {
+            let top = block * width;
             for now in top..top + offset {
                 let c = a[now + offset] * rot;
                 a[now + offset] = a[now] - c;
                 a[now] += c;
             }
-        }
-        if top + width != deg {
-            rot *= rate[block.trailing_ones() as usize];
+            if top + width != deg {
+                rot *= rate[block.trailing_ones() as usize];
+            }
         }
     }
 }
@@ -42,20 +66,150 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
     let imag = _mm256_set1_epi32(im.val as i32);
     let modulo = _mm256_set1_epi32(M::MOD as i32);
     let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
-    if blocks == 1 {
-        if offset == 1 {
-            let (c0, c1, c2, c3) = (a[0], a[0 + 1], a[0 + 1 * 2], a[0 + 1 * 3]);
-            let c02 = c0 + c2;
-            let c02n = c0 - c2;
-            let c13 = c1 + c3;
-            let c13nim = (c1 - c3) * im;
-            a[0] = c02 + c13;
-            a[0 + 1] = c02 - c13;
-            a[0 + 1 * 2] = c02n + c13nim;
-            a[0 + 1 * 3] = c02n - c13nim;
-        } else if offset < 8 {
-            for now in 0..offset {
-                let (c0, c1, c2, c3) = (a[now], a[now + offset], a[now + offset * 2], a[now + offset * 3]);
+
+    if offset == 1 && blocks >= 8 {
+        let mut r = [Modint::zero(); 8];
+        let mut buf = [[Modint::zero(); 8]; 4];
+        for block in (0..blocks).step_by(8) {
+            let top = block * width;
+            for i in 0..8 {
+                r[i] = rot;
+                if block + i != blocks {
+                    rot *= rate[(block + i).trailing_ones() as usize];
+                }
+            }
+            let rot = _mm256_loadu_si256(r.as_ptr() as _);
+            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
+            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            for i in 0..4 {
+                for j in 0..8 {
+                    buf[i][j] = a[top + i + j * 4];
+                }
+            }
+            let c0 = _mm256_loadu_si256(buf[0].as_ptr() as _);
+            let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
+            let c2 = _mm256_loadu_si256(buf[2].as_ptr() as _);
+            let c3 = _mm256_loadu_si256(buf[3].as_ptr() as _);
+            let (c1, c2, c3) = (
+                montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c3, rot3, modulo, modulo_inv),
+            );
+            let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
+            let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
+            let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
+            let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(buf[2].as_mut_ptr() as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
+            _mm256_storeu_si256(buf[3].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+
+            for i in 0..4 {
+                for j in 0..8 {
+                    a[top + i + j * 4] = buf[i][j];
+                }
+            }
+        }
+    } else if offset == 2 && blocks >= 4 {
+        let mut r = [Modint::zero(); 8];
+        let mut buf = [[Modint::zero(); 8]; 4];
+        let (b0, b1, b2, b3) = (buf[0].as_mut_ptr(), buf[1].as_mut_ptr(), buf[2].as_mut_ptr(), buf[3].as_mut_ptr());
+        for block in (0..blocks).step_by(4) {
+            let top = block * width;
+            for i in 0..4 {
+                r[i * 2] = rot;
+                r[i * 2 + 1] = rot;
+                if block + i + 1 != blocks {
+                    rot *= rate[(block + i).trailing_ones() as usize];
+                }
+            }
+            let rot = _mm256_loadu_si256(r.as_ptr() as _);
+            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
+            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            for j in 0..4 {
+                copy_nonoverlapping(a[top + j * 8..top + j * 8 + 2].as_ptr(), b0.add(j * 2), 2);
+                copy_nonoverlapping(a[top + 2 + j * 8..top + 2 + j * 8 + 2].as_ptr(), b1.add(j * 2), 2);
+                copy_nonoverlapping(a[top + 4 + j * 8..top + 4 + j * 8 + 2].as_ptr(), b2.add(j * 2), 2);
+                copy_nonoverlapping(a[top + 6 + j * 8..top + 6 + j * 8 + 2].as_ptr(), b3.add(j * 2), 2);
+            }
+            let c0 = _mm256_loadu_si256(b0 as _);
+            let c1 = _mm256_loadu_si256(b1 as _);
+            let c2 = _mm256_loadu_si256(b2 as _);
+            let c3 = _mm256_loadu_si256(b3 as _);
+            let (c1, c2, c3) = (
+                montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c3, rot3, modulo, modulo_inv),
+            );
+            let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
+            let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
+            let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
+            let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
+            _mm256_storeu_si256(b0 as _, _mm256_add_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(b1 as _, _mm256_sub_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(b2 as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
+            _mm256_storeu_si256(b3 as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+
+            for j in 0..4 {
+                copy_nonoverlapping(b0.add(j * 2), a[top + j * 8..top + j * 8 + 2].as_mut_ptr(), 2);
+                copy_nonoverlapping(b1.add(j * 2), a[top + 2 + j * 8..top + 2 + j * 8 + 2].as_mut_ptr(), 2);
+                copy_nonoverlapping(b2.add(j * 2), a[top + 4 + j * 8..top + 4 + j * 8 + 2].as_mut_ptr(), 2);
+                copy_nonoverlapping(b3.add(j * 2), a[top + 6 + j * 8..top + 6 + j * 8 + 2].as_mut_ptr(), 2);
+            }
+        }
+    } else if offset == 4 && blocks >= 2 {
+        let mut r = [Modint::zero(); 8];
+        let mut buf = [[Modint::zero(); 8]; 4];
+        let (b0, b1, b2, b3) = (buf[0].as_mut_ptr(), buf[1].as_mut_ptr(), buf[2].as_mut_ptr(), buf[3].as_mut_ptr());
+        for block in (0..blocks).step_by(2) {
+            let top = block * width;
+            for i in 0..2 {
+                r[i * 4..i * 4 + 4].copy_from_slice(&[rot, rot, rot, rot]);
+                if block + i + 1 != blocks {
+                    rot *= rate[(block + i).trailing_ones() as usize];
+                }
+            }
+            let rot = _mm256_loadu_si256(r.as_ptr() as _);
+            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
+            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            for j in 0..2 {
+                copy_nonoverlapping(a[top + j * 16..top + j * 16 + 4].as_ptr(), b0.add(j * 4), 4);
+                copy_nonoverlapping(a[top + 4 + j * 16..top + 4 + j * 16 + 4].as_ptr(), b1.add(j * 4), 4);
+                copy_nonoverlapping(a[top + 8 + j * 16..top + 8 + j * 16 + 4].as_ptr(), b2.add(j * 4), 4);
+                copy_nonoverlapping(a[top + 12 + j * 16..top + 12 + j * 16 + 4].as_ptr(), b3.add(j * 4), 4);
+            }
+            let c0 = _mm256_loadu_si256(b0 as _);
+            let c1 = _mm256_loadu_si256(b1 as _);
+            let c2 = _mm256_loadu_si256(b2 as _);
+            let c3 = _mm256_loadu_si256(b3 as _);
+            let (c1, c2, c3) = (
+                montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
+                montgomery_multiplication_u32x8(c3, rot3, modulo, modulo_inv),
+            );
+            let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
+            let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
+            let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
+            let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
+            _mm256_storeu_si256(b0 as _, _mm256_add_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(b1 as _, _mm256_sub_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(b2 as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
+            _mm256_storeu_si256(b3 as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+
+            for j in 0..2 {
+                copy_nonoverlapping(b0.add(j * 4), a[top + j * 16..top + j * 16 + 4].as_mut_ptr(), 4);
+                copy_nonoverlapping(b1.add(j * 4), a[top + 4 + j * 16..top + 4 + j * 16 + 4].as_mut_ptr(), 4);
+                copy_nonoverlapping(b2.add(j * 4), a[top + 8 + j * 16..top + 8 + j * 16 + 4].as_mut_ptr(), 4);
+                copy_nonoverlapping(b3.add(j * 4), a[top + 12 + j * 16..top + 12 + j * 16 + 4].as_mut_ptr(), 4);
+            }
+        }
+    } else if offset < 8 {
+        for block in 0..blocks {
+            let top = block * width;
+            let rot2 = rot * rot;
+            let rot3 = rot * rot2;
+            for now in top..top + offset {
+                let (c0, c1, c2, c3) = (a[now], a[now + offset] * rot, a[now + offset * 2] * rot2, a[now + offset * 3] * rot3);
                 let c02 = c0 + c2;
                 let c02n = c0 - c2;
                 let c13 = c1 + c3;
@@ -65,80 +219,49 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                 a[now + offset * 2] = c02n + c13nim;
                 a[now + offset * 3] = c02n - c13nim;
             }
-        } else {
-            for now in (0..offset).step_by(8) {
-                let c0 = _mm256_loadu_si256(a[now..now + 8].as_ptr() as _);
-                let c1 = _mm256_loadu_si256(a[now + offset..now + offset + 8].as_ptr() as _);
-                let c2 = _mm256_loadu_si256(a[now + offset * 2..now + offset * 2 + 8].as_ptr() as _);
-                let c3 = _mm256_loadu_si256(a[now + offset * 3..now + offset * 3 + 8].as_ptr() as _);
-                let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
-                let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
-                let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
-                let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
-                _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02, c13, modulo));
-                _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02, c13, modulo));
-                _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
-                _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+            if top + width != deg {
+                rot *= rate[block.trailing_ones() as usize];
             }
         }
     } else {
-        if offset < 8 {
-            for block in 0..blocks {
-                let top = block * width;
-                let rot2 = rot * rot;
-                let rot3 = rot * rot2;
-                for now in top..top + offset {
-                    let (c0, c1, c2, c3) = (a[now], a[now + offset] * rot, a[now + offset * 2] * rot2, a[now + offset * 3] * rot3);
-                    let c02 = c0 + c2;
-                    let c02n = c0 - c2;
-                    let c13 = c1 + c3;
-                    let c13nim = (c1 - c3) * im;
-                    a[now] = c02 + c13;
-                    a[now + offset] = c02 - c13;
-                    a[now + offset * 2] = c02n + c13nim;
-                    a[now + offset * 3] = c02n - c13nim;
-                }
-                if top + width != deg {
-                    rot *= rate[block.trailing_ones() as usize];
-                }
-            }
-        } else {
-            for now in (0..offset).step_by(8) {
-                let c0 = _mm256_loadu_si256(a[now..now + 8].as_ptr() as _);
-                let c1 = _mm256_loadu_si256(a[now + offset..now + offset + 8].as_ptr() as _);
-                let c2 = _mm256_loadu_si256(a[now + offset * 2..now + offset * 2 + 8].as_ptr() as _);
-                let c3 = _mm256_loadu_si256(a[now + offset * 3..now + offset * 3 + 8].as_ptr() as _);
+        for now in (0..offset).step_by(8) {
+            let c0 = _mm256_loadu_si256(a[now..now + 8].as_ptr() as _);
+            let c1 = _mm256_loadu_si256(a[now + offset..now + offset + 8].as_ptr() as _);
+            let c2 = _mm256_loadu_si256(a[now + offset * 2..now + offset * 2 + 8].as_ptr() as _);
+            let c3 = _mm256_loadu_si256(a[now + offset * 3..now + offset * 3 + 8].as_ptr() as _);
+            let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
+            let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
+            let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
+            let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
+            _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02, c13, modulo));
+            _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
+            _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+        }
+        let mut rot = _mm256_set1_epi32(rate[0].val as i32);
+        for block in 1..blocks {
+            let top = block * width;
+            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
+            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            let mut head = a[top..].as_mut_ptr();
+            for _ in (top..top + offset).step_by(8) {
+                let (c0a, c1a, c2a, c3a) = (head, head.add(offset), head.add(offset * 2), head.add(offset * 3));
+                let c0 = _mm256_loadu_si256(c0a as _);
+                let c1 = montgomery_multiplication_u32x8(_mm256_loadu_si256(c1a as _), rot, modulo, modulo_inv);
+                let c2 = montgomery_multiplication_u32x8(_mm256_loadu_si256(c2a as _), rot2, modulo, modulo_inv);
+                let c3 = montgomery_multiplication_u32x8(_mm256_loadu_si256(c3a as _), rot3, modulo, modulo_inv);
                 let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
                 let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
                 let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
                 let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
-                _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02, c13, modulo));
-                _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02, c13, modulo));
-                _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
-                _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+                _mm256_storeu_si256(c0a as _, _mm256_add_mod_epi32(c02, c13, modulo));
+                _mm256_storeu_si256(c1a as _, _mm256_sub_mod_epi32(c02, c13, modulo));
+                _mm256_storeu_si256(c2a as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
+                _mm256_storeu_si256(c3a as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
+                head = head.add(8);
             }
-            let mut rot = _mm256_set1_epi32(rate[0].val as i32);
-            for block in 1..blocks {
-                let top = block * width;
-                let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
-                let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
-                for now in (top..top + offset).step_by(8) {
-                    let c0 = _mm256_loadu_si256(a[now..now + 8].as_ptr() as _);
-                    let c1 = montgomery_multiplication_u32x8(_mm256_loadu_si256(a[now + offset..now + offset + 8].as_ptr() as _), rot, modulo, modulo_inv);
-                    let c2 = montgomery_multiplication_u32x8(_mm256_loadu_si256(a[now + offset * 2..now + offset * 2 + 8].as_ptr() as _), rot2, modulo, modulo_inv);
-                    let c3 = montgomery_multiplication_u32x8(_mm256_loadu_si256(a[now + offset * 3..now + offset * 3 + 8].as_ptr() as _), rot3, modulo, modulo_inv);
-                    let c02 = _mm256_add_mod_epi32(c0, c2, modulo);
-                    let c02n = _mm256_sub_mod_epi32(c0, c2, modulo);
-                    let c13 = _mm256_add_mod_epi32(c1, c3, modulo);
-                    let c13nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c1, c3, modulo), imag, modulo, modulo_inv);
-                    _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02, c13, modulo));
-                    _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02, c13, modulo));
-                    _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c02n, c13nim, modulo));
-                    _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c02n, c13nim, modulo));
-                }
-                if top + width != deg {
-                    rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[block.trailing_ones() as usize].val as i32), modulo, modulo_inv);
-                }
+            if top + width != deg {
+                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[block.trailing_ones() as usize].val as i32), modulo, modulo_inv);
             }
         }
     }

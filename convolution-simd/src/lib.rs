@@ -73,7 +73,7 @@ pub fn dot<M: Modulo>(mut a: Vec<Modint<M>>, b: &[Modint<M>]) -> Vec<Modint<M>> 
 
 pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     let deg = a.len() + b.len() - 1;
-    let n = std::cmp::max(8, deg.next_power_of_two());
+    let n = deg.next_power_of_two();
 
     a.resize(n, 0);
     b.resize(n, 0);
