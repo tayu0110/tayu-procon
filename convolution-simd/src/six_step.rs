@@ -288,8 +288,6 @@ pub unsafe fn six_step_ntt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>) 
         }
     } else {
         let mut buf = [Modint::one(); 8];
-        let modulo = _mm256_set1_epi32(M::MOD as i32);
-        let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
         for (i, v) in a.chunks_exact_mut(columns).enumerate() {
             if w != Modint::one() {
                 for j in 1..8 {
@@ -298,8 +296,8 @@ pub unsafe fn six_step_ntt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>) 
                 let mut rot = _mm256_loadu_si256(buf.as_ptr() as _);
                 let wx8 = _mm256_set1_epi32((buf[7] * w).val as i32);
                 v.chunks_exact_mut(8).for_each(|v| {
-                    _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), rot, modulo, modulo_inv));
-                    rot = montgomery_multiplication_u32x8(rot, wx8, modulo, modulo_inv);
+                    _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), rot));
+                    rot = montgomery_multiplication_u32x8::<M>(rot, wx8);
                 });
             }
 
@@ -341,8 +339,6 @@ pub unsafe fn six_step_intt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>)
         }
     } else {
         let mut buf = [Modint::one(); 8];
-        let modulo = _mm256_set1_epi32(M::MOD as i32);
-        let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
         for (i, v) in a.chunks_exact_mut(columns).enumerate() {
             gentleman_sande_radix_4_butterfly_inv(columns, clog, v, &cache);
 
@@ -356,8 +352,8 @@ pub unsafe fn six_step_intt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>)
             let mut irot = _mm256_loadu_si256(buf.as_ptr() as _);
             let wx8 = _mm256_set1_epi32((buf[7] * w).val as i32);
             v.chunks_exact_mut(8).for_each(|v| {
-                _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), irot, modulo, modulo_inv));
-                irot = montgomery_multiplication_u32x8(irot, wx8, modulo, modulo_inv);
+                _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), irot));
+                irot = montgomery_multiplication_u32x8::<M>(irot, wx8);
             });
 
             if i + 1 != rows {
@@ -391,10 +387,8 @@ pub unsafe fn six_step_intt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>)
             a.iter_mut().for_each(|a| *a *= ninv);
         } else {
             let ninv = _mm256_set1_epi32(ninv.val as i32);
-            let modulo = _mm256_set1_epi32(M::MOD as i32);
-            let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
             a.chunks_exact_mut(8)
-                .for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), ninv, modulo, modulo_inv)));
+                .for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), ninv)));
         }
     }
 }

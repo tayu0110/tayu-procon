@@ -71,10 +71,8 @@ fn convert_u32_to_modint<M: Modulo>(mut a: Vec<u32>) -> Vec<MontgomeryModint<M>>
     } else {
         unsafe {
             let r2 = _mm256_set1_epi32(M::R2 as i32);
-            let modulo = _mm256_set1_epi32(M::MOD as i32);
-            let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
             a.chunks_exact_mut(8).for_each(|v| {
-                let res = montgomery_multiplication_u32x8(_mm256_loadu_si256(v.as_ptr() as _), r2, modulo, modulo_inv);
+                let res = montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), r2);
                 _mm256_storeu_si256(v.as_mut_ptr() as _, res);
             });
             transmute(a)
@@ -88,10 +86,8 @@ fn convert_modint_to_u32<M: Modulo>(mut a: Vec<MontgomeryModint<M>>) -> Vec<u32>
         a.into_iter().map(|a| a.val()).collect()
     } else {
         unsafe {
-            let modulo = _mm256_set1_epi32(M::MOD as i32);
-            let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
             a.chunks_exact_mut(8).for_each(|v| {
-                let res = montgomery_reduction_u32x8(_mm256_loadu_si256(v.as_ptr() as _), modulo, modulo_inv);
+                let res = montgomery_reduction_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _));
                 _mm256_storeu_si256(v.as_mut_ptr() as _, res);
             });
             transmute(a)

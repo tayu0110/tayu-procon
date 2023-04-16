@@ -14,8 +14,6 @@ unsafe fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, of
     let mut rot = Modint::one();
     let blocks = deg / width;
     if offset == 1 && blocks >= 8 {
-        let modulo = _mm256_set1_epi32(M::MOD as i32);
-        let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
         let mut r = [Modint::zero(); 8];
         let mut buf = [[Modint::zero(); 8]; 2];
         for block in (0..blocks).step_by(8) {
@@ -34,8 +32,8 @@ unsafe fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, of
             let c0 = _mm256_loadu_si256(buf[0].as_ptr() as _);
             let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
 
-            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c0, c1, modulo));
-            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c0, c1, modulo), rot, modulo, modulo_inv));
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c0, c1));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c0, c1), rot));
 
             for i in 0..8 {
                 a[top + i * 2] = buf[0][i];
@@ -63,8 +61,6 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
     let mut rot = Modint::one();
     let blocks = deg / width;
     let imag = _mm256_set1_epi32(im.val as i32);
-    let modulo = _mm256_set1_epi32(M::MOD as i32);
-    let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
 
     if offset == 1 && blocks >= 8 {
         let mut r = [Modint::zero(); 8];
@@ -78,8 +74,8 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
-            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
-            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            let rot2 = montgomery_multiplication_u32x8::<M>(rot, rot);
+            let rot3 = montgomery_multiplication_u32x8::<M>(rot, rot2);
             for i in 0..4 {
                 for j in 0..8 {
                     buf[i][j] = a[top + i + j * 4];
@@ -89,23 +85,14 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
             let c2 = _mm256_loadu_si256(buf[2].as_ptr() as _);
             let c3 = _mm256_loadu_si256(buf[3].as_ptr() as _);
-            let c01 = _mm256_add_mod_epi32(c0, c1, modulo);
-            let c01n = _mm256_sub_mod_epi32(c0, c1, modulo);
-            let c23 = _mm256_add_mod_epi32(c2, c3, modulo);
-            let c23nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c2, c3, modulo), imag, modulo, modulo_inv);
-            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c01, c23, modulo));
-            _mm256_storeu_si256(
-                buf[1].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_add_mod_epi32(c01n, c23nim, modulo), rot, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[2].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01, c23, modulo), rot2, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[3].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01n, c23nim, modulo), rot3, modulo, modulo_inv),
-            );
+            let c01 = _mm256_add_mod_epi32::<M>(c0, c1);
+            let c01n = _mm256_sub_mod_epi32::<M>(c0, c1);
+            let c23 = _mm256_add_mod_epi32::<M>(c2, c3);
+            let c23nim = montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c2, c3), imag);
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c01, c23));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_add_mod_epi32::<M>(c01n, c23nim), rot));
+            _mm256_storeu_si256(buf[2].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01, c23), rot2));
+            _mm256_storeu_si256(buf[3].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01n, c23nim), rot3));
             for i in 0..4 {
                 for j in 0..8 {
                     a[top + i + j * 4] = buf[i][j];
@@ -125,8 +112,8 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
-            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
-            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            let rot2 = montgomery_multiplication_u32x8::<M>(rot, rot);
+            let rot3 = montgomery_multiplication_u32x8::<M>(rot, rot2);
             for i in 0..4 {
                 for j in 0..4 {
                     buf[i][j * 2..j * 2 + 2].copy_from_slice(&a[top + i * 2 + j * 8..top + i * 2 + j * 8 + 2]);
@@ -136,23 +123,14 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
             let c2 = _mm256_loadu_si256(buf[2].as_ptr() as _);
             let c3 = _mm256_loadu_si256(buf[3].as_ptr() as _);
-            let c01 = _mm256_add_mod_epi32(c0, c1, modulo);
-            let c01n = _mm256_sub_mod_epi32(c0, c1, modulo);
-            let c23 = _mm256_add_mod_epi32(c2, c3, modulo);
-            let c23nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c2, c3, modulo), imag, modulo, modulo_inv);
-            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c01, c23, modulo));
-            _mm256_storeu_si256(
-                buf[1].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_add_mod_epi32(c01n, c23nim, modulo), rot, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[2].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01, c23, modulo), rot2, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[3].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01n, c23nim, modulo), rot3, modulo, modulo_inv),
-            );
+            let c01 = _mm256_add_mod_epi32::<M>(c0, c1);
+            let c01n = _mm256_sub_mod_epi32::<M>(c0, c1);
+            let c23 = _mm256_add_mod_epi32::<M>(c2, c3);
+            let c23nim = montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c2, c3), imag);
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c01, c23));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_add_mod_epi32::<M>(c01n, c23nim), rot));
+            _mm256_storeu_si256(buf[2].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01, c23), rot2));
+            _mm256_storeu_si256(buf[3].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01n, c23nim), rot3));
             for i in 0..4 {
                 for j in 0..4 {
                     a[top + i * 2 + j * 8..top + i * 2 + j * 8 + 2].copy_from_slice(&buf[i][j * 2..j * 2 + 2]);
@@ -171,8 +149,8 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
-            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
-            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            let rot2 = montgomery_multiplication_u32x8::<M>(rot, rot);
+            let rot3 = montgomery_multiplication_u32x8::<M>(rot, rot2);
             for i in 0..4 {
                 for j in 0..2 {
                     buf[i][j * 4..j * 4 + 4].copy_from_slice(&a[top + i * 4 + j * 16..top + i * 4 + j * 16 + 4]);
@@ -182,23 +160,14 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
             let c2 = _mm256_loadu_si256(buf[2].as_ptr() as _);
             let c3 = _mm256_loadu_si256(buf[3].as_ptr() as _);
-            let c01 = _mm256_add_mod_epi32(c0, c1, modulo);
-            let c01n = _mm256_sub_mod_epi32(c0, c1, modulo);
-            let c23 = _mm256_add_mod_epi32(c2, c3, modulo);
-            let c23nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c2, c3, modulo), imag, modulo, modulo_inv);
-            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c01, c23, modulo));
-            _mm256_storeu_si256(
-                buf[1].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_add_mod_epi32(c01n, c23nim, modulo), rot, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[2].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01, c23, modulo), rot2, modulo, modulo_inv),
-            );
-            _mm256_storeu_si256(
-                buf[3].as_mut_ptr() as _,
-                montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01n, c23nim, modulo), rot3, modulo, modulo_inv),
-            );
+            let c01 = _mm256_add_mod_epi32::<M>(c0, c1);
+            let c01n = _mm256_sub_mod_epi32::<M>(c0, c1);
+            let c23 = _mm256_add_mod_epi32::<M>(c2, c3);
+            let c23nim = montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c2, c3), imag);
+            _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c01, c23));
+            _mm256_storeu_si256(buf[1].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_add_mod_epi32::<M>(c01n, c23nim), rot));
+            _mm256_storeu_si256(buf[2].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01, c23), rot2));
+            _mm256_storeu_si256(buf[3].as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01n, c23nim), rot3));
 
             for i in 0..4 {
                 for j in 0..2 {
@@ -232,20 +201,20 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             let c1 = _mm256_loadu_si256(a[now + offset..now + offset + 8].as_ptr() as _);
             let c2 = _mm256_loadu_si256(a[now + offset * 2..now + offset * 2 + 8].as_ptr() as _);
             let c3 = _mm256_loadu_si256(a[now + offset * 3..now + offset * 3 + 8].as_ptr() as _);
-            let c01 = _mm256_add_mod_epi32(c0, c1, modulo);
-            let c01n = _mm256_sub_mod_epi32(c0, c1, modulo);
-            let c23 = _mm256_add_mod_epi32(c2, c3, modulo);
-            let c23nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c2, c3, modulo), imag, modulo, modulo_inv);
-            _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c01, c23, modulo));
-            _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_add_mod_epi32(c01n, c23nim, modulo));
-            _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c01, c23, modulo));
-            _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32(c01n, c23nim, modulo));
+            let c01 = _mm256_add_mod_epi32::<M>(c0, c1);
+            let c01n = _mm256_sub_mod_epi32::<M>(c0, c1);
+            let c23 = _mm256_add_mod_epi32::<M>(c2, c3);
+            let c23nim = montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c2, c3), imag);
+            _mm256_storeu_si256(a[now..now + 8].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c01, c23));
+            _mm256_storeu_si256(a[now + offset..now + offset + 8].as_mut_ptr() as _, _mm256_add_mod_epi32::<M>(c01n, c23nim));
+            _mm256_storeu_si256(a[now + offset * 2..now + offset * 2 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32::<M>(c01, c23));
+            _mm256_storeu_si256(a[now + offset * 3..now + offset * 3 + 8].as_mut_ptr() as _, _mm256_sub_mod_epi32::<M>(c01n, c23nim));
         }
         let mut rot = _mm256_set1_epi32(rate[0].val as i32);
         for block in 1..blocks {
             let top = block * width;
-            let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
-            let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
+            let rot2 = montgomery_multiplication_u32x8::<M>(rot, rot);
+            let rot3 = montgomery_multiplication_u32x8::<M>(rot, rot2);
             let mut head = a[top..].as_mut_ptr();
             for _ in (top..top + offset).step_by(8) {
                 let (c0a, c1a, c2a, c3a) = (head, head.add(offset), head.add(offset * 2), head.add(offset * 3));
@@ -253,18 +222,18 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 let c1 = _mm256_loadu_si256(c1a as _);
                 let c2 = _mm256_loadu_si256(c2a as _);
                 let c3 = _mm256_loadu_si256(c3a as _);
-                let c01 = _mm256_add_mod_epi32(c0, c1, modulo);
-                let c01n = _mm256_sub_mod_epi32(c0, c1, modulo);
-                let c23 = _mm256_add_mod_epi32(c2, c3, modulo);
-                let c23nim = montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c2, c3, modulo), imag, modulo, modulo_inv);
-                _mm256_storeu_si256(c0a as _, _mm256_add_mod_epi32(c01, c23, modulo));
-                _mm256_storeu_si256(c1a as _, montgomery_multiplication_u32x8(_mm256_add_mod_epi32(c01n, c23nim, modulo), rot, modulo, modulo_inv));
-                _mm256_storeu_si256(c2a as _, montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01, c23, modulo), rot2, modulo, modulo_inv));
-                _mm256_storeu_si256(c3a as _, montgomery_multiplication_u32x8(_mm256_sub_mod_epi32(c01n, c23nim, modulo), rot3, modulo, modulo_inv));
+                let c01 = _mm256_add_mod_epi32::<M>(c0, c1);
+                let c01n = _mm256_sub_mod_epi32::<M>(c0, c1);
+                let c23 = _mm256_add_mod_epi32::<M>(c2, c3);
+                let c23nim = montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c2, c3), imag);
+                _mm256_storeu_si256(c0a as _, _mm256_add_mod_epi32::<M>(c01, c23));
+                _mm256_storeu_si256(c1a as _, montgomery_multiplication_u32x8::<M>(_mm256_add_mod_epi32::<M>(c01n, c23nim), rot));
+                _mm256_storeu_si256(c2a as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01, c23), rot2));
+                _mm256_storeu_si256(c3a as _, montgomery_multiplication_u32x8::<M>(_mm256_sub_mod_epi32::<M>(c01n, c23nim), rot3));
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[(!block).trailing_zeros() as usize].val as i32), modulo, modulo_inv);
+                rot = montgomery_multiplication_u32x8::<M>(rot, _mm256_set1_epi32(rate[(!block).trailing_zeros() as usize].val as i32));
             }
         }
     }
