@@ -1,4 +1,9 @@
-use std::{fmt::Debug, marker};
+use std::{arch::x86_64::__m256i, fmt::Debug, marker};
+
+union ConstSimdTrick {
+    arr: [u32; 8],
+    reg: __m256i,
+}
 
 pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     const MOD: u32;
@@ -15,6 +20,12 @@ pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     // R2 = 2^64 mod MOD
     const R2: u32 = ((Self::MOD as u64).wrapping_neg() % Self::MOD as u64) as u32;
     const PRIM_ROOT: u32;
+
+    // Vectorized Modulo
+    const MODX8: __m256i = unsafe { ConstSimdTrick { arr: [Self::MOD; 8] }.reg };
+    const MOD_INVX8: __m256i = unsafe { ConstSimdTrick { arr: [Self::MOD_INV; 8] }.reg };
+    const RX8: __m256i = unsafe { ConstSimdTrick { arr: [Self::R; 8] }.reg };
+    const R2X8: __m256i = unsafe { ConstSimdTrick { arr: [Self::R2; 8] }.reg };
 }
 
 macro_rules! impl_modulo {
