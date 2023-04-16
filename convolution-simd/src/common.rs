@@ -1,5 +1,6 @@
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
+use std::arch::x86_64::_mm256_min_epu32;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
     __m128i, __m256i, _mm256_add_epi32, _mm256_and_si256, _mm256_blend_epi32, _mm256_cmpeq_epi32, _mm256_max_epu32, _mm256_mul_epu32, _mm256_mullo_epi32, _mm256_setzero_si256, _mm256_shuffle_epi32,
@@ -60,7 +61,8 @@ pub unsafe fn montgomery_multiplication_u32x8(ws: __m256i, cs: __m256i, modulo: 
         0b10101010,
     );
     let t = _mm256_blend_epi32(_mm256_shuffle_epi32(t1, 0b10_11_00_01), t2, 0b10101010);
-    let mask = _mm256_and_si256(modulo, _mm256_cmpeq_epi32(_mm256_max_epu32(t, c), c));
+    let one = _mm256_cmpeq_epi32(c, c);
+    let mask = _mm256_and_si256(modulo, _mm256_xor_si256(one, _mm256_cmpeq_epi32(_mm256_min_epu32(t, c), c)));
     _mm256_add_epi32(mask, _mm256_sub_epi32(t, c))
 }
 

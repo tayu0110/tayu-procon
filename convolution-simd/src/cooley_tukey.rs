@@ -4,7 +4,7 @@ use montgomery_modint::{Modulo, MontgomeryModint};
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{_mm256_loadu_si256, _mm256_set1_epi32, _mm256_storeu_si256};
+use std::arch::x86_64::{_mm256_i32gather_epi32, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_setr_epi32, _mm256_storeu_si256};
 use std::ptr::copy_nonoverlapping;
 
 type Modint<M> = MontgomeryModint<M>;
@@ -19,21 +19,18 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
         let modulo_inv = _mm256_set1_epi32(M::MOD_INV as i32);
         let mut r = [Modint::zero(); 8];
         let mut buf = [[Modint::zero(); 8]; 2];
+        let vindex = _mm256_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14);
         for block in (0..blocks).step_by(8) {
             let top = block * width;
             for i in 0..8 {
                 r[i] = rot;
                 if block + i + 1 != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
-            for i in 0..8 {
-                buf[0][i] = a[top + i * 2];
-                buf[1][i] = a[top + i * 2 + 1];
-            }
-            let c0 = _mm256_loadu_si256(buf[0].as_ptr() as _);
-            let c1 = montgomery_multiplication_u32x8(_mm256_loadu_si256(buf[1].as_ptr() as _), rot, modulo, modulo_inv);
+            let c0 = _mm256_i32gather_epi32(a[top..].as_ptr() as _, vindex, 4);
+            let c1 = montgomery_multiplication_u32x8(_mm256_i32gather_epi32(a[top + 1..].as_ptr() as _, vindex, 4), rot, modulo, modulo_inv);
 
             _mm256_storeu_si256(buf[0].as_mut_ptr() as _, _mm256_add_mod_epi32(c0, c1, modulo));
             _mm256_storeu_si256(buf[1].as_mut_ptr() as _, _mm256_sub_mod_epi32(c0, c1, modulo));
@@ -52,7 +49,7 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
                 a[now] += c;
             }
             if top + width != deg {
-                rot *= rate[block.trailing_ones() as usize];
+                rot *= rate[(!block).trailing_zeros() as usize];
             }
         }
     }
@@ -70,26 +67,22 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
     if offset == 1 && blocks >= 8 {
         let mut r = [Modint::zero(); 8];
         let mut buf = [[Modint::zero(); 8]; 4];
+        let vindex = _mm256_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28);
         for block in (0..blocks).step_by(8) {
             let top = block * width;
             for i in 0..8 {
                 r[i] = rot;
                 if block + i != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
             let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
             let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
-            for i in 0..4 {
-                for j in 0..8 {
-                    buf[i][j] = a[top + i + j * 4];
-                }
-            }
-            let c0 = _mm256_loadu_si256(buf[0].as_ptr() as _);
-            let c1 = _mm256_loadu_si256(buf[1].as_ptr() as _);
-            let c2 = _mm256_loadu_si256(buf[2].as_ptr() as _);
-            let c3 = _mm256_loadu_si256(buf[3].as_ptr() as _);
+            let c0 = _mm256_i32gather_epi32(a[top..].as_ptr() as _, vindex, 4);
+            let c1 = _mm256_i32gather_epi32(a[top + 1..].as_ptr() as _, vindex, 4);
+            let c2 = _mm256_i32gather_epi32(a[top + 2..].as_ptr() as _, vindex, 4);
+            let c3 = _mm256_i32gather_epi32(a[top + 3..].as_ptr() as _, vindex, 4);
             let (c1, c2, c3) = (
                 montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
                 montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
@@ -114,28 +107,23 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
         let mut r = [Modint::zero(); 8];
         let mut buf = [[Modint::zero(); 8]; 4];
         let (b0, b1, b2, b3) = (buf[0].as_mut_ptr(), buf[1].as_mut_ptr(), buf[2].as_mut_ptr(), buf[3].as_mut_ptr());
+        let vindex = _mm256_setr_epi32(0, 1, 8, 9, 16, 17, 24, 25);
         for block in (0..blocks).step_by(4) {
             let top = block * width;
             for i in 0..4 {
                 r[i * 2] = rot;
                 r[i * 2 + 1] = rot;
                 if block + i + 1 != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
             let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
             let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
-            for j in 0..4 {
-                copy_nonoverlapping(a[top + j * 8..top + j * 8 + 2].as_ptr(), b0.add(j * 2), 2);
-                copy_nonoverlapping(a[top + 2 + j * 8..top + 2 + j * 8 + 2].as_ptr(), b1.add(j * 2), 2);
-                copy_nonoverlapping(a[top + 4 + j * 8..top + 4 + j * 8 + 2].as_ptr(), b2.add(j * 2), 2);
-                copy_nonoverlapping(a[top + 6 + j * 8..top + 6 + j * 8 + 2].as_ptr(), b3.add(j * 2), 2);
-            }
-            let c0 = _mm256_loadu_si256(b0 as _);
-            let c1 = _mm256_loadu_si256(b1 as _);
-            let c2 = _mm256_loadu_si256(b2 as _);
-            let c3 = _mm256_loadu_si256(b3 as _);
+            let c0 = _mm256_i32gather_epi32(a[top..].as_ptr() as _, vindex, 4);
+            let c1 = _mm256_i32gather_epi32(a[top + 2..].as_ptr() as _, vindex, 4);
+            let c2 = _mm256_i32gather_epi32(a[top + 4..].as_ptr() as _, vindex, 4);
+            let c3 = _mm256_i32gather_epi32(a[top + 6..].as_ptr() as _, vindex, 4);
             let (c1, c2, c3) = (
                 montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
                 montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
@@ -161,27 +149,22 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
         let mut r = [Modint::zero(); 8];
         let mut buf = [[Modint::zero(); 8]; 4];
         let (b0, b1, b2, b3) = (buf[0].as_mut_ptr(), buf[1].as_mut_ptr(), buf[2].as_mut_ptr(), buf[3].as_mut_ptr());
+        let vindex = _mm256_setr_epi32(0, 1, 2, 3, 16, 17, 18, 19);
         for block in (0..blocks).step_by(2) {
             let top = block * width;
             for i in 0..2 {
                 r[i * 4..i * 4 + 4].copy_from_slice(&[rot, rot, rot, rot]);
                 if block + i + 1 != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
             let rot2 = montgomery_multiplication_u32x8(rot, rot, modulo, modulo_inv);
             let rot3 = montgomery_multiplication_u32x8(rot, rot2, modulo, modulo_inv);
-            for j in 0..2 {
-                copy_nonoverlapping(a[top + j * 16..top + j * 16 + 4].as_ptr(), b0.add(j * 4), 4);
-                copy_nonoverlapping(a[top + 4 + j * 16..top + 4 + j * 16 + 4].as_ptr(), b1.add(j * 4), 4);
-                copy_nonoverlapping(a[top + 8 + j * 16..top + 8 + j * 16 + 4].as_ptr(), b2.add(j * 4), 4);
-                copy_nonoverlapping(a[top + 12 + j * 16..top + 12 + j * 16 + 4].as_ptr(), b3.add(j * 4), 4);
-            }
-            let c0 = _mm256_loadu_si256(b0 as _);
-            let c1 = _mm256_loadu_si256(b1 as _);
-            let c2 = _mm256_loadu_si256(b2 as _);
-            let c3 = _mm256_loadu_si256(b3 as _);
+            let c0 = _mm256_i32gather_epi32(a[top..].as_ptr() as _, vindex, 4);
+            let c1 = _mm256_i32gather_epi32(a[top + 4..].as_ptr() as _, vindex, 4);
+            let c2 = _mm256_i32gather_epi32(a[top + 8..].as_ptr() as _, vindex, 4);
+            let c3 = _mm256_i32gather_epi32(a[top + 12..].as_ptr() as _, vindex, 4);
             let (c1, c2, c3) = (
                 montgomery_multiplication_u32x8(c1, rot, modulo, modulo_inv),
                 montgomery_multiplication_u32x8(c2, rot2, modulo, modulo_inv),
@@ -220,7 +203,7 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                 a[now + offset * 3] = c02n - c13nim;
             }
             if top + width != deg {
-                rot *= rate[block.trailing_ones() as usize];
+                rot *= rate[(!block).trailing_zeros() as usize];
             }
         }
     } else {
@@ -261,7 +244,7 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[block.trailing_ones() as usize].val as i32), modulo, modulo_inv);
+                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[(!block).trailing_zeros() as usize].val as i32), modulo, modulo_inv);
             }
         }
     }

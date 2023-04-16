@@ -23,7 +23,7 @@ unsafe fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, of
             for i in 0..8 {
                 r[i] = rot;
                 if block + i + 1 != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
@@ -51,7 +51,7 @@ unsafe fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, of
                 a[now] += c;
             }
             if top + width != deg {
-                rot *= rate[block.trailing_ones() as usize];
+                rot *= rate[(!block).trailing_zeros() as usize];
             }
         }
     }
@@ -74,7 +74,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             for i in 0..8 {
                 r[i] = rot;
                 if block + i != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
@@ -121,7 +121,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 r[i * 2] = rot;
                 r[i * 2 + 1] = rot;
                 if block + i != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
@@ -167,7 +167,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             for i in 0..2 {
                 r[i * 4..i * 4 + 4].copy_from_slice(&[rot, rot, rot, rot]);
                 if block + i != blocks {
-                    rot *= rate[(block + i).trailing_ones() as usize];
+                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
             let rot = _mm256_loadu_si256(r.as_ptr() as _);
@@ -223,7 +223,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 a[now + offset * 3] = (c01n - c23nim) * rot3;
             }
             if top + width != deg {
-                rot *= rate[block.trailing_ones() as usize];
+                rot *= rate[(!block).trailing_zeros() as usize];
             }
         }
     } else {
@@ -264,7 +264,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[block.trailing_ones() as usize].val as i32), modulo, modulo_inv);
+                rot = montgomery_multiplication_u32x8(rot, _mm256_set1_epi32(rate[(!block).trailing_zeros() as usize].val as i32), modulo, modulo_inv);
             }
         }
     }
