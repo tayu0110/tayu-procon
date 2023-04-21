@@ -6,7 +6,6 @@ pub mod common;
 pub mod cooley_tukey;
 pub mod fft_cache;
 pub mod gentleman_sande;
-pub mod six_step;
 pub mod traits;
 
 #[cfg(target_arch = "x86_64")]

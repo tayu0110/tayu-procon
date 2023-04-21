@@ -1,5 +1,4 @@
 use super::fft_cache::FftCache;
-use super::six_step::{six_step_intt, six_step_ntt};
 use super::{dot, intt, ntt};
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::arch::x86_64::_mm256_storeu_si256;
@@ -26,22 +25,8 @@ impl<M: Modulo> Nttable<M> for Vec<MontgomeryModint<M>> {
         let cache = FftCache::new();
         self.intt_with_cache(&cache)
     }
-    fn ntt_with_cache(mut self, cache: &FftCache<M>) -> Self {
-        if self.len() < 1 << 10 {
-            ntt(self, &cache)
-        } else {
-            unsafe { six_step_ntt(&mut self, &cache) }
-            self
-        }
-    }
-    fn intt_with_cache(mut self, cache: &FftCache<M>) -> Self {
-        if self.len() < 1 << 10 {
-            intt(self, &cache)
-        } else {
-            unsafe { six_step_intt(&mut self, &cache) }
-            self
-        }
-    }
+    fn ntt_with_cache(self, cache: &FftCache<M>) -> Self { ntt(self, &cache) }
+    fn intt_with_cache(self, cache: &FftCache<M>) -> Self { intt(self, &cache) }
     fn dot(self, rhs: &Self) -> Self { dot::<M>(self, &rhs) }
 }
 
