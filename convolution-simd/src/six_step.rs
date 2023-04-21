@@ -1,11 +1,9 @@
 use super::cooley_tukey::cooley_tukey_radix_4_butterfly;
 use super::fft_cache::FftCache;
-use crate::{common::montgomery_multiplication_u32x8, gentleman_sande::gentleman_sande_radix_4_butterfly_inv};
-use montgomery_modint::{Modulo, MontgomeryModint};
+use super::gentleman_sande::gentleman_sande_radix_4_butterfly_inv;
+use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::{
-    arch::x86_64::{
-        __m256i, _mm256_loadu_si256, _mm256_permute2f128_si256, _mm256_set1_epi32, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
-    },
+    arch::x86_64::{__m256i, _mm256_loadu_si256, _mm256_permute2f128_si256, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64},
     ptr::copy_nonoverlapping,
 };
 
@@ -27,15 +25,15 @@ unsafe fn transpose_nx2n<M: Modulo>(n: usize, a: &mut [Modint<M>], buf: &mut [Mo
     transpose(n, b);
 
     for (a, b) in a.chunks_exact_mut(n).zip(b.chunks_exact_mut(n)) {
-        for j in 0..n / 2 {
+        for j in 0..n >> 1 {
             a[j] = a[j * 2];
             buf[j] = a[j * 2 + 1];
         }
-        for j in 0..n / 2 {
+        for j in 0..n >> 1 {
             a[n / 2 + j] = b[j * 2];
             buf[n / 2 + j] = b[j * 2 + 1];
         }
-        unsafe { copy_nonoverlapping(buf.as_ptr(), b.as_mut_ptr(), n) }
+        copy_nonoverlapping(buf.as_ptr(), b.as_mut_ptr(), n);
     }
 }
 
@@ -52,7 +50,7 @@ unsafe fn transpose_2nxn<M: Modulo>(n: usize, a: &mut [Modint<M>], buf: &mut [Mo
     let (a, b) = a.split_at_mut(n * n);
 
     for (a, b) in a.chunks_exact_mut(n).zip(b.chunks_exact_mut(n)) {
-        unsafe { copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), n) }
+        copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), n);
         for j in (0..n / 2).rev() {
             b[j * 2] = a[n / 2 + j];
             b[j * 2 + 1] = buf[n / 2 + j];
@@ -115,91 +113,72 @@ unsafe fn transpose8x8u32(
 unsafe fn transpose<M: Modulo>(n: usize, a: &mut [Modint<M>]) {
     const BLOCK: usize = 8;
     const PANEL: usize = 32;
-    if n < BLOCK {
+    if n < PANEL {
         for i in 0..n {
             for j in i + 1..n {
                 a.swap(i * n + j, i + n * j);
             }
         }
-    } else if n < PANEL {
-        for i in (0..n).step_by(BLOCK) {
-            let m0 = _mm256_loadu_si256(a[i * n + i..].as_ptr() as _);
-            let m1 = _mm256_loadu_si256(a[(i + 1) * n + i..].as_ptr() as _);
-            let m2 = _mm256_loadu_si256(a[(i + 2) * n + i..].as_ptr() as _);
-            let m3 = _mm256_loadu_si256(a[(i + 3) * n + i..].as_ptr() as _);
-            let m4 = _mm256_loadu_si256(a[(i + 4) * n + i..].as_ptr() as _);
-            let m5 = _mm256_loadu_si256(a[(i + 5) * n + i..].as_ptr() as _);
-            let m6 = _mm256_loadu_si256(a[(i + 6) * n + i..].as_ptr() as _);
-            let m7 = _mm256_loadu_si256(a[(i + 7) * n + i..].as_ptr() as _);
-            let (m0, m1, m2, m3, m4, m5, m6, m7) = transpose8x8u32(m0, m1, m2, m3, m4, m5, m6, m7);
-            _mm256_storeu_si256(a[(i + 0) * n + i..].as_mut_ptr() as _, m0);
-            _mm256_storeu_si256(a[(i + 1) * n + i..].as_mut_ptr() as _, m1);
-            _mm256_storeu_si256(a[(i + 2) * n + i..].as_mut_ptr() as _, m2);
-            _mm256_storeu_si256(a[(i + 3) * n + i..].as_mut_ptr() as _, m3);
-            _mm256_storeu_si256(a[(i + 4) * n + i..].as_mut_ptr() as _, m4);
-            _mm256_storeu_si256(a[(i + 5) * n + i..].as_mut_ptr() as _, m5);
-            _mm256_storeu_si256(a[(i + 6) * n + i..].as_mut_ptr() as _, m6);
-            _mm256_storeu_si256(a[(i + 7) * n + i..].as_mut_ptr() as _, m7);
-
-            for j in (i + BLOCK..n).step_by(BLOCK) {
-                let m0 = _mm256_loadu_si256(a[(i + 0) * n + j..].as_ptr() as _);
-                let m1 = _mm256_loadu_si256(a[(i + 1) * n + j..].as_ptr() as _);
-                let m2 = _mm256_loadu_si256(a[(i + 2) * n + j..].as_ptr() as _);
-                let m3 = _mm256_loadu_si256(a[(i + 3) * n + j..].as_ptr() as _);
-                let m4 = _mm256_loadu_si256(a[(i + 4) * n + j..].as_ptr() as _);
-                let m5 = _mm256_loadu_si256(a[(i + 5) * n + j..].as_ptr() as _);
-                let m6 = _mm256_loadu_si256(a[(i + 6) * n + j..].as_ptr() as _);
-                let m7 = _mm256_loadu_si256(a[(i + 7) * n + j..].as_ptr() as _);
-                let (m0, m1, m2, m3, m4, m5, m6, m7) = transpose8x8u32(m0, m1, m2, m3, m4, m5, m6, m7);
-                let n0 = _mm256_loadu_si256(a[(j + 0) * n + i..].as_ptr() as _);
-                let n1 = _mm256_loadu_si256(a[(j + 1) * n + i..].as_ptr() as _);
-                let n2 = _mm256_loadu_si256(a[(j + 2) * n + i..].as_ptr() as _);
-                let n3 = _mm256_loadu_si256(a[(j + 3) * n + i..].as_ptr() as _);
-                let n4 = _mm256_loadu_si256(a[(j + 4) * n + i..].as_ptr() as _);
-                let n5 = _mm256_loadu_si256(a[(j + 5) * n + i..].as_ptr() as _);
-                let n6 = _mm256_loadu_si256(a[(j + 6) * n + i..].as_ptr() as _);
-                let n7 = _mm256_loadu_si256(a[(j + 7) * n + i..].as_ptr() as _);
-                _mm256_storeu_si256(a[(j + 0) * n + i..].as_ptr() as _, m0);
-                _mm256_storeu_si256(a[(j + 1) * n + i..].as_ptr() as _, m1);
-                _mm256_storeu_si256(a[(j + 2) * n + i..].as_ptr() as _, m2);
-                _mm256_storeu_si256(a[(j + 3) * n + i..].as_ptr() as _, m3);
-                _mm256_storeu_si256(a[(j + 4) * n + i..].as_ptr() as _, m4);
-                _mm256_storeu_si256(a[(j + 5) * n + i..].as_ptr() as _, m5);
-                _mm256_storeu_si256(a[(j + 6) * n + i..].as_ptr() as _, m6);
-                _mm256_storeu_si256(a[(j + 7) * n + i..].as_ptr() as _, m7);
-                let (n0, n1, n2, n3, n4, n5, n6, n7) = transpose8x8u32(n0, n1, n2, n3, n4, n5, n6, n7);
-                _mm256_storeu_si256(a[(i + 0) * n + j..].as_ptr() as _, n0);
-                _mm256_storeu_si256(a[(i + 1) * n + j..].as_ptr() as _, n1);
-                _mm256_storeu_si256(a[(i + 2) * n + j..].as_ptr() as _, n2);
-                _mm256_storeu_si256(a[(i + 3) * n + j..].as_ptr() as _, n3);
-                _mm256_storeu_si256(a[(i + 4) * n + j..].as_ptr() as _, n4);
-                _mm256_storeu_si256(a[(i + 5) * n + j..].as_ptr() as _, n5);
-                _mm256_storeu_si256(a[(i + 6) * n + j..].as_ptr() as _, n6);
-                _mm256_storeu_si256(a[(i + 7) * n + j..].as_ptr() as _, n7);
-            }
-        }
     } else {
         for i in (0..n).step_by(PANEL) {
-            for j in (i..n).step_by(PANEL) {
-                for k in (i..i + PANEL).step_by(BLOCK) {
-                    let m0 = _mm256_loadu_si256(a[i * n + i..].as_ptr() as _);
-                    let m1 = _mm256_loadu_si256(a[(i + 1) * n + i..].as_ptr() as _);
-                    let m2 = _mm256_loadu_si256(a[(i + 2) * n + i..].as_ptr() as _);
-                    let m3 = _mm256_loadu_si256(a[(i + 3) * n + i..].as_ptr() as _);
-                    let m4 = _mm256_loadu_si256(a[(i + 4) * n + i..].as_ptr() as _);
-                    let m5 = _mm256_loadu_si256(a[(i + 5) * n + i..].as_ptr() as _);
-                    let m6 = _mm256_loadu_si256(a[(i + 6) * n + i..].as_ptr() as _);
-                    let m7 = _mm256_loadu_si256(a[(i + 7) * n + i..].as_ptr() as _);
+            for k in (i..i + PANEL).step_by(BLOCK) {
+                let m0 = _mm256_loadu_si256(a[(k + 0) * n + k..].as_ptr() as _);
+                let m1 = _mm256_loadu_si256(a[(k + 1) * n + k..].as_ptr() as _);
+                let m2 = _mm256_loadu_si256(a[(k + 2) * n + k..].as_ptr() as _);
+                let m3 = _mm256_loadu_si256(a[(k + 3) * n + k..].as_ptr() as _);
+                let m4 = _mm256_loadu_si256(a[(k + 4) * n + k..].as_ptr() as _);
+                let m5 = _mm256_loadu_si256(a[(k + 5) * n + k..].as_ptr() as _);
+                let m6 = _mm256_loadu_si256(a[(k + 6) * n + k..].as_ptr() as _);
+                let m7 = _mm256_loadu_si256(a[(k + 7) * n + k..].as_ptr() as _);
+                let (m0, m1, m2, m3, m4, m5, m6, m7) = transpose8x8u32(m0, m1, m2, m3, m4, m5, m6, m7);
+                _mm256_storeu_si256(a[(k + 0) * n + k..].as_mut_ptr() as _, m0);
+                _mm256_storeu_si256(a[(k + 1) * n + k..].as_mut_ptr() as _, m1);
+                _mm256_storeu_si256(a[(k + 2) * n + k..].as_mut_ptr() as _, m2);
+                _mm256_storeu_si256(a[(k + 3) * n + k..].as_mut_ptr() as _, m3);
+                _mm256_storeu_si256(a[(k + 4) * n + k..].as_mut_ptr() as _, m4);
+                _mm256_storeu_si256(a[(k + 5) * n + k..].as_mut_ptr() as _, m5);
+                _mm256_storeu_si256(a[(k + 6) * n + k..].as_mut_ptr() as _, m6);
+                _mm256_storeu_si256(a[(k + 7) * n + k..].as_mut_ptr() as _, m7);
+                for l in (k + BLOCK..i + PANEL).step_by(BLOCK) {
+                    let m0 = _mm256_loadu_si256(a[(k + 0) * n + l..].as_ptr() as _);
+                    let m1 = _mm256_loadu_si256(a[(k + 1) * n + l..].as_ptr() as _);
+                    let m2 = _mm256_loadu_si256(a[(k + 2) * n + l..].as_ptr() as _);
+                    let m3 = _mm256_loadu_si256(a[(k + 3) * n + l..].as_ptr() as _);
+                    let m4 = _mm256_loadu_si256(a[(k + 4) * n + l..].as_ptr() as _);
+                    let m5 = _mm256_loadu_si256(a[(k + 5) * n + l..].as_ptr() as _);
+                    let m6 = _mm256_loadu_si256(a[(k + 6) * n + l..].as_ptr() as _);
+                    let m7 = _mm256_loadu_si256(a[(k + 7) * n + l..].as_ptr() as _);
                     let (m0, m1, m2, m3, m4, m5, m6, m7) = transpose8x8u32(m0, m1, m2, m3, m4, m5, m6, m7);
-                    _mm256_storeu_si256(a[(i + 0) * n + i..].as_mut_ptr() as _, m0);
-                    _mm256_storeu_si256(a[(i + 1) * n + i..].as_mut_ptr() as _, m1);
-                    _mm256_storeu_si256(a[(i + 2) * n + i..].as_mut_ptr() as _, m2);
-                    _mm256_storeu_si256(a[(i + 3) * n + i..].as_mut_ptr() as _, m3);
-                    _mm256_storeu_si256(a[(i + 4) * n + i..].as_mut_ptr() as _, m4);
-                    _mm256_storeu_si256(a[(i + 5) * n + i..].as_mut_ptr() as _, m5);
-                    _mm256_storeu_si256(a[(i + 6) * n + i..].as_mut_ptr() as _, m6);
-                    _mm256_storeu_si256(a[(i + 7) * n + i..].as_mut_ptr() as _, m7);
-                    for l in (j + BLOCK..j + PANEL).step_by(BLOCK) {
+                    let n0 = _mm256_loadu_si256(a[(l + 0) * n + k..].as_ptr() as _);
+                    let n1 = _mm256_loadu_si256(a[(l + 1) * n + k..].as_ptr() as _);
+                    let n2 = _mm256_loadu_si256(a[(l + 2) * n + k..].as_ptr() as _);
+                    let n3 = _mm256_loadu_si256(a[(l + 3) * n + k..].as_ptr() as _);
+                    let n4 = _mm256_loadu_si256(a[(l + 4) * n + k..].as_ptr() as _);
+                    let n5 = _mm256_loadu_si256(a[(l + 5) * n + k..].as_ptr() as _);
+                    let n6 = _mm256_loadu_si256(a[(l + 6) * n + k..].as_ptr() as _);
+                    let n7 = _mm256_loadu_si256(a[(l + 7) * n + k..].as_ptr() as _);
+                    _mm256_storeu_si256(a[(l + 0) * n + k..].as_ptr() as _, m0);
+                    _mm256_storeu_si256(a[(l + 1) * n + k..].as_ptr() as _, m1);
+                    _mm256_storeu_si256(a[(l + 2) * n + k..].as_ptr() as _, m2);
+                    _mm256_storeu_si256(a[(l + 3) * n + k..].as_ptr() as _, m3);
+                    _mm256_storeu_si256(a[(l + 4) * n + k..].as_ptr() as _, m4);
+                    _mm256_storeu_si256(a[(l + 5) * n + k..].as_ptr() as _, m5);
+                    _mm256_storeu_si256(a[(l + 6) * n + k..].as_ptr() as _, m6);
+                    _mm256_storeu_si256(a[(l + 7) * n + k..].as_ptr() as _, m7);
+                    let (n0, n1, n2, n3, n4, n5, n6, n7) = transpose8x8u32(n0, n1, n2, n3, n4, n5, n6, n7);
+                    _mm256_storeu_si256(a[(k + 0) * n + l..].as_ptr() as _, n0);
+                    _mm256_storeu_si256(a[(k + 1) * n + l..].as_ptr() as _, n1);
+                    _mm256_storeu_si256(a[(k + 2) * n + l..].as_ptr() as _, n2);
+                    _mm256_storeu_si256(a[(k + 3) * n + l..].as_ptr() as _, n3);
+                    _mm256_storeu_si256(a[(k + 4) * n + l..].as_ptr() as _, n4);
+                    _mm256_storeu_si256(a[(k + 5) * n + l..].as_ptr() as _, n5);
+                    _mm256_storeu_si256(a[(k + 6) * n + l..].as_ptr() as _, n6);
+                    _mm256_storeu_si256(a[(k + 7) * n + l..].as_ptr() as _, n7);
+                }
+            }
+            for j in (i + PANEL..n).step_by(PANEL) {
+                for k in (i..i + PANEL).step_by(BLOCK) {
+                    for l in (j..j + PANEL).step_by(BLOCK) {
                         let m0 = _mm256_loadu_si256(a[(k + 0) * n + l..].as_ptr() as _);
                         let m1 = _mm256_loadu_si256(a[(k + 1) * n + l..].as_ptr() as _);
                         let m2 = _mm256_loadu_si256(a[(k + 2) * n + l..].as_ptr() as _);
@@ -293,11 +272,11 @@ pub unsafe fn six_step_ntt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>) 
                 for j in 1..8 {
                     buf[j] = buf[j - 1] * w;
                 }
-                let mut rot = _mm256_loadu_si256(buf.as_ptr() as _);
-                let wx8 = _mm256_set1_epi32((buf[7] * w).val as i32);
+                let mut rot = MontgomeryModintx8::load_ptr(buf.as_ptr());
+                let wx8 = MontgomeryModintx8::splat_raw((buf[7] * w).val);
                 v.chunks_exact_mut(8).for_each(|v| {
-                    _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), rot));
-                    rot = montgomery_multiplication_u32x8::<M>(rot, wx8);
+                    (MontgomeryModintx8::load_ptr(v.as_ptr()) * rot).store_ptr(v.as_mut_ptr());
+                    rot = rot * wx8;
                 });
             }
 
@@ -349,11 +328,11 @@ pub unsafe fn six_step_intt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>)
             for j in 1..8 {
                 buf[j] = buf[j - 1] * w;
             }
-            let mut irot = _mm256_loadu_si256(buf.as_ptr() as _);
-            let wx8 = _mm256_set1_epi32((buf[7] * w).val as i32);
+            let mut irot = MontgomeryModintx8::load_ptr(buf.as_ptr());
+            let wx8 = MontgomeryModintx8::splat_raw((buf[7] * w).val);
             v.chunks_exact_mut(8).for_each(|v| {
-                _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), irot));
-                irot = montgomery_multiplication_u32x8::<M>(irot, wx8);
+                (MontgomeryModintx8::load_ptr(v.as_ptr()) * irot).store_ptr(v.as_mut_ptr());
+                irot = irot * wx8;
             });
 
             if i + 1 != rows {
@@ -386,9 +365,8 @@ pub unsafe fn six_step_intt<M: Modulo>(a: &mut [Modint<M>], cache: &FftCache<M>)
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
         } else {
-            let ninv = _mm256_set1_epi32(ninv.val as i32);
-            a.chunks_exact_mut(8)
-                .for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, montgomery_multiplication_u32x8::<M>(_mm256_loadu_si256(v.as_ptr() as _), ninv)));
+            let ninv = MontgomeryModintx8::splat_raw(ninv.val);
+            a.chunks_exact_mut(8).for_each(|v| (MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
         }
     }
 }
@@ -406,7 +384,7 @@ mod tests {
     fn six_step_ntt_test() {
         let cache = FftCache::new();
         for i in 1..=14 {
-            let data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
+            let data = (1..=1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
             let mut data1 = data.clone();
             unsafe {
                 six_step_ntt(&mut data1, &cache);
@@ -437,7 +415,7 @@ mod tests {
     fn six_step_cooley_tukey_compare_test() {
         for log in (2..=14).step_by(2) {
             let len = 1 << log;
-            let data = (0..len).map(|a| Modint::raw(a as u32)).collect::<Vec<_>>();
+            let data = (1..=len).map(|a| Modint::raw(a as u32)).collect::<Vec<_>>();
             let mut data_s = data.clone();
             let mut data_c = data.clone();
             let cache = FftCache::new();
@@ -454,6 +432,17 @@ mod tests {
             assert_eq!(data_s, data_c);
 
             assert_eq!(data, data_s);
+        }
+    }
+
+    #[test]
+    fn transpose_square_test() {
+        for i in (2..14).step_by(2) {
+            let mut mat = (0..1 << i).map(|i| Modint::raw(i)).collect::<Vec<_>>();
+            let expect = mat.clone();
+            unsafe { transpose(1 << (i / 2), &mut mat) }
+            unsafe { transpose(1 << (i / 2), &mut mat) }
+            assert_eq!(mat, expect);
         }
     }
 }
