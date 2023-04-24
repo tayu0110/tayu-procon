@@ -1,6 +1,9 @@
+mod simd;
+
 use iolib::{FastInput, Readable};
 pub use modint_common::*;
 use numeric::{One, Zero};
+pub use simd::*;
 use std::convert::From;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
