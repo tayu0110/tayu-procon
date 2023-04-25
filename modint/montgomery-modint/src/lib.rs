@@ -14,43 +14,24 @@ use std::str::FromStr;
 /// MontgomeryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Eq)]
 pub struct MontgomeryModint<M: Modulo> {
     pub val: u32,
     _phantom: PhantomData<fn() -> M>,
 }
 
 impl<M: Modulo> MontgomeryModint<M> {
-    // t <- MR(T) = floor(T/R) - floor((TN' mod R)*N/R)
-    //  if t < 0 then return t + N else return t
-    //      T := a (0 <= T < NR)
-    //      N := MOD
-    //      N':= MOD_INV    NN' = 1 (mod R)
-    //      R := R
-    fn montgomery_reduction(val: u32) -> u32 {
-        let (t, f) = (((val.wrapping_mul(M::MOD_INV) as u64).wrapping_mul(M::MOD as u64) >> 32) as u32).overflowing_neg();
-        t.wrapping_add(M::MOD * f as u32)
-    }
-
-    fn montgomery_multiplication(lhs: u32, rhs: u32) -> u32 {
-        let a = lhs as u64 * rhs as u64;
-        let (t, f) = ((a >> 32) as u32).overflowing_sub((((a as u32).wrapping_mul(M::MOD_INV) as u64).wrapping_mul(M::MOD as u64) >> 32) as u32);
-        t.wrapping_add(M::MOD * f as u32)
-    }
-
     #[inline]
     pub fn new(val: u32) -> Self { Self::raw(val.rem_euclid(M::MOD)) }
 
-    pub fn raw(val: u32) -> Self {
-        let val = Self::montgomery_multiplication(val, M::R2);
-        Self { val, _phantom: PhantomData }
-    }
+    #[inline]
+    pub fn raw(val: u32) -> Self { Self { val: M::multiply(val, M::R2), _phantom: PhantomData } }
 
     #[inline]
     pub fn from_mont_expr(val: u32) -> Self { Self { val, _phantom: PhantomData } }
 
     #[inline]
-    pub fn val(&self) -> u32 { Self::montgomery_reduction(self.val) }
+    pub fn val(&self) -> u32 { M::restore(M::reduce(self.val)) }
 
     #[inline]
     pub fn val_mont_expr(&self) -> u32 { self.val }
@@ -66,9 +47,9 @@ impl<M: Modulo> MontgomeryModint<M> {
         let mut res = M::R;
         while n != 0 {
             if n & 1 != 0 {
-                res = Self::montgomery_multiplication(res, val);
+                res = M::multiply(res, val);
             }
-            val = Self::montgomery_multiplication(val, val);
+            val = M::multiply(val, val);
             n >>= 1;
         }
         Self { val: res, _phantom: PhantomData }
@@ -97,32 +78,17 @@ impl<M: Modulo> Zero for MontgomeryModint<M> {
 
 impl<M: Modulo> Add for MontgomeryModint<M> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        let (t, fa) = self.val.overflowing_add(rhs.val);
-        let (u, fs) = t.overflowing_sub(M::MOD);
-        Self { val: if fa || !fs { u } else { t }, _phantom: PhantomData }
-    }
+    fn add(self, rhs: Self) -> Self::Output { Self { val: M::add(self.val, rhs.val), _phantom: PhantomData } }
 }
 
 impl<M: Modulo> Sub for MontgomeryModint<M> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        let (val, f) = self.val.overflowing_sub(rhs.val);
-        Self {
-            val: if f { val.wrapping_add(M::MOD) } else { val },
-            _phantom: PhantomData,
-        }
-    }
+    fn sub(self, rhs: Self) -> Self::Output { Self { val: M::subtract(self.val, rhs.val), _phantom: PhantomData } }
 }
 
 impl<M: Modulo> Mul for MontgomeryModint<M> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            val: Self::montgomery_multiplication(self.val, rhs.val),
-            _phantom: PhantomData,
-        }
-    }
+    fn mul(self, rhs: Self) -> Self::Output { Self { val: M::multiply(self.val, rhs.val), _phantom: PhantomData } }
 }
 
 impl<M: Modulo> Div for MontgomeryModint<M> {
@@ -139,6 +105,11 @@ impl<M: Modulo> Neg for MontgomeryModint<M> {
             Self { val: M::MOD - self.val, _phantom: PhantomData }
         }
     }
+}
+
+impl<M: Modulo> PartialEq for MontgomeryModint<M> {
+    fn eq(&self, other: &Self) -> bool { M::restore(self.val) == M::restore(other.val) }
+    fn ne(&self, other: &Self) -> bool { !(self == other) }
 }
 
 impl<M: Modulo> AddAssign for MontgomeryModint<M> {
@@ -214,7 +185,6 @@ mod tests {
     #[test]
     fn constant_value_test() {
         assert_eq!(Mod998244353::MOD, 998244353);
-        assert_eq!(Mod998244353::MOD.wrapping_mul(Mod998244353::MOD_INV), 1);
         assert_eq!(Mod998244353::R, 301989884);
         assert_eq!(Mod998244353::R2, 932051910);
         assert_eq!(Mod998244353::PRIM_ROOT, 3);
@@ -225,7 +195,6 @@ mod tests {
         type Modint = MontgomeryModint<Mod998244353>;
 
         assert_eq!(Mod998244353::R, 301989884);
-        assert_eq!(Mod998244353::MOD.wrapping_mul(Mod998244353::MOD_INV), 1);
         assert_eq!(Mod998244353::R2, 932051910);
 
         assert_eq!(Modint::zero().val(), 0);
