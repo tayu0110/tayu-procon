@@ -55,7 +55,7 @@ unsafe fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, of
 unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
-    let imag = MontgomeryModintx8::splat_raw(im.val);
+    let imag = MontgomeryModintx8::splat_raw(im);
 
     if offset == 1 && blocks >= 8 {
         let mut r = [Modint::zero(); 8];
@@ -189,7 +189,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
             (c01 - c23).store_ptr(a[now + offset * 2..].as_mut_ptr());
             (c01n - c23nim).store_ptr(a[now + offset * 3..].as_mut_ptr());
         }
-        let mut rot = MontgomeryModintx8::<M>::splat_raw(rate[0].val);
+        let mut rot = MontgomeryModintx8::<M>::splat_raw(rate[0]);
         for block in 1..blocks {
             let top = block * width;
             let rot2 = rot * rot;
@@ -212,7 +212,7 @@ unsafe fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, of
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = rot * MontgomeryModintx8::splat_raw(rate[(!block).trailing_zeros() as usize].val);
+                rot = rot * MontgomeryModintx8::splat_raw(rate[(!block).trailing_zeros() as usize]);
             }
         }
     }

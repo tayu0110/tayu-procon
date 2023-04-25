@@ -4,7 +4,8 @@ use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::{
-    _mm256_permute2f128_si256, _mm256_permute4x64_epi64, _mm256_setr_epi32, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
+    _mm256_loadu_si256, _mm256_permute2f128_si256, _mm256_permute4x64_epi64, _mm256_setr_epi32, _mm256_shuffle_epi32, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64,
+    _mm256_unpacklo_epi32, _mm256_unpacklo_epi64,
 };
 
 type Modint<M> = MontgomeryModint<M>;
@@ -54,7 +55,7 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
 unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
-    let imag = MontgomeryModintx8::splat_raw(im.val);
+    let imag = MontgomeryModintx8::splat_raw(im);
 
     if offset == 1 && blocks >= 8 {
         let mut r = [Modint::zero(); 8];
@@ -130,13 +131,13 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
         let vindex = _mm256_setr_epi32(0, 1, 2, 3, 16, 17, 18, 19);
         for block in (0..blocks).step_by(2) {
             let top = block * width;
-            for i in 0..2 {
-                r[i * 4..i * 4 + 4].copy_from_slice(&[rot, rot, rot, rot]);
-                if block + i + 1 != blocks {
-                    rot *= rate[(!(block + i)).trailing_zeros() as usize];
-                }
+            r[0] = rot;
+            rot *= rate[(!block).trailing_zeros() as usize];
+            r[4] = rot;
+            if block + 2 != blocks {
+                rot *= rate[(!(block + 1)).trailing_zeros() as usize];
             }
-            let rot = MontgomeryModintx8::<M>::load(&r);
+            let rot = MontgomeryModintx8::<M>::from_rawval(_mm256_shuffle_epi32(_mm256_loadu_si256(r.as_ptr() as _), 0b00_00_00_00));
             let rot2 = rot * rot;
             let rot3 = rot * rot2;
             let c0 = MontgomeryModintx8::gather_ptr(a[top..].as_ptr(), vindex);
@@ -174,21 +175,23 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             }
         }
     } else {
-        for now in (0..offset).step_by(8) {
-            let c0 = MontgomeryModintx8::<M>::load(&a[now..now + 8]);
-            let c1 = MontgomeryModintx8::<M>::load(&a[now + offset..now + offset + 8]);
-            let c2 = MontgomeryModintx8::<M>::load(&a[now + offset * 2..now + offset * 2 + 8]);
-            let c3 = MontgomeryModintx8::<M>::load(&a[now + offset * 3..now + offset * 3 + 8]);
+        let mut head = a.as_mut_ptr();
+        for _ in (0..offset).step_by(8) {
+            let c0 = MontgomeryModintx8::<M>::load_ptr(head);
+            let c1 = MontgomeryModintx8::<M>::load_ptr(head.add(offset));
+            let c2 = MontgomeryModintx8::<M>::load_ptr(head.add(offset * 2));
+            let c3 = MontgomeryModintx8::<M>::load_ptr(head.add(offset * 3));
             let c02 = c0 + c2;
             let c02n = c0 - c2;
             let c13 = c1 + c3;
             let c13nim = (c1 - c3) * imag;
-            (c02 + c13).store(&mut a[now..now + 8]);
-            (c02 - c13).store(&mut a[now + offset..now + offset + 8]);
-            (c02n + c13nim).store(&mut a[now + offset * 2..now + offset * 2 + 8]);
-            (c02n - c13nim).store(&mut a[now + offset * 3..now + offset * 3 + 8]);
+            (c02 + c13).store_ptr(head);
+            (c02 - c13).store_ptr(head.add(offset));
+            (c02n + c13nim).store_ptr(head.add(offset * 2));
+            (c02n - c13nim).store_ptr(head.add(offset * 3));
+            head = head.add(8);
         }
-        let mut rot = MontgomeryModintx8::<M>::splat_raw(rate[0].val);
+        let mut rot = MontgomeryModintx8::<M>::splat_raw(rate[0]);
         for block in 1..blocks {
             let top = block * width;
             let rot2 = rot * rot;
@@ -211,7 +214,7 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = rot * MontgomeryModintx8::splat_raw(rate[(!block).trailing_zeros() as usize].val);
+                rot = rot * MontgomeryModintx8::splat_raw(rate[(!block).trailing_zeros() as usize]);
             }
         }
     }

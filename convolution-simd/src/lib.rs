@@ -42,7 +42,7 @@ pub fn intt<M: Modulo>(mut a: Vec<Modint<M>>, cache: &FftCache<M>) -> Vec<Modint
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
         } else {
-            let ninv = MontgomeryModintx8::<M>::splat_raw(ninv.val);
+            let ninv = MontgomeryModintx8::<M>::splat_raw(ninv);
             a.chunks_exact_mut(8).for_each(|v| (MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
         }
     }
@@ -218,7 +218,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     }
 
     unsafe {
-        let ninv = MontgomeryModintx8::splat_raw(MontgomeryModint::<Mod998244353>::new(THRESHOLD as u32).inv().val);
+        let ninv = MontgomeryModintx8::splat_raw(MontgomeryModint::<Mod998244353>::new(THRESHOLD as u32).inv());
         for v in res.chunks_exact_mut(8).take((deg + 7) >> 3) {
             let res = MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv;
             _mm256_storeu_si256(v.as_mut_ptr() as _, res.val());
