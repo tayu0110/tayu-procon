@@ -1,5 +1,5 @@
 use convolution_simd::{fft_cache::FftCache, Nttable};
-use montgomery_modint::{Modulo, MontgomeryModint};
+use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
 #[derive(Debug, Clone)]
@@ -35,13 +35,11 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    fn naive_multiply(mut self, mut rhs: Self) -> Self {
-        if self.deg() < rhs.deg() {
-            std::mem::swap(&mut self, &mut rhs);
-        }
+    fn naive_multiply(mut self, rhs: &Self) -> Self {
         let deg = self.deg();
-        self.coefficients.resize(deg + rhs.deg() - 1, MontgomeryModint::zero());
-        for i in (0..self.coefficients.len()).rev() {
+        let new_deg = deg + rhs.deg() - 1;
+        self.resize(new_deg);
+        for i in (0..new_deg).rev() {
             let mut res = MontgomeryModint::zero();
             for (j, &r) in rhs.coefficients.iter().enumerate().take_while(|&(j, _)| i >= j) {
                 res += self.coefficients[i - j] * r;
@@ -52,7 +50,11 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    fn mul_with_cache(mut self, mut rhs: Self, cache: &FftCache<M>) -> Self {
+    fn mul_with_cache(mut self, rhs: &Self, cache: &FftCache<M>) -> Self {
+        if self.deg().min(rhs.deg()) <= 32 {
+            return self.naive_multiply(rhs);
+        }
+        let mut rhs = rhs.clone();
         let len = self.deg() + rhs.deg() - 1;
         let deg = len.next_power_of_two();
         self.resize(deg);
@@ -73,17 +75,21 @@ impl<M: Modulo> Polynomial<M> {
         while size < deg {
             let mut f = self.coefficients.iter().take(2 * size).cloned().collect::<Vec<_>>();
             f.resize(2 * size, MontgomeryModint::zero());
-            let hg = if size >= 8 {
+            let hg = {
                 let g_ntt = g[0..2 * size].to_vec().ntt_with_cache(&cache);
                 let fg = f.ntt_with_cache(&cache).dot(&g_ntt);
                 let mut h = fg.intt_with_cache(&cache);
                 h[..size].iter_mut().for_each(|h| *h = MontgomeryModint::zero());
                 h.ntt_with_cache(&cache).dot(&g_ntt).intt_with_cache(&cache)
-            } else {
-                let h = <Vec<MontgomeryModint<M>> as Into<Polynomial<M>>>::into(f) * g[0..size].to_vec().into();
-                (h * g[0..size].to_vec().into()).into()
             };
-            g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| *p -= v);
+            if size < 8 {
+                g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| *p -= v);
+            } else {
+                g[size..]
+                    .chunks_exact_mut(8)
+                    .zip(hg[size..].chunks_exact(8))
+                    .for_each(|(p, v)| unsafe { (MontgomeryModintx8::load_ptr(p.as_ptr()) - MontgomeryModintx8::load_ptr(v.as_ptr())).store_ptr(p.as_mut_ptr()) });
+            }
             size <<= 1;
         }
 
@@ -130,6 +136,12 @@ impl<M: Modulo> Polynomial<M> {
         self.coefficients.ntt_with_cache(&cache).dot(&rhs.coefficients).intt_with_cache(&cache)[deg - 1..].to_vec().into()
     }
 
+    fn middle_product_naive(mut self, rhs: &Self) -> Self {
+        let deg = self.deg();
+        self.reverse();
+        self.naive_multiply(rhs).coefficients[deg - 1..].to_vec().into()
+    }
+
     fn gen_caches() -> FftCache<M> { FftCache::new() }
 
     pub fn multipoint_evaluation(mut self, xs: Vec<MontgomeryModint<M>>) -> Vec<MontgomeryModint<M>> {
@@ -144,11 +156,7 @@ impl<M: Modulo> Polynomial<M> {
             subproduct_tree[len + i] = vec![-xs[i], MontgomeryModint::one()].into();
         }
         for i in (1..len).rev() {
-            subproduct_tree[i] = if subproduct_tree[i * 2].deg() <= 8 {
-                subproduct_tree[i * 2].clone() * subproduct_tree[i * 2 + 1].clone()
-            } else {
-                subproduct_tree[i * 2].clone().mul_with_cache(subproduct_tree[i * 2 + 1].clone(), &cache)
-            };
+            subproduct_tree[i] = subproduct_tree[i * 2].clone().mul_with_cache(&subproduct_tree[i * 2 + 1], &cache);
         }
 
         subproduct_tree.reverse();
@@ -168,19 +176,20 @@ impl<M: Modulo> Polynomial<M> {
             let r = subproduct_tree.pop().unwrap();
             let (dl, dr) = (l.deg(), r.deg());
             let mut u = uptree.pop().unwrap();
-            let deg = (u.deg() + dl.max(dr)).next_power_of_two();
-            u.resize(deg);
-            let nu = u.coefficients.ntt_with_cache(&cache).into();
-            uptree[len * 2 - i * 2] = r.middle_product(&nu, &cache).prefix(dl);
-            uptree[len * 2 - i * 2 - 1] = l.middle_product(&nu, &cache).prefix(dr);
+            if u.deg().min(dl).min(dr) <= 16 {
+                uptree[len * 2 - i * 2] = r.middle_product_naive(&u).prefix(dl);
+                uptree[len * 2 - i * 2 - 1] = l.middle_product_naive(&u).prefix(dr);
+            } else {
+                let deg = (u.deg() + dl.max(dr)).next_power_of_two();
+                u.resize(deg);
+                let nu = u.coefficients.ntt_with_cache(&cache).into();
+                uptree[len * 2 - i * 2] = r.middle_product(&nu, &cache).prefix(dl);
+                uptree[len * 2 - i * 2 - 1] = l.middle_product(&nu, &cache).prefix(dr);
+            }
         }
 
-        uptree
-            .into_iter()
-            .rev()
-            .take(len)
-            .map(|v| if v.deg() == 0 { MontgomeryModint::zero() } else { v.coefficients[0] })
-            .collect()
+        let res = uptree.into_iter().rev().take(len).map(|v| *v.coefficients.get(0).unwrap_or(&MontgomeryModint::zero())).collect();
+        res
     }
 }
 
@@ -212,10 +221,10 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
             return <Vec<MontgomeryModint<M>> as Into<Polynomial<M>>>::into(vec![]);
         }
         if self.deg().min(rhs.deg()) <= 8 {
-            return self.naive_multiply(rhs);
+            return self.naive_multiply(&rhs);
         }
         let cache = FftCache::new();
-        self.mul_with_cache(rhs, &cache)
+        self.mul_with_cache(&rhs, &cache)
     }
 }
 
