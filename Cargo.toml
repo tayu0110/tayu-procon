@@ -20,6 +20,7 @@ matrix = { path = "./matrix" }
 mincost-flow = { path = "./mincost-flow" }
 modint = { path = "./modint" }
 numeric = { path = "./numeric" }
+polynomial = { path = "./polynomial" }
 rational = { path = "./rational" }
 segtree = { path = "./segtree" }
 simple-rand = { path = "./simple-rand" }

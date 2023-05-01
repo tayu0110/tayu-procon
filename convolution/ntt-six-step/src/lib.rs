@@ -7,40 +7,40 @@
 // The normal DIF requires bit-reversal reordering after the operation (or before in the case of DIT), but when FFT and IFFT are executed in pairs, the bit-reversal reordering can be canceled by proceeding in the order of DIF and IDIT.
 // In this implementation, the correct result can be obtained by proceeding in the order of DIT and IDIF.
 // The implementation was based on the AtCoder Library (reference1), and reference2 was used to understand the semantics of the implementation.
+#![feature(test)]
+
+extern crate test;
 
 pub mod common;
 pub mod cooley_tukey;
-mod fft_cache;
+pub mod fft_cache;
 pub mod gentleman_sande;
+pub mod six_step;
 
-use cooley_tukey::cooley_tukey_radix_4_butterfly;
 use fft_cache::FftCache;
-use gentleman_sande::gentleman_sande_radix_4_butterfly_inv;
 use math::{ext_gcd, garner};
 use montgomery_modint::{Mod1811939329, Mod2013265921, Mod2281701377, Mod2483027969, Mod2885681153, Mod3221225473, Mod3489660929, Modulo, MontgomeryModint};
+use six_step::{six_step_intt, six_step_ntt};
 
 type Modint<M> = MontgomeryModint<M>;
 
 pub fn convolution<M: Modulo>(mut a: Vec<Modint<M>>, mut b: Vec<Modint<M>>) -> Vec<Modint<M>> {
     let deg = a.len() + b.len() - 1;
     let n = deg.next_power_of_two();
-    let log = n.trailing_zeros() as usize;
 
     a.resize(n, Modint::zero());
     b.resize(n, Modint::zero());
 
     let cache = FftCache::new();
 
-    cooley_tukey_radix_4_butterfly(n, log, &mut a, &cache);
-    cooley_tukey_radix_4_butterfly(n, log, &mut b, &cache);
+    six_step_ntt(&mut a, &cache);
+    six_step_ntt(&mut b, &cache);
 
     a.iter_mut().zip(b.into_iter()).for_each(|(a, b)| *a *= b);
 
-    gentleman_sande_radix_4_butterfly_inv(n, log, &mut a, &cache);
+    six_step_intt(&mut a, &cache);
 
-    let ninv = Modint::new(n as u32).inv();
     a.resize(deg, Modint::zero());
-    a.iter_mut().for_each(|v| *v *= ninv);
     a
 }
 
@@ -142,29 +142,78 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
 #[cfg(test)]
 mod tests {
     use super::convolution;
+    use super::*;
+    use crate::fft_cache::FftCache;
     use montgomery_modint::{Mod754974721, Mod998244353, MontgomeryModint};
 
+    type Modint = MontgomeryModint<Mod998244353>;
+
     #[test]
-    fn convolution_test() {
-        type Modint = MontgomeryModint<Mod998244353>;
-        let a = vec![Modint::new(1), Modint::new(2), Modint::new(3), Modint::new(4)];
-        let b = vec![Modint::new(1), Modint::new(2), Modint::new(4), Modint::new(8)];
-        let c = convolution(a, b);
-        assert_eq!(
-            c,
-            vec![Modint::new(1), Modint::new(4), Modint::new(11), Modint::new(26), Modint::new(36), Modint::new(40), Modint::new(32)]
-        );
+    fn six_step_ntt_with_odd_degree_test() {
+        let cache = FftCache::new();
+        for i in 2..=15 {
+            let data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
+            let mut data1 = data.clone();
+            six_step_ntt(&mut data1, &cache);
+            six_step_intt(&mut data1, &cache);
+            assert_eq!(data, data1);
+        }
+    }
+
+    use test::Bencher;
+    #[bench]
+    fn six_step_ntt_bench(b: &mut Bencher) {
+        let cache = FftCache::new();
+        b.iter(|| {
+            for i in 20..=23 {
+                let mut data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
+                six_step_ntt(&mut data, &cache);
+                six_step_intt(&mut data, &cache);
+            }
+        })
     }
 
     #[test]
-    fn convolution_test2() {
+    fn convolution_even_degree_test() {
+        let a = (1..=8).map(|a| Modint::new(a)).collect::<Vec<_>>();
+        let b = (1..=8).map(|b| Modint::new(b * 2)).collect::<Vec<_>>();
+        let expect = {
+            let mut buf = vec![Modint::zero(); a.len() + b.len() - 1];
+            for i in 0..a.len() {
+                for j in 0..b.len() {
+                    buf[i + j] += a[i] * b[j];
+                }
+            }
+            buf
+        };
+        let c = convolution(a, b);
+        assert_eq!(c, expect);
+    }
+
+    #[test]
+    fn convolution_odd_degree_test() {
+        let a = (1..=32).map(|a| Modint::new(a)).collect::<Vec<_>>();
+        let b = (1..=32).map(|b| Modint::new(b * 2)).collect::<Vec<_>>();
+        let expect = {
+            let mut buf = vec![Modint::zero(); a.len() + b.len() - 1];
+            for i in 0..a.len() {
+                for j in 0..b.len() {
+                    buf[i + j] += a[i] * b[j];
+                }
+            }
+            buf
+        };
+        let c = convolution(a, b);
+        assert_eq!(c, expect);
+    }
+
+    #[test]
+    fn convolution_test_other_mod() {
         type Modint = MontgomeryModint<Mod754974721>;
         let a = vec![Modint::new(1), Modint::new(2), Modint::new(3), Modint::new(4)];
         let b = vec![Modint::new(1), Modint::new(2), Modint::new(4), Modint::new(8)];
         let c = convolution(a, b);
-        assert_eq!(
-            c,
-            vec![Modint::new(1), Modint::new(4), Modint::new(11), Modint::new(26), Modint::new(36), Modint::new(40), Modint::new(32)]
-        );
+        let expect = vec![Modint::new(1), Modint::new(4), Modint::new(11), Modint::new(26), Modint::new(36), Modint::new(40), Modint::new(32)];
+        assert_eq!(c, expect);
     }
 }

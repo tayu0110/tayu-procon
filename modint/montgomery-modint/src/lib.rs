@@ -102,7 +102,7 @@ impl<M: Modulo> Neg for MontgomeryModint<M> {
         if self.val == 0 {
             self
         } else {
-            Self { val: M::MOD - self.val, _phantom: PhantomData }
+            Self { val: (M::MOD << 1) - self.val, _phantom: PhantomData }
         }
     }
 }

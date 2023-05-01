@@ -4,7 +4,7 @@ use std::{
     ptr::copy_nonoverlapping,
 };
 
-const BUF_SIZE: usize = 1 << 18;
+const BUF_SIZE: usize = 1 << 15;
 
 pub trait Writable {
     fn write(&self, dest: &mut FastOutput);
@@ -26,18 +26,7 @@ impl Writable for &str {
     fn write(&self, dest: &mut FastOutput) { dest.store_string(self) }
 }
 
-const TBL: [u8; 40000] = {
-    let mut buf = [0; 40000];
-    let mut i = 0;
-    while i < 10000 {
-        buf[i * 4] = (i / 1000) as u8 + b'0';
-        buf[i * 4 + 1] = ((i % 1000) / 100) as u8 + b'0';
-        buf[i * 4 + 2] = ((i % 100) / 10) as u8 + b'0';
-        buf[i * 4 + 3] = (i % 10) as u8 + b'0';
-        i += 1;
-    }
-    buf
-};
+const LUT: &'static [u8; 200] = b"00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
 
 impl Writable for u8 {
     fn write(&self, dest: &mut FastOutput) {
@@ -45,13 +34,24 @@ impl Writable for u8 {
             dest.store_byte(b'0');
             return;
         }
-        let buf = &TBL[*self as usize * 4..*self as usize * 4 + 4];
-        for head in 0..4 {
-            if buf[head] != b'0' {
-                dest.store(&buf[head..]);
-                return;
-            }
+        let mut head = 4;
+        let mut buf = [0u8; 4];
+        let mut now = *self;
+        if now >= 100 {
+            let rem = (now as usize % 100) << 1;
+            head -= 2;
+            buf[head..head + 2].copy_from_slice(&LUT[rem..rem + 2]);
+            now /= 100;
         }
+        if now >= 10 {
+            head -= 2;
+            let n = (now as usize) << 1;
+            buf[head..head + 2].copy_from_slice(&LUT[n..n + 2]);
+        } else {
+            head -= 1;
+            buf[head] = now as u8 + b'0';
+        }
+        dest.store(&buf[head..]);
     }
 }
 
@@ -75,14 +75,28 @@ macro_rules! impl_writable_integer {
                 let mut buf = [0; $size];
                 let mut head = $size;
                 let mut now = *self;
-                while now > 0 {
-                    head -= 4;
+                while now >= 10000 {
                     let rem = (now % 10000) as usize;
-                    buf[head..head+4].copy_from_slice(&TBL[rem*4..rem*4+4]);
+                    let upper = (rem / 100) << 1;
+                    let lower = (rem % 100) << 1;
+                    head -= 4;
+                    buf[head..head+2].copy_from_slice(&LUT[upper..upper+2]);
+                    buf[head+2..head+4].copy_from_slice(&LUT[lower..lower+2]);
                     now /= 10000;
                 }
-                while buf[head] == b'0' {
-                    head += 1;
+                if now >= 100 {
+                    let rem = (now as usize % 100) << 1;
+                    head -= 2;
+                    buf[head..head+2].copy_from_slice(&LUT[rem..rem+2]);
+                    now /= 100;
+                }
+                if now >= 10 {
+                    head -= 2;
+                    let n = (now as usize) << 1;
+                    buf[head..head+2].copy_from_slice(&LUT[n..n+2]);
+                } else {
+                    head -= 1;
+                    buf[head] = now as u8 + b'0';
                 }
                 dest.store(&buf[head..]);
             }

@@ -1,8 +1,8 @@
 // https://judge.yosupo.jp/problem/convolution_mod
 // https://atcoder.jp/contests/practice2/tasks/practice2_f
-use convolution::convolution;
 use iolib::scan;
 use montgomery_modint::{Mod998244353, MontgomeryModint};
+use ntt_radix4::convolution;
 
 type Modint = MontgomeryModint<Mod998244353>;
 

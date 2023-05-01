@@ -4,7 +4,7 @@ use montgomery_modint::{Modulo, MontgomeryModint};
 type Modint<M> = MontgomeryModint<M>;
 
 #[inline]
-fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, a: &mut [Modint<M>], rate: &[Modint<M>]) {
+pub(crate) fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
     for block in 0..blocks {
@@ -29,7 +29,7 @@ fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: u
 }
 
 #[inline]
-fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
+pub(crate) fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
     for block in 0..blocks {
@@ -94,7 +94,7 @@ mod tests {
         let deg = a.len();
         let log = deg.trailing_zeros() as usize;
         debug_assert_eq!(a.len(), 1 << log);
-        bit_reverse(deg, a);
+        bit_reverse(a);
         let cache = FftCache::<Mod998244353>::new();
         gentleman_sande_radix_4_butterfly(deg, log, a, &cache);
     }
@@ -102,7 +102,7 @@ mod tests {
         let deg = a.len();
         let log = deg.trailing_zeros() as usize;
         debug_assert_eq!(a.len(), 1 << log);
-        bit_reverse(deg, a);
+        bit_reverse(a);
         let cache = FftCache::<Mod998244353>::new();
         gentleman_sande_radix_4_butterfly_inv(deg, log, a, &cache);
         let inv = Modint::new(deg as u32).inv();

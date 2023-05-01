@@ -1,6 +1,7 @@
 #[inline]
 // reference: https://www.kurims.kyoto-u.ac.jp/~ooura/fftman/ftmn1_25.html#sec1_2_5
-pub fn bit_reverse<T>(deg: usize, a: &mut [T]) {
+pub fn bit_reverse<T>(a: &mut [T]) {
+    let deg = a.len();
     let nh = deg >> 1;
     let nh1 = nh + 1;
     let mut i = 0;

@@ -4,7 +4,7 @@ use montgomery_modint::{Modulo, MontgomeryModint};
 type Modint<M> = MontgomeryModint<M>;
 
 #[inline]
-fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, a: &mut [Modint<M>], rate: &[Modint<M>]) {
+pub(crate) fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
     for block in 0..blocks {
@@ -29,7 +29,7 @@ fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: usiz
 }
 
 #[inline]
-fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
+pub(crate) fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
     for block in 0..blocks {
@@ -96,7 +96,7 @@ mod tests {
         debug_assert_eq!(a.len(), 1 << log);
         let cache = FftCache::new();
         cooley_tukey_radix_4_butterfly(deg, log, a, &cache);
-        bit_reverse(deg, a);
+        bit_reverse(a);
     }
 
     pub fn intt_cooley_tukey_radix_4(a: &mut [Modint]) {
@@ -105,7 +105,7 @@ mod tests {
         debug_assert_eq!(a.len(), 1 << log);
         let cache = FftCache::new();
         cooley_tukey_radix_4_butterfly_inv(deg, log, a, &cache);
-        bit_reverse(deg, a);
+        bit_reverse(a);
         let inv = Modint::new(deg as u32).inv();
         a.iter_mut().for_each(|c| *c *= inv)
     }

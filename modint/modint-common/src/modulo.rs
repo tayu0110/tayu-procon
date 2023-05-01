@@ -285,16 +285,16 @@ macro_rules! impl_large_modulo {
                 const MODX8: __m256i = <Self as LargeMontgomeryModulo>::NX8;
                 const RX8: __m256i = <Self as LargeMontgomeryModulo>::RX8;
                 const R2X8: __m256i = <Self as LargeMontgomeryModulo>::R2X8;
-                #[inline] fn add(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_addition(a, b) }
-                #[inline] fn subtract(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_subtraction(a, b) }
-                #[inline] fn multiply(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_multiplication(a, b) }
-                #[inline] fn reduce(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_reduction(t) }
-                #[inline] fn restore(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::restoration(t) }
-                #[inline] fn addx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_addition_u32x8(a, b) }
-                #[inline] fn subtractx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_subtraction_u32x8(a, b) }
-                #[inline] fn multiplyx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_multiplication_u32x8(a, b) }
-                #[inline] fn reducex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_reduction_u32x8(t) }
-                #[inline] fn restorex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::restoration_u32x8(t) }
+                #[inline(always)] fn add(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_addition(a, b) }
+                #[inline(always)] fn subtract(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_subtraction(a, b) }
+                #[inline(always)] fn multiply(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_multiplication(a, b) }
+                #[inline(always)] fn reduce(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_reduction(t) }
+                #[inline(always)] fn restore(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::restoration(t) }
+                #[inline(always)] fn addx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_addition_u32x8(a, b) }
+                #[inline(always)] fn subtractx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_subtraction_u32x8(a, b) }
+                #[inline(always)] fn multiplyx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_multiplication_u32x8(a, b) }
+                #[inline(always)] fn reducex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_reduction_u32x8(t) }
+                #[inline(always)] fn restorex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::restoration_u32x8(t) }
             }
         )*        
     };

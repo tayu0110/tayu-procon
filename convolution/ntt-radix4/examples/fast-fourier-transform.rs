@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/atc001/tasks/fft_c
-use convolution::convolution;
 use montgomery_modint::{Mod998244353, MontgomeryModint};
+use ntt_radix4::convolution;
 use proconio::{fastout, input};
 
 type Mint998244353 = MontgomeryModint<Mod998244353>;

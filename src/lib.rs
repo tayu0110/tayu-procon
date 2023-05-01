@@ -12,6 +12,7 @@ pub use matrix;
 pub use mincost_flow;
 pub use modint;
 pub use numeric;
+pub use polynomial;
 pub use rational;
 pub use segtree;
 pub use simple_rand;
