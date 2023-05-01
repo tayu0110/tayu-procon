@@ -21,23 +21,22 @@ pub use traits::Nttable;
 type Modint<M> = MontgomeryModint<M>;
 
 #[inline]
-pub fn ntt<M: Modulo>(mut a: Vec<Modint<M>>, cache: &FftCache<M>) -> Vec<Modint<M>> {
+pub fn ntt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
     let n = a.len();
     let log = n.trailing_zeros() as usize;
     assert_eq!(n, 1 << log);
 
-    unsafe { cooley_tukey_radix_4_butterfly(n, log, &mut a, cache) }
-    a
+    unsafe { cooley_tukey_radix_4_butterfly(n, log, a, cache) }
 }
 
 #[inline]
-pub fn intt<M: Modulo>(mut a: Vec<Modint<M>>, cache: &FftCache<M>) -> Vec<Modint<M>> {
+pub fn intt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
     let n = a.len();
     let log = n.trailing_zeros() as usize;
     assert_eq!(n, 1 << log);
 
     unsafe {
-        gentleman_sande_radix_4_butterfly_inv(n, log, &mut a, cache);
+        gentleman_sande_radix_4_butterfly_inv(n, log, a, cache);
         let ninv = Modint::raw(n as u32).inv();
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
@@ -46,7 +45,6 @@ pub fn intt<M: Modulo>(mut a: Vec<Modint<M>>, cache: &FftCache<M>) -> Vec<Modint
             a.chunks_exact_mut(8).for_each(|v| (MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
         }
     }
-    a
 }
 
 #[inline]
@@ -72,13 +70,19 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
 
     let cache = FftCache::<M>::new();
 
-    let a = a.ntt_with_cache(&cache);
-    let b = b.ntt_with_cache(&cache);
+    // let a = a.ntt_with_cache(&cache);
+    // let b = b.ntt_with_cache(&cache);
+    a.ntt_with_cache(&cache);
+    b.ntt_with_cache(&cache);
 
-    let a = <Vec<u32> as Nttable<M>>::dot(a, &b);
+    // let a = <Vec<u32> as Nttable<M>>::dot(a, &b);
+    Nttable::<M>::dot_assign(&mut a, &b);
 
-    let c = a.intt_with_cache(&cache);
-    c.into_iter().take(deg).collect()
+    // let c = a.intt_with_cache(&cache);
+    a.intt_with_cache(&cache);
+    // c.into_iter().take(deg).collect()
+    a.resize(deg, 0);
+    a
 }
 
 pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
@@ -188,7 +192,8 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         .map(|a| {
             let mut x = vec![0u32; THRESHOLD];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            x.ntt_with_cache(&cache)
+            x.ntt_with_cache(&cache);
+            x
         })
         .collect::<Vec<_>>();
     let y = b
@@ -196,7 +201,8 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         .map(|a| {
             let mut x = vec![0u32; THRESHOLD];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            x.ntt_with_cache(&cache)
+            x.ntt_with_cache(&cache);
+            x
         })
         .collect::<Vec<_>>();
 
@@ -239,9 +245,11 @@ mod tests {
         let cache = FftCache::new();
         b.iter(|| {
             for i in 15..=20 {
-                let data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
-                let data = ntt(data, &cache);
-                let _ = intt(data, &cache);
+                let mut data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
+                // let data = ntt(data, &cache);
+                // let _ = intt(data, &cache);
+                ntt(&mut data, &cache);
+                intt(&mut data, &cache);
             }
         })
     }
