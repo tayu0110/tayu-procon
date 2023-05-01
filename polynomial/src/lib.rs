@@ -58,8 +58,11 @@ impl<M: Modulo> Polynomial<M> {
         let deg = len.next_power_of_two();
         self.resize(deg);
         rhs.resize(deg);
-        let (l, r) = (self.coef.ntt_with_cache(&cache), rhs.coef.ntt_with_cache(&cache));
-        let mut res: Self = l.dot(&r).intt_with_cache(&cache).into();
+        self.coef.ntt_with_cache(&cache);
+        rhs.coef.ntt_with_cache(&cache);
+        let mut res = self.coef.dot(&rhs.coef);
+        res.intt_with_cache(&cache);
+        let mut res: Self = res.into();
         res.resize(len);
         res
     }
@@ -75,11 +78,16 @@ impl<M: Modulo> Polynomial<M> {
             let mut f = self.coef.iter().take(2 * size).cloned().collect::<Vec<_>>();
             f.resize(2 * size, Modint::zero());
             let hg = {
-                let g_ntt = g[0..2 * size].to_vec().ntt_with_cache(&cache);
-                let fg = f.ntt_with_cache(&cache).dot(&g_ntt);
-                let mut h = fg.intt_with_cache(&cache);
-                h[..size].iter_mut().for_each(|h| *h = Modint::zero());
-                h.ntt_with_cache(&cache).dot(&g_ntt).intt_with_cache(&cache)
+                let mut g_ntt = g[0..2 * size].to_vec();
+                g_ntt.ntt_with_cache(&cache);
+                f.ntt_with_cache(&cache);
+                let mut fg = f.dot(&g_ntt);
+                fg.intt_with_cache(&cache);
+                fg[..size].iter_mut().for_each(|h| *h = Modint::zero());
+                fg.ntt_with_cache(&cache);
+                fg.dot_assign(&g_ntt);
+                fg.intt_with_cache(&cache);
+                fg
             };
             if size < 8 {
                 g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| *p -= v);
@@ -139,12 +147,12 @@ impl<M: Modulo> Polynomial<M> {
             let new_deg = (subproduct_tree[i << 1].deg() - 1) << 1;
             subproduct_tree[i << 1].resize(new_deg);
             subproduct_tree[(i << 1) | 1].resize(new_deg);
-            subproduct_tree[i << 1].coef.ntt_self_with_cache(&cache);
-            subproduct_tree[(i << 1) | 1].coef.ntt_self_with_cache(&cache);
+            subproduct_tree[i << 1].coef.ntt_with_cache(&cache);
+            subproduct_tree[(i << 1) | 1].coef.ntt_with_cache(&cache);
             subproduct_tree[i] = Self {
                 coef: subproduct_tree[i << 1].clone().coef.dot(&subproduct_tree[(i << 1) | 1].coef),
             };
-            subproduct_tree[i].coef.intt_self_with_cache(&cache);
+            subproduct_tree[i].coef.intt_with_cache(&cache);
             let k = subproduct_tree[i].coef[0] - Modint::one();
             subproduct_tree[i].coef.push(k);
             subproduct_tree[i].coef[0] = Modint::one();
@@ -163,10 +171,10 @@ impl<M: Modulo> Polynomial<M> {
         for i in 1..m {
             let (a, b) = subproduct_tree.split_at_mut(i << 1);
             let n = a[i].deg() >> 1;
-            a[i].coef.ntt_self_with_cache(&cache);
+            a[i].coef.ntt_with_cache(&cache);
             for j in 0..2 {
                 b[j].coef.dot_assign(&a[i].coef);
-                b[j].coef.intt_self_with_cache(&cache);
+                b[j].coef.intt_with_cache(&cache);
                 b[j].coef[..n << 1].reverse();
                 b[j].resize(n);
                 b[j].reverse();
@@ -177,6 +185,7 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree[m..m + len].into_iter().map(|v| *v.coef.get(0).unwrap_or(&Modint::zero())).collect()
     }
 
+    #[inline(always)]
     fn gen_caches() -> FftCache<M> { FftCache::new() }
 }
 
