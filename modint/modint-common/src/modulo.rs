@@ -1,7 +1,7 @@
 use std::{
     arch::x86_64::{
-        __m256i, _mm256_add_epi32,  _mm256_and_si256, _mm256_blend_epi32, _mm256_cmpeq_epi32, _mm256_cmpgt_epi32, _mm256_max_epu32, _mm256_min_epu32, _mm256_mul_epu32,
-        _mm256_mullo_epi32, _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_sub_epi32, _mm256_xor_si256, _mm256_or_si256, _mm256_add_epi64
+        __m256i, _mm256_add_epi32, _mm256_add_epi64, _mm256_and_si256, _mm256_blend_epi32, _mm256_cmpeq_epi32, _mm256_cmpgt_epi32, _mm256_max_epu32, _mm256_min_epu32, _mm256_mul_epu32,
+        _mm256_mullo_epi32, _mm256_or_si256, _mm256_setzero_si256, _mm256_shuffle_epi32, _mm256_sub_epi32, _mm256_xor_si256,
     },
     fmt::Debug,
     marker,
@@ -61,13 +61,7 @@ pub trait LazyMontgomeryModulo: Clone + marker::Copy + PartialEq + Eq + Debug {
         ((t + (t as u32).wrapping_mul(Self::N_PRIME) as u64 * Self::N as u64) >> 32) as u32
     }
     #[inline]
-    fn restoration(t: u32) -> u32 {
-        if t >= Self::N {
-            t - Self::N
-        } else {
-            t
-        }
-    }
+    fn restoration(t: u32) -> u32 { t - (Self::N & ((t >= Self::N) as u32).wrapping_neg()) }
 
     // Vectorized Modulo Constants
     const NX8: __m256i = const_simd_register!(Self::N);
@@ -93,7 +87,10 @@ pub trait LazyMontgomeryModulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     unsafe fn montgomery_reduction_u32x8(t: __m256i) -> __m256i {
         let t_np = _mm256_mullo_epi32(t, Self::N_PRIMEX8);
         let res_lo = _mm256_add_epi64(_mm256_mul_epu32(t_np, Self::NX8), _mm256_blend_epi32(t, _mm256_setzero_si256(), 0b10101010));
-        let res_hi = _mm256_add_epi64(_mm256_mul_epu32(_mm256_shuffle_epi32(t_np, 0b10_11_00_01), Self::NX8), _mm256_blend_epi32(_mm256_shuffle_epi32(t, 0b10_11_00_01), _mm256_setzero_si256(), 0b10101010));
+        let res_hi = _mm256_add_epi64(
+            _mm256_mul_epu32(_mm256_shuffle_epi32(t_np, 0b10_11_00_01), Self::NX8),
+            _mm256_blend_epi32(_mm256_shuffle_epi32(t, 0b10_11_00_01), _mm256_setzero_si256(), 0b10101010),
+        );
         _mm256_blend_epi32(_mm256_shuffle_epi32(res_lo, 0b10_11_00_01), res_hi, 0b10101010)
     }
     #[inline]
@@ -127,12 +124,20 @@ pub trait LargeMontgomeryModulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     fn montgomery_addition(a: u32, b: u32) -> u32 {
         let (t, fa) = a.overflowing_add(b);
         let (u, fs) = t.overflowing_sub(Self::N);
-        if fa || !fs { u } else { t }
+        if fa || !fs {
+            u
+        } else {
+            t
+        }
     }
     #[inline]
     fn montgomery_subtraction(a: u32, b: u32) -> u32 {
         let (val, f) = a.overflowing_sub(b);
-        if f { val.wrapping_add(Self::N) } else { val }
+        if f {
+            val.wrapping_add(Self::N)
+        } else {
+            val
+        }
     }
     // t <- MR(T) = floor(T/R) - floor((TN' mod R)*N/R)
     //  if t < 0 then return t + N else return t
@@ -160,45 +165,47 @@ pub trait LargeMontgomeryModulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     const RX8: __m256i = const_simd_register!(Self::R);
     const R2X8: __m256i = const_simd_register!(Self::R2);
     #[inline]
-    fn montgomery_addition_u32x8(a: __m256i, b: __m256i) -> __m256i {
-        let diff = unsafe { _mm256_sub_epi32(Self::NX8, a) };
-        let mask = unsafe { _mm256_cmpeq_epi32(diff, _mm256_max_epu32(diff, b)) };
-        let val = unsafe { _mm256_add_epi32(_mm256_sub_epi32(a, Self::NX8), b) };
-        unsafe { _mm256_add_epi32(val, _mm256_and_si256(mask, Self::NX8)) }
+    #[target_feature(enable = "avx2")]
+    unsafe fn montgomery_addition_u32x8(a: __m256i, b: __m256i) -> __m256i {
+        let diff = _mm256_sub_epi32(Self::NX8, a);
+        let mask = _mm256_cmpeq_epi32(diff, _mm256_max_epu32(diff, b));
+        let val = _mm256_add_epi32(_mm256_sub_epi32(a, Self::NX8), b);
+        _mm256_add_epi32(val, _mm256_and_si256(mask, Self::NX8))
     }
     #[inline]
-    fn montgomery_subtraction_u32x8(a: __m256i, b: __m256i) -> __m256i {
-        let mask = unsafe { _mm256_cmpeq_epi32(b, _mm256_max_epu32(a, b)) };
-        let c_neg = unsafe { _mm256_sub_epi32(a, b) };
-        unsafe { _mm256_add_epi32(c_neg, _mm256_and_si256(Self::NX8, mask)) }
+    #[target_feature(enable = "avx2")]
+    unsafe fn montgomery_subtraction_u32x8(a: __m256i, b: __m256i) -> __m256i {
+        let mask = _mm256_cmpeq_epi32(b, _mm256_max_epu32(a, b));
+        let c_neg = _mm256_sub_epi32(a, b);
+        _mm256_add_epi32(c_neg, _mm256_and_si256(Self::NX8, mask))
     }
     #[inline]
-    fn montgomery_reduction_u32x8(t: __m256i) -> __m256i {
-        let t_ninv = unsafe { _mm256_mullo_epi32(t, Self::N_INVX8) };
-        let t_ninv_n_lo = unsafe { _mm256_mul_epu32(t_ninv, Self::NX8) };
-        let t_ninv_n_hi = unsafe { _mm256_mul_epu32(_mm256_shuffle_epi32(t_ninv, 0b10_11_00_01), Self::NX8) };
-        let mr = unsafe { _mm256_blend_epi32(_mm256_shuffle_epi32(t_ninv_n_lo, 0b10_11_00_01), t_ninv_n_hi, 0b10101010) };
-        let zero = unsafe { _mm256_setzero_si256() };
-        let mask = unsafe { _mm256_cmpeq_epi32(mr, zero) };
-        let mask = unsafe { _mm256_and_si256(Self::NX8, _mm256_xor_si256(mask, _mm256_cmpeq_epi32(mask, mask))) };
-        unsafe { _mm256_sub_epi32(mask, mr) }
+    #[target_feature(enable = "avx2")]
+    unsafe fn montgomery_reduction_u32x8(t: __m256i) -> __m256i {
+        let t_ninv = _mm256_mullo_epi32(t, Self::N_INVX8);
+        let t_ninv_n_lo = _mm256_mul_epu32(t_ninv, Self::NX8);
+        let t_ninv_n_hi = _mm256_mul_epu32(_mm256_shuffle_epi32(t_ninv, 0b10_11_00_01), Self::NX8);
+        let mr = _mm256_blend_epi32(_mm256_shuffle_epi32(t_ninv_n_lo, 0b10_11_00_01), t_ninv_n_hi, 0b10101010);
+        let zero = _mm256_setzero_si256();
+        let mask = _mm256_cmpeq_epi32(mr, zero);
+        let mask = _mm256_and_si256(Self::NX8, _mm256_xor_si256(mask, _mm256_cmpeq_epi32(mask, mask)));
+        _mm256_sub_epi32(mask, mr)
     }
     #[inline]
-    fn montgomery_multiplication_u32x8(a: __m256i, b: __m256i) -> __m256i {
-        let t1 = unsafe { _mm256_mul_epu32(a, b) };
-        let t2 = unsafe { _mm256_mul_epu32(_mm256_shuffle_epi32(a, 0b10_11_00_01), _mm256_shuffle_epi32(b, 0b10_11_00_01)) };
-        let t_modinv = unsafe { _mm256_mullo_epi32(_mm256_blend_epi32(t1, _mm256_shuffle_epi32(t2, 0b10_11_00_01), 0b10101010), Self::N_INVX8) };
-        let c = unsafe {
-            _mm256_blend_epi32(
-                _mm256_shuffle_epi32(_mm256_mul_epu32(t_modinv, Self::NX8), 0b10_11_00_01),
-                _mm256_mul_epu32(_mm256_shuffle_epi32(t_modinv, 0b10_11_00_01), Self::NX8),
-                0b10101010,
-            )
-        };
-        let t = unsafe { _mm256_blend_epi32(_mm256_shuffle_epi32(t1, 0b10_11_00_01), t2, 0b10101010) };
-        let one = unsafe { _mm256_cmpeq_epi32(c, c) };
-        let mask = unsafe { _mm256_and_si256(Self::NX8, _mm256_xor_si256(one, _mm256_cmpeq_epi32(_mm256_min_epu32(t, c), c))) };
-        unsafe { _mm256_add_epi32(mask, _mm256_sub_epi32(t, c)) }
+    #[target_feature(enable = "avx2")]
+    unsafe fn montgomery_multiplication_u32x8(a: __m256i, b: __m256i) -> __m256i {
+        let t1 = _mm256_mul_epu32(a, b);
+        let t2 = _mm256_mul_epu32(_mm256_shuffle_epi32(a, 0b10_11_00_01), _mm256_shuffle_epi32(b, 0b10_11_00_01));
+        let t_modinv = _mm256_mullo_epi32(_mm256_blend_epi32(t1, _mm256_shuffle_epi32(t2, 0b10_11_00_01), 0b10101010), Self::N_INVX8);
+        let c = _mm256_blend_epi32(
+            _mm256_shuffle_epi32(_mm256_mul_epu32(t_modinv, Self::NX8), 0b10_11_00_01),
+            _mm256_mul_epu32(_mm256_shuffle_epi32(t_modinv, 0b10_11_00_01), Self::NX8),
+            0b10101010,
+        );
+        let t = _mm256_blend_epi32(_mm256_shuffle_epi32(t1, 0b10_11_00_01), t2, 0b10101010);
+        let one = _mm256_cmpeq_epi32(c, c);
+        let mask = _mm256_and_si256(Self::NX8, _mm256_xor_si256(one, _mm256_cmpeq_epi32(_mm256_min_epu32(t, c), c)));
+        _mm256_add_epi32(mask, _mm256_sub_epi32(t, c))
     }
     #[inline]
     fn restoration_u32x8(t: __m256i) -> __m256i { t }
@@ -290,13 +297,13 @@ macro_rules! impl_large_modulo {
                 #[inline(always)] fn multiply(a: u32, b: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_multiplication(a, b) }
                 #[inline(always)] fn reduce(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::montgomery_reduction(t) }
                 #[inline(always)] fn restore(t: u32) -> u32 { <Self as LargeMontgomeryModulo>::restoration(t) }
-                #[inline(always)] fn addx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_addition_u32x8(a, b) }
-                #[inline(always)] fn subtractx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_subtraction_u32x8(a, b) }
-                #[inline(always)] fn multiplyx8(a: __m256i, b: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_multiplication_u32x8(a, b) }
-                #[inline(always)] fn reducex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::montgomery_reduction_u32x8(t) }
+                #[inline(always)] fn addx8(a: __m256i, b: __m256i) -> __m256i { unsafe { <Self as LargeMontgomeryModulo>::montgomery_addition_u32x8(a, b) } }
+                #[inline(always)] fn subtractx8(a: __m256i, b: __m256i) -> __m256i { unsafe { <Self as LargeMontgomeryModulo>::montgomery_subtraction_u32x8(a, b) } }
+                #[inline(always)] fn multiplyx8(a: __m256i, b: __m256i) -> __m256i { unsafe { <Self as LargeMontgomeryModulo>::montgomery_multiplication_u32x8(a, b) } }
+                #[inline(always)] fn reducex8(t: __m256i) -> __m256i { unsafe { <Self as LargeMontgomeryModulo>::montgomery_reduction_u32x8(t) } }
                 #[inline(always)] fn restorex8(t: __m256i) -> __m256i { <Self as LargeMontgomeryModulo>::restoration_u32x8(t) }
             }
-        )*        
+        )*
     };
 }
 
