@@ -21,25 +21,25 @@ pub struct MontgomeryModint<M: Modulo> {
 }
 
 impl<M: Modulo> MontgomeryModint<M> {
-    #[inline]
+    #[inline(always)]
     pub fn new(val: u32) -> Self { Self::raw(val.rem_euclid(M::MOD)) }
 
     #[inline]
     pub fn raw(val: u32) -> Self { Self { val: M::multiply(val, M::R2), _phantom: PhantomData } }
 
-    #[inline]
-    pub fn from_mont_expr(val: u32) -> Self { Self { val, _phantom: PhantomData } }
+    #[inline(always)]
+    pub fn from_rawval(val: u32) -> Self { Self { val, _phantom: PhantomData } }
 
     #[inline]
     pub fn val(&self) -> u32 { M::restore(M::reduce(self.val)) }
 
-    #[inline]
-    pub fn val_mont_expr(&self) -> u32 { self.val }
+    #[inline(always)]
+    pub fn rawval(&self) -> u32 { self.val }
 
-    #[inline]
+    #[inline(always)]
     pub fn one() -> Self { Self { val: M::R, _phantom: PhantomData } }
 
-    #[inline]
+    #[inline(always)]
     pub fn zero() -> Self { Self { val: 0, _phantom: PhantomData } }
 
     pub fn pow(&self, mut n: u64) -> Self {
@@ -62,7 +62,7 @@ impl<M: Modulo> MontgomeryModint<M> {
         MontgomeryModint::<M>::new(M::PRIM_ROOT).pow(M::MOD as u64 - 1 + (M::MOD as u64 - 1) / n as u64)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn inv(&self) -> Self { self.pow(M::MOD as u64 - 2) }
 }
 

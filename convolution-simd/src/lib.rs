@@ -216,7 +216,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     for s in 0..(x.len() + y.len() - 1) {
         for i in 0..=s {
             if let (Some(x), Some(y)) = (x.get(i), y.get(s - i)) {
-                p.iter_mut().zip(Nttable::<Mod998244353>::dot(x.clone(), &y)).for_each(|(p, v)| *p += Modint::from_mont_expr(v));
+                p.iter_mut().zip(Nttable::<Mod998244353>::dot(x.clone(), &y)).for_each(|(p, v)| *p += Modint::from_rawval(v));
             }
         }
         unsafe {

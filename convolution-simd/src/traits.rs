@@ -73,7 +73,7 @@ fn convert_u32_to_modint<M: Modulo>(a: &mut Vec<u32>) {
 #[inline]
 fn convert_modint_to_u32<M: Modulo>(a: &mut Vec<Modint<M>>) {
     if a.len() < 8 {
-        a.iter_mut().for_each(|a| *a = Modint::from_mont_expr(a.val()));
+        a.iter_mut().for_each(|a| *a = Modint::from_rawval(a.val()));
     } else {
         unsafe { a.chunks_exact_mut(8).for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, Modintx8::<M>::load_ptr(v.as_ptr()).val())) }
     }

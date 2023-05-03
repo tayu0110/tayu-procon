@@ -349,7 +349,7 @@ impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
             let w = Modintx8::load(&v);
             Modintx8::from_rawval(w.val()).store(v)
         });
-        self.coef[l..].iter_mut().for_each(|v| *v = Modint::from_mont_expr(v.val()));
+        self.coef[l..].iter_mut().for_each(|v| *v = Modint::from_rawval(v.val()));
         unsafe { std::mem::transmute(self.coef) }
     }
 }
