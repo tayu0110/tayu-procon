@@ -19,6 +19,7 @@ use std::ptr::copy_nonoverlapping;
 pub use traits::Nttable;
 
 type Modint<M> = MontgomeryModint<M>;
+type Modintx8<M> = MontgomeryModintx8<M>;
 
 #[inline]
 pub fn ntt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
@@ -41,24 +42,33 @@ pub fn intt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
         } else {
-            let ninv = MontgomeryModintx8::<M>::splat_raw(ninv);
-            a.chunks_exact_mut(8).for_each(|v| (MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
+            let ninv = Modintx8::<M>::splat_raw(ninv);
+            a.chunks_exact_mut(8).for_each(|v| (Modintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
         }
     }
 }
 
 #[inline]
-pub fn dot<M: Modulo>(mut a: Vec<Modint<M>>, b: &[Modint<M>]) -> Vec<Modint<M>> {
+pub fn dot<M: Modulo>(a: &mut Vec<Modint<M>>, b: &[Modint<M>]) {
     if a.len() < 8 {
         a.iter_mut().zip(b).for_each(|(a, &b)| *a *= b);
     } else {
         unsafe {
             a.chunks_exact_mut(8)
                 .zip(b.chunks_exact(8))
-                .for_each(|(v, w)| (MontgomeryModintx8::load_ptr(v.as_ptr()) * MontgomeryModintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
+                .for_each(|(v, w)| (Modintx8::load_ptr(v.as_ptr()) * Modintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
         }
     }
-    a
+    // if a.len() < 8 {
+    //     a.iter_mut().zip(b).for_each(|(a, &b)| *a *= b);
+    // } else {
+    //     unsafe {
+    //         a.chunks_exact_mut(8)
+    //             .zip(b.chunks_exact(8))
+    //             .for_each(|(v, w)| (Modintx8::load_ptr(v.as_ptr()) * Modintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
+    //     }
+    // }
+    // a
 }
 
 pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
@@ -70,17 +80,12 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
 
     let cache = FftCache::<M>::new();
 
-    // let a = a.ntt_with_cache(&cache);
-    // let b = b.ntt_with_cache(&cache);
     a.ntt_with_cache(&cache);
     b.ntt_with_cache(&cache);
 
-    // let a = <Vec<u32> as Nttable<M>>::dot(a, &b);
     Nttable::<M>::dot_assign(&mut a, &b);
 
-    // let c = a.intt_with_cache(&cache);
     a.intt_with_cache(&cache);
-    // c.into_iter().take(deg).collect()
     a.resize(deg, 0);
     a
 }
@@ -206,8 +211,8 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         })
         .collect::<Vec<_>>();
 
-    let mut res = vec![MontgomeryModint::<Mod998244353>::zero(); n];
-    let mut p = vec![MontgomeryModint::zero(); THRESHOLD];
+    let mut res = vec![Modint::<Mod998244353>::zero(); n];
+    let mut p = vec![Modint::zero(); THRESHOLD];
     for s in 0..(x.len() + y.len() - 1) {
         for i in 0..=s {
             if let (Some(x), Some(y)) = (x.get(i), y.get(s - i)) {
@@ -217,16 +222,16 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         unsafe {
             gentleman_sande_radix_4_butterfly_inv(THRESHOLD, THRESHOLD.trailing_zeros() as usize, &mut p, &cache);
             for (res, p) in res[(s * width)..].chunks_exact_mut(8).zip(p.chunks_exact_mut(8)) {
-                (MontgomeryModintx8::load_ptr(res.as_ptr()) + MontgomeryModintx8::load_ptr(p.as_ptr())).store_ptr(res.as_mut_ptr());
-                MontgomeryModintx8::zero().store_ptr(p.as_mut_ptr())
+                (Modintx8::load_ptr(res.as_ptr()) + Modintx8::load_ptr(p.as_ptr())).store_ptr(res.as_mut_ptr());
+                Modintx8::zero().store_ptr(p.as_mut_ptr())
             }
         }
     }
 
     unsafe {
-        let ninv = MontgomeryModintx8::splat_raw(MontgomeryModint::<Mod998244353>::new(THRESHOLD as u32).inv());
+        let ninv = Modintx8::splat_raw(Modint::<Mod998244353>::new(THRESHOLD as u32).inv());
         for v in res.chunks_exact_mut(8).take((deg + 7) >> 3) {
-            let res = MontgomeryModintx8::load_ptr(v.as_ptr()) * ninv;
+            let res = Modintx8::load_ptr(v.as_ptr()) * ninv;
             _mm256_storeu_si256(v.as_mut_ptr() as _, res.val());
         }
         res.into_iter().take(deg).map(|v| v.val).collect()

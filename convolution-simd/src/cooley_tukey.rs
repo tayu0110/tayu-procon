@@ -9,6 +9,20 @@ use std::arch::x86_64::{
 };
 
 type Modint<M> = MontgomeryModint<M>;
+type Modintx8<M> = MontgomeryModintx8<M>;
+
+macro_rules! radix4_inner {
+    ($c0:expr, $c1:expr, $c2:expr, $c3:expr, $imag:expr) => {
+        {
+            let (c0, c1, c2, c3) = ($c0, $c1, $c2, $c3);
+            let c02 = c0 + c2;
+            let c02n = c0 - c2;
+            let c13 = c1 + c3;
+            let c13nim = (c1 - c3) * $imag;
+            (c02 + c13, c02 - c13, c02n + c13nim, c02n - c13nim)
+        }
+    };
+}
 
 #[inline]
 #[target_feature(enable = "avx2")]
@@ -26,9 +40,9 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
                     rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
-            let rot = MontgomeryModintx8::load_ptr(r.as_ptr());
-            let c0 = MontgomeryModintx8::gather_ptr(a[top..].as_ptr(), vindex);
-            let c1 = MontgomeryModintx8::gather_ptr(a[top + 1..].as_ptr(), vindex) * rot;
+            let rot = Modintx8::load_ptr(r.as_ptr());
+            let c0 = Modintx8::gather_ptr(a[top..].as_ptr(), vindex);
+            let c1 = Modintx8::gather_ptr(a[top + 1..].as_ptr(), vindex) * rot;
             let (c0, c1) = (c0 + c1, c0 - c1);
             let r0 = _mm256_unpacklo_epi32(c0.rawval(), c1.rawval());
             let r1 = _mm256_unpackhi_epi32(c0.rawval(), c1.rawval());
@@ -55,7 +69,7 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
 unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: usize, im: Modint<M>, a: &mut [Modint<M>], rate: &[Modint<M>]) {
     let mut rot = Modint::one();
     let blocks = deg / width;
-    let imag = MontgomeryModintx8::splat_raw(im);
+    let imag = Modintx8::splat_raw(im);
 
     if offset == 1 && blocks >= 8 {
         let mut r = [Modint::zero(); 8];
@@ -68,18 +82,16 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                     rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
-            let rot = MontgomeryModintx8::<M>::load(&r);
+            let rot = Modintx8::<M>::load(&r);
             let rot2 = rot * rot;
             let rot3 = rot * rot2;
-            let c0 = MontgomeryModintx8::gather_ptr(a[top..].as_ptr(), vindex);
-            let c1 = MontgomeryModintx8::gather_ptr(a[top + 1..].as_ptr(), vindex) * rot;
-            let c2 = MontgomeryModintx8::gather_ptr(a[top + 2..].as_ptr(), vindex) * rot2;
-            let c3 = MontgomeryModintx8::gather_ptr(a[top + 3..].as_ptr(), vindex) * rot3;
-            let c02 = c0 + c2;
-            let c02n = c0 - c2;
-            let c13 = c1 + c3;
-            let c13nim = (c1 - c3) * imag;
-            let (r0, r1, r2, r3) = (c02 + c13, c02 - c13, c02n + c13nim, c02n - c13nim);
+            let (r0, r1, r2, r3) = radix4_inner!(
+                Modintx8::gather_ptr(a[top..].as_ptr(), vindex),
+                Modintx8::gather_ptr(a[top + 1..].as_ptr(), vindex) * rot,
+                Modintx8::gather_ptr(a[top + 2..].as_ptr(), vindex) * rot2,
+                Modintx8::gather_ptr(a[top + 3..].as_ptr(), vindex) * rot3,
+                imag
+            );
             let r01lo = _mm256_unpacklo_epi32(r0.rawval(), r1.rawval());
             let r01hi = _mm256_unpackhi_epi32(r0.rawval(), r1.rawval());
             let r23lo = _mm256_unpacklo_epi32(r2.rawval(), r3.rawval());
@@ -105,18 +117,16 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                     rot *= rate[(!(block + i)).trailing_zeros() as usize];
                 }
             }
-            let rot = MontgomeryModintx8::<M>::load(&r);
+            let rot = Modintx8::<M>::load(&r);
             let rot2 = rot * rot;
             let rot3 = rot * rot2;
-            let c0 = MontgomeryModintx8::gather_ptr(a[top..].as_ptr(), vindex);
-            let c1 = MontgomeryModintx8::gather_ptr(a[top + 2..].as_ptr(), vindex) * rot;
-            let c2 = MontgomeryModintx8::gather_ptr(a[top + 4..].as_ptr(), vindex) * rot2;
-            let c3 = MontgomeryModintx8::gather_ptr(a[top + 6..].as_ptr(), vindex) * rot3;
-            let c02 = c0 + c2;
-            let c02n = c0 - c2;
-            let c13 = c1 + c3;
-            let c13nim = (c1 - c3) * imag;
-            let (r0, r1, r2, r3) = (c02 + c13, c02 - c13, c02n + c13nim, c02n - c13nim);
+            let (r0, r1, r2, r3) = radix4_inner!(
+                Modintx8::gather_ptr(a[top..].as_ptr(), vindex),
+                Modintx8::gather_ptr(a[top + 2..].as_ptr(), vindex) * rot,
+                Modintx8::gather_ptr(a[top + 4..].as_ptr(), vindex) * rot2,
+                Modintx8::gather_ptr(a[top + 6..].as_ptr(), vindex) * rot3,
+                imag
+            );
             let r01lo = _mm256_unpacklo_epi64(r0.rawval(), r1.rawval());
             let r01hi = _mm256_unpackhi_epi64(r0.rawval(), r1.rawval());
             let r23lo = _mm256_unpacklo_epi64(r2.rawval(), r3.rawval());
@@ -137,18 +147,16 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             if block + 2 != blocks {
                 rot *= rate[(!(block + 1)).trailing_zeros() as usize];
             }
-            let rot = MontgomeryModintx8::<M>::from_rawval(_mm256_shuffle_epi32(_mm256_loadu_si256(r.as_ptr() as _), 0b00_00_00_00));
+            let rot = Modintx8::<M>::from_rawval(_mm256_shuffle_epi32(_mm256_loadu_si256(r.as_ptr() as _), 0b00_00_00_00));
             let rot2 = rot * rot;
             let rot3 = rot * rot2;
-            let c0 = MontgomeryModintx8::gather_ptr(a[top..].as_ptr(), vindex);
-            let c1 = MontgomeryModintx8::gather_ptr(a[top + 4..].as_ptr(), vindex) * rot;
-            let c2 = MontgomeryModintx8::gather_ptr(a[top + 8..].as_ptr(), vindex) * rot2;
-            let c3 = MontgomeryModintx8::gather_ptr(a[top + 12..].as_ptr(), vindex) * rot3;
-            let c02 = c0 + c2;
-            let c02n = c0 - c2;
-            let c13 = c1 + c3;
-            let c13nim = (c1 - c3) * imag;
-            let (r0, r1, r2, r3) = (c02 + c13, c02 - c13, c02n + c13nim, c02n - c13nim);
+            let (r0, r1, r2, r3) = radix4_inner!(
+                Modintx8::gather_ptr(a[top..].as_ptr(), vindex),
+                Modintx8::gather_ptr(a[top + 4..].as_ptr(), vindex) * rot,
+                Modintx8::gather_ptr(a[top + 8..].as_ptr(), vindex) * rot2,
+                Modintx8::gather_ptr(a[top + 12..].as_ptr(), vindex) * rot3,
+                imag
+            );
             _mm256_storeu_si256(a[top..].as_mut_ptr() as _, _mm256_permute2f128_si256(r0.rawval(), r1.rawval(), 0x20));
             _mm256_storeu_si256(a[top + 8..].as_mut_ptr() as _, _mm256_permute2f128_si256(r2.rawval(), r3.rawval(), 0x20));
             _mm256_storeu_si256(a[top + 16..].as_mut_ptr() as _, _mm256_permute2f128_si256(r0.rawval(), r1.rawval(), 0x31));
@@ -160,15 +168,11 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             let rot2 = rot * rot;
             let rot3 = rot * rot2;
             for now in top..top + offset {
-                let (c0, c1, c2, c3) = (a[now], a[now + offset] * rot, a[now + offset * 2] * rot2, a[now + offset * 3] * rot3);
-                let c02 = c0 + c2;
-                let c02n = c0 - c2;
-                let c13 = c1 + c3;
-                let c13nim = (c1 - c3) * im;
-                a[now] = c02 + c13;
-                a[now + offset] = c02 - c13;
-                a[now + offset * 2] = c02n + c13nim;
-                a[now + offset * 3] = c02n - c13nim;
+                let (r0, r1, r2, r3) = radix4_inner!(a[now], a[now + offset] * rot, a[now + offset * 2] * rot2, a[now + offset * 3] * rot3, im);
+                a[now] = r0;
+                a[now + offset] = r1;
+                a[now + offset * 2] = r2;
+                a[now + offset * 3] = r3;
             }
             if top + width != deg {
                 rot *= rate[(!block).trailing_zeros() as usize];
@@ -177,21 +181,20 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
     } else {
         let mut head = a.as_mut_ptr();
         for _ in (0..offset).step_by(8) {
-            let c0 = MontgomeryModintx8::<M>::load_ptr(head);
-            let c1 = MontgomeryModintx8::<M>::load_ptr(head.add(offset));
-            let c2 = MontgomeryModintx8::<M>::load_ptr(head.add(offset * 2));
-            let c3 = MontgomeryModintx8::<M>::load_ptr(head.add(offset * 3));
-            let c02 = c0 + c2;
-            let c02n = c0 - c2;
-            let c13 = c1 + c3;
-            let c13nim = (c1 - c3) * imag;
-            (c02 + c13).store_ptr(head);
-            (c02 - c13).store_ptr(head.add(offset));
-            (c02n + c13nim).store_ptr(head.add(offset * 2));
-            (c02n - c13nim).store_ptr(head.add(offset * 3));
+            let (r0, r1, r2, r3) = radix4_inner!(
+                Modintx8::<M>::load_ptr(head),
+                Modintx8::<M>::load_ptr(head.add(offset)),
+                Modintx8::<M>::load_ptr(head.add(offset * 2)),
+                Modintx8::<M>::load_ptr(head.add(offset * 3)),
+                imag
+            );
+            r0.store_ptr(head);
+            r1.store_ptr(head.add(offset));
+            r2.store_ptr(head.add(offset * 2));
+            r3.store_ptr(head.add(offset * 3));
             head = head.add(8);
         }
-        let mut rot = MontgomeryModintx8::<M>::splat_raw(rate[0]);
+        let mut rot = Modintx8::<M>::splat_raw(rate[0]);
         for block in 1..blocks {
             let top = block * width;
             let rot2 = rot * rot;
@@ -199,22 +202,21 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             let mut head = a[top..].as_mut_ptr();
             for _ in (top..top + offset).step_by(8) {
                 let (c0a, c1a, c2a, c3a) = (head, head.add(offset), head.add(offset * 2), head.add(offset * 3));
-                let c0 = MontgomeryModintx8::load_ptr(c0a);
-                let c1 = MontgomeryModintx8::load_ptr(c1a) * rot;
-                let c2 = MontgomeryModintx8::load_ptr(c2a) * rot2;
-                let c3 = MontgomeryModintx8::load_ptr(c3a) * rot3;
-                let c02 = c0 + c2;
-                let c02n = c0 - c2;
-                let c13 = c1 + c3;
-                let c13nim = (c1 - c3) * imag;
-                (c02 + c13).store_ptr(c0a);
-                (c02 - c13).store_ptr(c1a);
-                (c02n + c13nim).store_ptr(c2a);
-                (c02n - c13nim).store_ptr(c3a);
+                let (r0, r1, r2, r3) = radix4_inner!(
+                    Modintx8::load_ptr(c0a),
+                    Modintx8::load_ptr(c1a) * rot,
+                    Modintx8::load_ptr(c2a) * rot2,
+                    Modintx8::load_ptr(c3a) * rot3,
+                    imag
+                );
+                r0.store_ptr(c0a);
+                r1.store_ptr(c1a);
+                r2.store_ptr(c2a);
+                r3.store_ptr(c3a);
                 head = head.add(8);
             }
             if top + width != deg {
-                rot = rot * MontgomeryModintx8::splat_raw(rate[(!block).trailing_zeros() as usize]);
+                rot = rot * Modintx8::splat_raw(rate[(!block).trailing_zeros() as usize]);
             }
         }
     }
