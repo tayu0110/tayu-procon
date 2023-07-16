@@ -1,8 +1,9 @@
 use montgomery_modint::{Modulo, MontgomeryModint};
 
+type Modint<M> = MontgomeryModint<M>;
+
 // AtCoder-Library like FftCache
 // reference: https://github.com/atcoder/ac-library/blob/master/atcoder/convolution.hpp
-type Modint<M> = MontgomeryModint<M>;
 pub struct FftCache<M: Modulo> {
     pub root: Vec<Modint<M>>,
     pub iroot: Vec<Modint<M>>,
@@ -15,14 +16,16 @@ pub struct FftCache<M: Modulo> {
 impl<M: Modulo> FftCache<M> {
     const RANK2: usize = (M::MOD - 1).trailing_zeros() as usize;
     pub fn new() -> Self {
-        let mut root = vec![Modint::one(); Self::RANK2 + 1];
-        let mut iroot = vec![Modint::one(); Self::RANK2 + 1];
-        let mut rate2 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
-        let mut irate2 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
-        let mut rate3 = vec![Modint::one(); Self::RANK2.saturating_sub(2)];
-        let mut irate3 = vec![Modint::one(); Self::RANK2.saturating_sub(2)];
+        // Create all arrays one size larger than required.
+        // This removes the out-of-array reference check within the NTT main loop.
+        let mut root = vec![Modint::one(); Self::RANK2 + 2];
+        let mut iroot = vec![Modint::one(); Self::RANK2 + 2];
+        let mut rate2 = vec![Modint::one(); Self::RANK2];
+        let mut irate2 = vec![Modint::one(); Self::RANK2];
+        let mut rate3 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
+        let mut irate3 = vec![Modint::one(); Self::RANK2.saturating_sub(1)];
 
-        root[Self::RANK2] = MontgomeryModint::<M>::nth_root(1 << Self::RANK2);
+        root[Self::RANK2] = Modint::<M>::nth_root(1 << Self::RANK2);
         iroot[Self::RANK2] = root[Self::RANK2].inv();
         for i in (0..Self::RANK2).rev() {
             root[i] = root[i + 1] * root[i + 1];

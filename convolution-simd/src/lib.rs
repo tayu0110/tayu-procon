@@ -1,7 +1,3 @@
-#![feature(test)]
-
-extern crate test;
-
 pub mod common;
 pub mod cooley_tukey;
 pub mod fft_cache;
@@ -11,9 +7,9 @@ pub mod traits;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::_mm256_storeu_si256;
 
-use cooley_tukey::cooley_tukey_radix_4_butterfly;
+use cooley_tukey::cooley_tukey_radix_4_butterfly_inv;
 use fft_cache::FftCache;
-use gentleman_sande::gentleman_sande_radix_4_butterfly_inv;
+use gentleman_sande::gentleman_sande_radix_4_butterfly;
 use montgomery_modint::{Mod645922817, Mod754974721, Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::ptr::copy_nonoverlapping;
 pub use traits::Nttable;
@@ -27,7 +23,7 @@ pub fn ntt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
     let log = n.trailing_zeros() as usize;
     assert_eq!(n, 1 << log);
 
-    unsafe { cooley_tukey_radix_4_butterfly(n, log, a, cache) }
+    unsafe { gentleman_sande_radix_4_butterfly(n, log, a, cache) }
 }
 
 #[inline]
@@ -37,7 +33,7 @@ pub fn intt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
     assert_eq!(n, 1 << log);
 
     unsafe {
-        gentleman_sande_radix_4_butterfly_inv(n, log, a, cache);
+        cooley_tukey_radix_4_butterfly_inv(n, log, a, cache);
         let ninv = Modint::raw(n as u32).inv();
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
@@ -59,16 +55,6 @@ pub fn dot<M: Modulo>(a: &mut Vec<Modint<M>>, b: &[Modint<M>]) {
                 .for_each(|(v, w)| (Modintx8::load_ptr(v.as_ptr()) * Modintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
         }
     }
-    // if a.len() < 8 {
-    //     a.iter_mut().zip(b).for_each(|(a, &b)| *a *= b);
-    // } else {
-    //     unsafe {
-    //         a.chunks_exact_mut(8)
-    //             .zip(b.chunks_exact(8))
-    //             .for_each(|(v, w)| (Modintx8::load_ptr(v.as_ptr()) * Modintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
-    //     }
-    // }
-    // a
 }
 
 pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
@@ -220,7 +206,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
             }
         }
         unsafe {
-            gentleman_sande_radix_4_butterfly_inv(THRESHOLD, THRESHOLD.trailing_zeros() as usize, &mut p, &cache);
+            cooley_tukey_radix_4_butterfly_inv(THRESHOLD, THRESHOLD.trailing_zeros() as usize, &mut p, &cache);
             for (res, p) in res[(s * width)..].chunks_exact_mut(8).zip(p.chunks_exact_mut(8)) {
                 (Modintx8::load_ptr(res.as_ptr()) + Modintx8::load_ptr(p.as_ptr())).store_ptr(res.as_mut_ptr());
                 Modintx8::zero().store_ptr(p.as_mut_ptr())
@@ -235,59 +221,5 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
             _mm256_storeu_si256(v.as_mut_ptr() as _, res.val());
         }
         res.into_iter().take(deg).map(|v| v.val).collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{convolution, convolution_1e97, convolution_mod_2_64, intt, ntt, FftCache};
-    use montgomery_modint::{Mod4194304001, Mod998244353, MontgomeryModint};
-
-    use test::Bencher;
-    #[bench]
-    fn simple_ntt_bench(b: &mut Bencher) {
-        type Modint = MontgomeryModint<Mod998244353>;
-        let cache = FftCache::new();
-        b.iter(|| {
-            for i in 15..=20 {
-                let mut data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
-                // let data = ntt(data, &cache);
-                // let _ = intt(data, &cache);
-                ntt(&mut data, &cache);
-                intt(&mut data, &cache);
-            }
-        })
-    }
-
-    #[test]
-    fn convolution_test() {
-        let a = vec![1, 2, 3, 4];
-        let b = vec![1, 2, 4, 8];
-        let c = convolution::<Mod998244353>(a, b);
-        assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
-    }
-
-    #[test]
-    fn convolution_large_mod_test() {
-        let a = vec![1, 2, 3, 4];
-        let b = vec![1, 2, 4, 8];
-        let c = convolution::<Mod4194304001>(a, b);
-        assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
-    }
-
-    #[test]
-    fn convolution_1e97_test() {
-        let a = vec![1, 2, 3, 4];
-        let b = vec![1, 2, 4, 8];
-        let c = convolution_1e97(a, b);
-        assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
-    }
-
-    #[test]
-    fn convolution_mod_2_64_test() {
-        let a = vec![1, 2, 3, 4];
-        let b = vec![1, 2, 4, 8];
-        let c = convolution_mod_2_64(a, b);
-        assert_eq!(c, vec![1, 4, 11, 26, 36, 40, 32]);
     }
 }
