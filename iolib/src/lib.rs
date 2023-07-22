@@ -1,8 +1,11 @@
+mod ext;
 mod input;
 mod output;
+mod parse_number;
 
-pub use input::{get_input, FastInput, Readable};
-pub use output::OUTPUT;
+pub use input::{get_stdin_source, FastInput, Readable};
+// pub use output::OUTPUT;
+pub use output::get_output_source;
 
 #[macro_export]
 macro_rules! scan {
@@ -19,7 +22,7 @@ macro_rules! scan {
     // let $v: ($t, $u, ....) = (.......)
     ( $v:ident : ( $( $rest:tt )* ) ) => { let $v = $crate::scan!(@expandtuple, ( $( $rest )* )); };
     // let $v: $t = ......, .......
-    ( $v:ident : $t:tt $(, $( $rest:tt )* )? ) => { let $v: $t = $crate::get_input().read::<$t>(); $( $crate::scan!($( $rest )*); )? };
+    ( $v:ident : $t:tt $(, $( $rest:tt )* )? ) => { let $v: $t = $crate::get_stdin_source().read::<$t>(); $( $crate::scan!($( $rest )*); )? };
     // ......
     ( $( $rest:tt )* ) => { $crate::scan!($( $rest )*); };
 }
@@ -27,7 +30,7 @@ macro_rules! scan {
 #[macro_export]
 macro_rules! put {
     () => {};
-    ( $t:expr ) => { $crate::OUTPUT.with(|o| o.borrow_mut().write($t)); };
+    ( $t:expr ) => { $crate::get_output_source().write($t); };
     ( $t:expr $(, $rest:tt )* ) => { $crate::put!($t); $crate::put!(' '); $crate::put!($( $rest )*); };
 }
 
@@ -40,10 +43,15 @@ macro_rules! putln {
 
 #[macro_export]
 macro_rules! putvec_with_space {
-    ( $t:expr ) => { $crate::OUTPUT.with(|o| o.borrow_mut().store_vec(&$t, ' ')); };
+    ( $t:expr ) => {
+        $crate::get_output_source().store_vec(&$t, ' ');
+    };
 }
 
 #[macro_export]
 macro_rules! putvec_with_spaceln {
-    ( $t:expr ) => { $crate::putvec_with_space!($t); $crate::putln!(); };
+    ( $t:expr ) => {
+        $crate::putvec_with_space!($t);
+        $crate::putln!();
+    };
 }

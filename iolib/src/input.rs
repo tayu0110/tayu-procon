@@ -1,36 +1,37 @@
-use std::io::{BufRead, Read, StdinLock};
-use std::ptr::copy_nonoverlapping;
-
-const BUF_SIZE: usize = 1 << 18;
+use super::ext::{mmap, MAP_PRIVATE, PROT_READ};
+use super::parse_number::{parse16c, parse8c, parse8lec};
+use std::fs::File;
+use std::io::Read;
+use std::os::unix::io::FromRawFd;
+use std::ptr::{null_mut, slice_from_raw_parts_mut};
 
 pub trait Readable {
     fn read(src: &mut FastInput) -> Self;
 }
 
 impl Readable for char {
-    fn read(src: &mut FastInput) -> Self { src.read_char() }
+    fn read(src: &mut FastInput) -> Self {
+        src.read_char()
+    }
 }
 
 impl Readable for String {
-    fn read(src: &mut FastInput) -> Self { src.read_string() }
+    fn read(src: &mut FastInput) -> Self {
+        src.read_string()
+    }
 }
 
 macro_rules! impl_readable_integer {
     ( $( { $t:ty, $ut:ty } )* ) => {
         $(impl Readable for $ut {
+            #[inline]
             fn read(src: &mut FastInput) -> $ut {
-                src.load();
-                let mut x = 0 as $ut;
-                while !src.peek().is_ascii_whitespace() {
-                    x = x * 10 + (src.next() - b'0') as $ut;
-                }
-                src.next();
-                x
+                src.read_u64() as $ut
             }
         }
         impl Readable for $t {
+            #[inline]
             fn read(src: &mut FastInput) -> $t {
-                src.load();
                 if src.peek() == b'-' {
                     src.next();
                     - (<$ut>::read(src) as $t)
@@ -54,116 +55,130 @@ macro_rules! impl_readable_float {
 
 impl_readable_float!(f32 f64);
 
-struct InputSource<'a> {
-    uninit: bool,
-    source: *mut StdinLock<'a>,
-}
-
-impl<'a> InputSource<'a> {
-    pub const fn new() -> Self { Self { uninit: true, source: 0 as *mut StdinLock<'a> } }
-
-    #[inline]
-    fn init(&mut self) {
-        let stdin = Box::leak::<'a>(Box::new(std::io::stdin()));
-        self.source = Box::leak::<'a>(Box::new(stdin.lock()));
-    }
-
-    #[inline]
-    pub fn get(&mut self) -> &mut StdinLock<'a> {
-        if self.uninit {
-            self.init();
-            self.uninit = false;
-        }
-        unsafe { self.source.as_mut().unwrap() }
-    }
-
-    #[allow(dead_code)]
-    #[inline]
-    pub fn read_until_newline(&mut self, buf: &mut Vec<u8>) -> Result<usize, std::io::Error> { self.get().read_until(b'\n', buf) }
-}
-
-pub struct FastInput<'a> {
+pub struct FastInput {
     head: usize,
-    tail: usize,
-    eof: bool,
-    buf: [u8; BUF_SIZE],
-    source: InputSource<'a>,
+    _file: File,
+    buf: Box<[u8]>,
 }
 
-impl<'a> FastInput<'a> {
-    pub const fn new() -> Self {
+impl FastInput {
+    fn new(file: File, buf: Box<[u8]>) -> Self {
         Self {
             head: 0,
-            tail: 0,
-            eof: false,
-            buf: [0; BUF_SIZE],
-            source: InputSource::new(),
+            _file: file,
+            buf,
         }
     }
 
     #[inline]
-    fn load(&mut self) {
-        if !self.eof && self.head + 32 > self.tail {
-            let count = self.tail - self.head;
-            unsafe { copy_nonoverlapping(self.buf[self.head..self.tail].as_ptr(), self.buf.as_mut_ptr(), count) }
-            let res = self.source.get().read(&mut self.buf[count..]).unwrap();
-            self.eof |= res == 0;
-            self.tail = count + res;
-            self.head = 0;
-            if self.tail < BUF_SIZE {
-                self.buf[self.tail] = b' ';
-            }
+    fn peek(&self) -> u8 {
+        self.buf[self.head]
+    }
+
+    #[inline]
+    fn next(&mut self) -> Option<u8> {
+        if self.head == self.buf.len() {
+            None
+        } else {
+            self.head += 1;
+            Some(self.buf[self.head - 1])
         }
     }
 
     #[inline]
-    fn peek(&self) -> u8 { self.buf[self.head] }
-
-    #[inline]
-    fn next(&mut self) -> u8 {
-        let res = self.buf[self.head];
-        self.head += 1;
-        res
+    pub fn read<R: Readable>(&mut self) -> R {
+        R::read(self)
     }
-
-    #[inline]
-    pub fn read<R: Readable>(&mut self) -> R { R::read(self) }
 
     #[inline]
     pub fn read_char(&mut self) -> char {
-        self.load();
+        while let Some(c) = self.next() {
+            if !c.is_ascii_whitespace() {
+                return c as char;
+            }
+        }
+        unreachable!(
+            "Error: buffer is empty. line: {}, file: {}",
+            line!(),
+            file!()
+        )
+    }
 
-        let c = self.next();
-        if self.peek().is_ascii_whitespace() {
-            self.next();
+    #[inline]
+    pub fn read_u64(&mut self) -> u64 {
+        let mut tail = self.head;
+        while tail < self.buf.len() && !self.buf[tail].is_ascii_whitespace() {
+            tail += 1;
         }
 
-        c as char
+        let offset = tail - self.head;
+        let res = if offset < 8 {
+            unsafe { parse8lec(&self.buf[self.head..self.head + 8], offset as u8) }
+        } else if offset == 8 {
+            unsafe { parse8c(&self.buf[self.head..self.head + 8]) }
+        } else if offset < 16 {
+            let rem = offset - 8;
+            let upper = unsafe { parse8lec(&self.buf[self.head..self.head + 8], rem as u8) };
+            let lower = unsafe { parse8c(&self.buf[self.head + rem..self.head + offset]) };
+            upper * 10000_0000 + lower
+        } else if offset == 16 {
+            unsafe { parse16c(&self.buf[self.head..self.head + 16]) }
+        } else {
+            let rem = offset - 16;
+            let upper = unsafe { parse8lec(&self.buf[self.head..self.head + 8], rem as u8) };
+            let lower = unsafe { parse16c(&self.buf[self.head + rem..self.head + offset]) };
+            upper * 10000_0000_0000_0000 + lower
+        };
+        self.head = tail + 1;
+        res
     }
 
     #[inline]
     pub fn read_string(&mut self) -> String {
-        self.load();
-
         let mut tail = self.head;
-        while tail < self.tail && !self.buf[tail].is_ascii_whitespace() {
+        while tail < self.buf.len() && !self.buf[tail].is_ascii_whitespace() {
             tail += 1;
         }
 
-        let mut res = String::from_utf8_lossy(&self.buf[self.head..tail]).into_owned();
-
-        self.head = tail;
-        if tail == self.tail && !self.eof {
-            res.push_str(&self.read_string());
-        } else {
-            self.head += 1;
-        }
-
+        let res = String::from_utf8_lossy(&self.buf[self.head..tail]).into_owned();
+        self.head = tail + 1;
         res
     }
 }
 
-static mut INPUT: FastInput = FastInput::new();
+static mut INPUT: *mut FastInput = 0 as *mut FastInput;
+static mut STDINT_SOURCE: fn() -> &'static mut FastInput = init;
 
 #[inline]
-pub fn get_input() -> &'static mut FastInput<'static> { unsafe { &mut INPUT } }
+fn init() -> &'static mut FastInput {
+    let mut stdin = unsafe { File::from_raw_fd(0) };
+    let meta = stdin.metadata().unwrap();
+    let buf = if meta.is_file() {
+        let len = meta.len() as usize + 32;
+        let mapping = unsafe { mmap(null_mut() as _, len, PROT_READ, MAP_PRIVATE, 0, 0) };
+        let res = slice_from_raw_parts_mut(mapping as *mut u8, len);
+        unsafe { Box::from_raw(res) }
+    } else {
+        let mut buf = Vec::with_capacity(1 << 18);
+        stdin.read_to_end(&mut buf).unwrap();
+        buf.resize(buf.len() + 32, b' ');
+        buf.into_boxed_slice()
+    };
+
+    let input = FastInput::new(stdin, buf);
+    unsafe {
+        INPUT = Box::leak(Box::new(input));
+        STDINT_SOURCE = get_input;
+    }
+    get_input()
+}
+
+#[inline]
+fn get_input() -> &'static mut FastInput {
+    unsafe { INPUT.as_mut().unwrap_unchecked() }
+}
+
+#[inline]
+pub fn get_stdin_source() -> &'static mut FastInput {
+    unsafe { STDINT_SOURCE() }
+}
