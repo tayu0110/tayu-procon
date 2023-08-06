@@ -10,3 +10,6 @@ license = "CC0-1.0"
 iolib = { version = "0.1.0", path = "../../iolib" }
 modint-common = { version = "0.1.0", path = "../modint-common" }
 numeric = { version = "0.1.0", path = "../../numeric" }
+
+[lib]
+doctest = false

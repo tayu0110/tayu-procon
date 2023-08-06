@@ -38,8 +38,8 @@ pub fn intt<M: Modulo>(a: &mut Vec<Modint<M>>, cache: &FftCache<M>) {
         if n < 8 {
             a.iter_mut().for_each(|a| *a *= ninv);
         } else {
-            let ninv = Modintx8::<M>::splat_raw(ninv);
-            a.chunks_exact_mut(8).for_each(|v| (Modintx8::load_ptr(v.as_ptr()) * ninv).store_ptr(v.as_mut_ptr()));
+            let ninv = Modintx8::<M>::splat(ninv);
+            a.chunks_exact_mut(8).for_each(|v| (Modintx8::load(v.as_ptr()) * ninv).store(v.as_mut_ptr()));
         }
     }
 }
@@ -52,7 +52,7 @@ pub fn dot<M: Modulo>(a: &mut Vec<Modint<M>>, b: &[Modint<M>]) {
         unsafe {
             a.chunks_exact_mut(8)
                 .zip(b.chunks_exact(8))
-                .for_each(|(v, w)| (Modintx8::load_ptr(v.as_ptr()) * Modintx8::load_ptr(w.as_ptr())).store_ptr(v.as_mut_ptr()))
+                .for_each(|(v, w)| (Modintx8::load(v.as_ptr()) * Modintx8::load(w.as_ptr())).store(v.as_mut_ptr()))
         }
     }
 }
@@ -208,16 +208,16 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         unsafe {
             cooley_tukey_radix_4_butterfly_inv(THRESHOLD, THRESHOLD.trailing_zeros() as usize, &mut p, &cache);
             for (res, p) in res[(s * width)..].chunks_exact_mut(8).zip(p.chunks_exact_mut(8)) {
-                (Modintx8::load_ptr(res.as_ptr()) + Modintx8::load_ptr(p.as_ptr())).store_ptr(res.as_mut_ptr());
-                Modintx8::zero().store_ptr(p.as_mut_ptr())
+                (Modintx8::load(res.as_ptr()) + Modintx8::load(p.as_ptr())).store(res.as_mut_ptr());
+                Modintx8::zero().store(p.as_mut_ptr())
             }
         }
     }
 
     unsafe {
-        let ninv = Modintx8::splat_raw(Modint::<Mod998244353>::new(THRESHOLD as u32).inv());
+        let ninv = Modintx8::splat(Modint::<Mod998244353>::new(THRESHOLD as u32).inv());
         for v in res.chunks_exact_mut(8).take((deg + 7) >> 3) {
-            let res = Modintx8::load_ptr(v.as_ptr()) * ninv;
+            let res = Modintx8::load(v.as_ptr()) * ninv;
             _mm256_storeu_si256(v.as_mut_ptr() as _, res.val());
         }
         res.into_iter().take(deg).map(|v| v.val).collect()

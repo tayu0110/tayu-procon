@@ -12,3 +12,6 @@ arbitrary-montgomery-modint = { version = "0.1.0", path = "arbitrary-montgomery-
 modint-common = { version = "0.1.0", path = "modint-common" }
 montgomery-modint = { version = "0.1.0", path = "montgomery-modint" }
 static-modint = { version = "0.1.0", path = "static-modint" }
+
+[lib]
+doctest = false

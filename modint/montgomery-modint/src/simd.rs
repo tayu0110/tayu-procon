@@ -1,9 +1,14 @@
 use super::MontgomeryModint;
 use modint_common::Modulo;
 use numeric::{One, Zero};
-use std::arch::x86_64::{__m256i, _mm256_i32gather_epi32, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_setzero_si256, _mm256_storeu_si256};
+use std::arch::x86_64::{
+    __m256i, _mm256_i32gather_epi32, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_setzero_si256, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32,
+    _mm256_unpacklo_epi64,
+};
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
+
+type Modint<M> = MontgomeryModint<M>;
 
 #[derive(Clone, Copy)]
 pub struct MontgomeryModintx8<M: Modulo> {
@@ -11,12 +16,11 @@ pub struct MontgomeryModintx8<M: Modulo> {
     _phantom: PhantomData<fn() -> M>,
 }
 
-impl<M: Modulo> MontgomeryModintx8<M> {
-    #[inline]
-    pub fn splat(val: u32) -> Self { Self::splat_unchecked(val.rem_euclid(M::MOD)) }
+type Modintx8<M> = MontgomeryModintx8<M>;
 
+impl<M: Modulo> Modintx8<M> {
     #[inline]
-    pub fn splat_unchecked(val: u32) -> Self {
+    pub fn splat_raw(val: u32) -> Self {
         unsafe {
             Self {
                 val: M::multiplyx8(_mm256_set1_epi32(val as i32), M::R2X8),
@@ -26,7 +30,7 @@ impl<M: Modulo> MontgomeryModintx8<M> {
     }
 
     #[inline]
-    pub fn splat_raw(val: MontgomeryModint<M>) -> Self { Self::from_rawval(unsafe { _mm256_set1_epi32(val.val as i32) }) }
+    pub fn splat(val: Modint<M>) -> Self { Self::from_rawval(unsafe { _mm256_set1_epi32(val.val as i32) }) }
 
     #[inline]
     pub fn from_rawval(val: __m256i) -> Self { Self { val, _phantom: PhantomData } }
@@ -49,56 +53,56 @@ impl<M: Modulo> MontgomeryModintx8<M> {
     }
 
     #[inline]
-    pub fn load(slice: &[MontgomeryModint<M>]) -> Self {
-        assert_eq!(slice.len(), 8);
-        unsafe { Self::load_ptr(slice.as_ptr()) }
-    }
+    pub unsafe fn load(head: *const Modint<M>) -> Self { Self { val: _mm256_loadu_si256(head as _), _phantom: PhantomData } }
 
     #[inline]
-    pub unsafe fn load_ptr(head: *const MontgomeryModint<M>) -> Self { Self { val: _mm256_loadu_si256(head as _), _phantom: PhantomData } }
+    pub unsafe fn store(&self, head: *mut Modint<M>) { unsafe { _mm256_storeu_si256(head as _, self.val) } }
 
     #[inline]
-    pub fn store(&self, slice: &mut [MontgomeryModint<M>]) {
-        assert_eq!(slice.len(), 8);
-        unsafe { self.store_ptr(slice.as_mut_ptr()) }
-    }
+    pub unsafe fn gather(head: *const Modint<M>, vindex: __m256i) -> Self { Self::from_rawval(unsafe { _mm256_i32gather_epi32(head as _, vindex, 4) }) }
 
     #[inline]
-    pub unsafe fn store_ptr(&self, head: *mut MontgomeryModint<M>) { unsafe { _mm256_storeu_si256(head as _, self.val) } }
+    pub unsafe fn unpacklo64(self, other: Self) -> Self { Self::from_rawval(_mm256_unpacklo_epi64(self.val, other.val)) }
 
     #[inline]
-    pub unsafe fn gather_ptr(head: *const MontgomeryModint<M>, vindex: __m256i) -> Self { Self::from_rawval(unsafe { _mm256_i32gather_epi32(head as _, vindex, 4) }) }
+    pub unsafe fn unpackhi64(self, other: Self) -> Self { Self::from_rawval(_mm256_unpackhi_epi64(self.val, other.val)) }
+
+    #[inline]
+    pub unsafe fn unpacklo32(self, other: Self) -> Self { Self::from_rawval(_mm256_unpacklo_epi32(self.val, other.val)) }
+
+    #[inline]
+    pub unsafe fn unpackhi32(self, other: Self) -> Self { Self::from_rawval(_mm256_unpackhi_epi32(self.val, other.val)) }
 }
 
-impl<M: Modulo> One for MontgomeryModintx8<M> {
+impl<M: Modulo> One for Modintx8<M> {
     #[inline]
     fn one() -> Self { Self::one() }
 }
 
-impl<M: Modulo> Zero for MontgomeryModintx8<M> {
+impl<M: Modulo> Zero for Modintx8<M> {
     #[inline]
     fn zero() -> Self { Self::zero() }
 }
 
-impl<M: Modulo> Add for MontgomeryModintx8<M> {
+impl<M: Modulo> Add for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
     fn add(self, rhs: Self) -> Self::Output { Self { val: M::addx8(self.val, rhs.val), _phantom: PhantomData } }
 }
 
-impl<M: Modulo> Sub for MontgomeryModintx8<M> {
+impl<M: Modulo> Sub for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
     fn sub(self, rhs: Self) -> Self::Output { Self { val: M::subtractx8(self.val, rhs.val), _phantom: PhantomData } }
 }
 
-impl<M: Modulo> Mul for MontgomeryModintx8<M> {
+impl<M: Modulo> Mul for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
     fn mul(self, rhs: Self) -> Self::Output { Self { val: M::multiplyx8(self.val, rhs.val), _phantom: PhantomData } }
 }
 
-impl<M: Modulo> std::fmt::Debug for MontgomeryModintx8<M> {
+impl<M: Modulo> std::fmt::Debug for Modintx8<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut dest = [0u32; 8];
         unsafe {

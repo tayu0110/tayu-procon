@@ -95,7 +95,7 @@ impl<M: Modulo> Polynomial<M> {
                 g[size..]
                     .chunks_exact_mut(8)
                     .zip(hg[size..].chunks_exact(8))
-                    .for_each(|(p, v)| unsafe { (Modintx8::load_ptr(p.as_ptr()) - Modintx8::load_ptr(v.as_ptr())).store_ptr(p.as_mut_ptr()) });
+                    .for_each(|(p, v)| unsafe { (Modintx8::load(p.as_ptr()) - Modintx8::load(v.as_ptr())).store(p.as_mut_ptr()) });
             }
             size <<= 1;
         }
@@ -330,8 +330,8 @@ impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
     fn from(mut v: Vec<u32>) -> Self {
         let l = v.len() >> 3 << 3;
         v[..l].chunks_exact_mut(8).for_each(|v| {
-            let w = unsafe { Modintx8::<M>::load_ptr(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8) };
-            unsafe { w.store_ptr(v.as_mut_ptr() as _) }
+            let w = unsafe { Modintx8::<M>::load(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8) };
+            unsafe { w.store(v.as_mut_ptr() as _) }
         });
         v[l..].iter_mut().for_each(|v| *v = Modint::<M>::new(*v).val);
         Self { coef: unsafe { std::mem::transmute(v) } }
@@ -346,8 +346,8 @@ impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
     fn into(mut self) -> Vec<u32> {
         let l = self.deg() >> 3 << 3;
         self.coef[..l].chunks_exact_mut(8).for_each(|v| {
-            let w = Modintx8::load(&v);
-            Modintx8::from_rawval(w.val()).store(v)
+            let w = unsafe { Modintx8::load(v.as_ptr()) };
+            unsafe { Modintx8::from_rawval(w.val()).store(v.as_mut_ptr()) }
         });
         self.coef[l..].iter_mut().for_each(|v| *v = Modint::from_rawval(v.val()));
         unsafe { std::mem::transmute(self.coef) }

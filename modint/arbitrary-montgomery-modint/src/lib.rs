@@ -34,6 +34,16 @@ impl ArbitraryMontgomeryModint {
     pub const fn new(val: u64, modulo: u64) -> Self { Self::raw(val % modulo, modulo) }
 
     pub const fn raw(val: u64, modulo: u64) -> Self {
+        if modulo == 998244353 {
+            let val = montgomery_multiplication(val, 299560064, modulo, 996491785301655553);
+            return Self {
+                val,
+                modulo,
+                modulo_inv: 996491785301655553,
+                r: 932051910,
+                r2: 299560064,
+            };
+        }
         let r = ((1u128 << 64) % modulo as u128) as u64;
         let r2 = ((modulo as u128).wrapping_neg() % modulo as u128) as u64;
         let modulo_inv = {
@@ -63,7 +73,7 @@ impl ArbitraryMontgomeryModint {
     pub const fn val(&self) -> u64 { montgomery_reduction(self.val, self.modulo, self.modulo_inv) }
 
     #[inline]
-    pub const fn val_mont_expr(&self) -> u64 { self.val }
+    pub const fn rawval(&self) -> u64 { self.val }
 
     #[inline]
     pub const fn one(&self) -> Self {

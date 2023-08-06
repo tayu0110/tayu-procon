@@ -162,7 +162,7 @@ impl<M: Modulo> From<i64> for StaticModint<M> {
     fn from(value: i64) -> Self { Self::new_signed(value) }
 }
 
-pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> StaticModint<M> {
+pub fn combination<M: Modulo>(size: u32) -> impl Fn(u32, u32) -> StaticModint<M> {
     let mut fact = vec![StaticModint::<M>::one()];
     fact.append(
         &mut (1..=size)
@@ -186,11 +186,11 @@ pub fn combination<M: Modulo>(size: u32) -> impl Fn(usize, usize) -> StaticModin
     );
     ifact.reverse();
 
-    move |n: usize, k: usize| {
+    move |n: u32, k: u32| {
         if n < k {
             StaticModint::zero()
         } else {
-            fact[n] * ifact[k] * ifact[n - k]
+            fact[n as usize] * ifact[k as usize] * ifact[(n - k) as usize]
         }
     }
 }

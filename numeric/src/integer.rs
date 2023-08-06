@@ -61,8 +61,6 @@ pub trait Integer:
     fn overflowing_add(self, rhs: Self) -> (Self, bool);
     fn overflowing_mul(self, rhs: Self) -> (Self, bool);
     fn overflowing_neg(self) -> (Self, bool);
-    fn overflowing_shl(self, rhs: u32) -> (Self, bool);
-    fn overflowing_shr(self, rhs: u32) -> (Self, bool);
     fn overflowing_sub(self, rhs: Self) -> (Self, bool);
     fn saturating_add(self, rhs: Self) -> Self;
     fn saturating_mul(self, rhs: Self) -> Self;
@@ -70,8 +68,6 @@ pub trait Integer:
     fn wrapping_add(self, rhs: Self) -> Self;
     fn wrapping_mul(self, rhs: Self) -> Self;
     fn wrapping_neg(self) -> Self;
-    fn wrapping_shl(self, rhs: u32) -> Self;
-    fn wrapping_shr(self, rhs: u32) -> Self;
     fn wrapping_sub(self, rhs: Self) -> Self;
 }
 
@@ -93,8 +89,6 @@ macro_rules! impl_integer_trait {
             fn overflowing_add(self, rhs: Self) -> (Self, bool) { self.overflowing_add(rhs) }
             fn overflowing_mul(self, rhs: Self) -> (Self, bool) { self.overflowing_mul(rhs) }
             fn overflowing_neg(self) -> (Self, bool) { self.overflowing_neg() }
-            fn overflowing_shl(self, rhs: u32) -> (Self, bool) { self.overflowing_shl(rhs) }
-            fn overflowing_shr(self, rhs: u32) -> (Self, bool) { self.overflowing_shr(rhs) }
             fn overflowing_sub(self, rhs: Self) -> (Self, bool) { self.overflowing_sub(rhs) }
             fn saturating_add(self, rhs: Self) -> Self { self.saturating_add(rhs) }
             fn saturating_mul(self, rhs: Self) -> Self { self.saturating_mul(rhs) }
@@ -102,8 +96,6 @@ macro_rules! impl_integer_trait {
             fn wrapping_add(self, rhs: Self) -> Self { self.wrapping_add(rhs) }
             fn wrapping_mul(self, rhs: Self) -> Self { self.wrapping_mul(rhs) }
             fn wrapping_neg(self) -> Self { self.wrapping_neg() }
-            fn wrapping_shl(self, rhs: u32) -> Self { self.wrapping_shl(rhs) }
-            fn wrapping_shr(self, rhs: u32) -> Self { self.wrapping_shr(rhs) }
             fn wrapping_sub(self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
         })*
     };

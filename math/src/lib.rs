@@ -1,5 +1,6 @@
 use arbitrary_montgomery_modint::ArbitraryMontgomeryModint;
 use numeric::Integer;
+use simple_rand::xor_shift;
 
 //////////////////////////////////////////////////////////////////////////////////
 // Define famous functions for integers
@@ -416,6 +417,66 @@ fn pollard_rho(n: u64) -> Option<u64> {
     }
 
     pollard_rho(g as u64)
+}
+
+pub fn tonelli_shanks_unchecked(n: u64, p: u64) -> Option<u64> {
+    // ArbitraryMontgomeryModint expects only odd number for p. So, the case that p is equal to 2 must be processed the top of this procedure.
+    if p == 2 {
+        let res = n & 1;
+        assert_eq!(res * res % p, n);
+        return Some(res);
+    }
+    type Modint = ArbitraryMontgomeryModint;
+    let mn = Modint::new(n, p);
+    if mn.rawval() == 0 {
+        assert_eq!(0 * 0 % p, n);
+        return Some(0);
+    }
+
+    let one = mn.one();
+    if mn.pow((p - 1) >> 1).rawval() != one.rawval() {
+        return None;
+    }
+
+    if p & 0b11 == 3 {
+        let s = mn.pow((p + 1) >> 2).val();
+        let t = p - s;
+        return Some(s.min(t));
+    }
+
+    for b in xor_shift(381928476372819).map(|v| v % (p - 2) + 2) {
+        let b = Modint::from_same_mod(b, mn);
+        if b.pow((p - 1) >> 1).rawval() != one.rawval() {
+            let q = (p - 1).trailing_zeros() as u64;
+            let s = (p - 1) >> q;
+
+            let mut x = mn.pow((s + 1) >> 1);
+            let mut x2 = x * x;
+            let mut b = b.pow(s);
+            let mninv = mn.inv();
+
+            let mut shift = 2;
+            while x2 != mn {
+                let diff = mninv * x2;
+                if diff.pow(1 << (q - shift)).rawval() != one.rawval() {
+                    x *= b;
+                    b *= b;
+                    x2 *= b;
+                } else {
+                    b *= b;
+                }
+                shift += 1;
+            }
+            return Some(x.val());
+        }
+    }
+
+    unreachable!()
+}
+
+pub fn tonelli_shanks(n: u64, p: u64) -> Option<u64> {
+    assert!(miller_rabin_test(p));
+    tonelli_shanks_unchecked(n, p)
 }
 
 #[cfg(test)]

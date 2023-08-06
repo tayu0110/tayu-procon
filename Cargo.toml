@@ -2,6 +2,7 @@
 name = "tayu-procon"
 version = "0.1.0"
 edition = "2021"
+license = "CC0-1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -34,6 +35,3 @@ wavelet-matrix = { path = "./wavelet-matrix" }
 [dev-dependencies]
 rand = "0.8.5"
 proconio = "0.4.3"
-
-[[example]]
-name = "io"

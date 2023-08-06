@@ -12,3 +12,6 @@ montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
 [dev-dependencies]
 iolib = { path = "../iolib" }
 proconio = { version = "0.4.3", features = ["derive"] }
+
+[lib]
+doctest = false

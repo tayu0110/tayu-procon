@@ -66,7 +66,7 @@ fn convert_u32_to_modint<M: Modulo>(a: &mut Vec<u32>) {
         a.iter_mut().for_each(|a| *a = Modint::<M>::from(*a).val);
     } else {
         a.chunks_exact_mut(8)
-            .for_each(|v| unsafe { (Modintx8::<M>::load_ptr(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8)).store_ptr(v.as_mut_ptr() as _) });
+            .for_each(|v| unsafe { (Modintx8::<M>::load(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8)).store(v.as_mut_ptr() as _) });
     }
 }
 
@@ -75,7 +75,7 @@ fn convert_modint_to_u32<M: Modulo>(a: &mut Vec<Modint<M>>) {
     if a.len() < 8 {
         a.iter_mut().for_each(|a| *a = Modint::from_rawval(a.val()));
     } else {
-        unsafe { a.chunks_exact_mut(8).for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, Modintx8::<M>::load_ptr(v.as_ptr()).val())) }
+        unsafe { a.chunks_exact_mut(8).for_each(|v| _mm256_storeu_si256(v.as_mut_ptr() as _, Modintx8::<M>::load(v.as_ptr()).val())) }
     }
 }
 

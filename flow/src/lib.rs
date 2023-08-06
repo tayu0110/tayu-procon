@@ -100,9 +100,7 @@ impl<Cap: Numeric> Dinic<Cap> {
     pub fn min_cut_restoration(&mut self) -> Vec<(usize, Edge<Cap>)> {
         let mut reachable = vec![false; self.size];
 
-        let start = self
-            .start
-            .expect("The start point is ambiguous. Please run Dinic::flow() before Dinic::min_cut_restoration().");
+        let start = self.start.expect("The start point is ambiguous. Please run Dinic::flow() before Dinic::min_cut_restoration().");
 
         let mut nt = std::collections::VecDeque::new();
         nt.push_back(start);
