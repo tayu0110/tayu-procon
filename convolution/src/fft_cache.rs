@@ -13,7 +13,7 @@ pub struct FftCache<M: Modulo> {
 }
 
 impl<M: Modulo> FftCache<M> {
-    const RANK2: usize = (M::MOD - 1).trailing_zeros() as usize;
+    const RANK2: usize = (M::N - 1).trailing_zeros() as usize;
     pub fn new() -> Self {
         let mut root = vec![Modint::one(); Self::RANK2 + 1];
         let mut iroot = vec![Modint::one(); Self::RANK2 + 1];

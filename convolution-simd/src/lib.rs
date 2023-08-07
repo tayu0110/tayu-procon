@@ -82,7 +82,7 @@ pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     let c3 = convolution::<Mod998244353>(a, b);
 
     const MOD: u64 = 1000_000_007;
-    const P: [u64; 3] = [Mod880803841::MOD as u64, Mod897581057::MOD as u64, Mod998244353::MOD as u64];
+    const P: [u64; 3] = [Mod880803841::N as u64, Mod897581057::N as u64, Mod998244353::N as u64];
     const P1P2: u64 = P[0] * P[1] % P[2];
     const P1P2MOD: u64 = P[0] * P[1] % MOD;
     let p1i = Modint::<Mod897581057>::raw(P[0] as u32).inv().val() as u64;
@@ -101,33 +101,27 @@ pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
 
 pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
     let c1 = convolution::<Mod645922817>(
-        a.iter().cloned().map(|a| (a % Mod645922817::MOD as u64) as u32).collect(),
-        b.iter().cloned().map(|b| (b % Mod645922817::MOD as u64) as u32).collect(),
+        a.iter().cloned().map(|a| (a % Mod645922817::N as u64) as u32).collect(),
+        b.iter().cloned().map(|b| (b % Mod645922817::N as u64) as u32).collect(),
     );
     let c2 = convolution::<Mod754974721>(
-        a.iter().cloned().map(|a| (a % Mod754974721::MOD as u64) as u32).collect(),
-        b.iter().cloned().map(|b| (b % Mod754974721::MOD as u64) as u32).collect(),
+        a.iter().cloned().map(|a| (a % Mod754974721::N as u64) as u32).collect(),
+        b.iter().cloned().map(|b| (b % Mod754974721::N as u64) as u32).collect(),
     );
     let c3 = convolution::<Mod880803841>(
-        a.iter().cloned().map(|a| (a % Mod880803841::MOD as u64) as u32).collect(),
-        b.iter().cloned().map(|b| (b % Mod880803841::MOD as u64) as u32).collect(),
+        a.iter().cloned().map(|a| (a % Mod880803841::N as u64) as u32).collect(),
+        b.iter().cloned().map(|b| (b % Mod880803841::N as u64) as u32).collect(),
     );
     let c4 = convolution::<Mod897581057>(
-        a.iter().cloned().map(|a| (a % Mod897581057::MOD as u64) as u32).collect(),
-        b.iter().cloned().map(|b| (b % Mod897581057::MOD as u64) as u32).collect(),
+        a.iter().cloned().map(|a| (a % Mod897581057::N as u64) as u32).collect(),
+        b.iter().cloned().map(|b| (b % Mod897581057::N as u64) as u32).collect(),
     );
     let c5 = convolution::<Mod998244353>(
-        a.into_iter().map(|a| (a % Mod998244353::MOD as u64) as u32).collect(),
-        b.into_iter().map(|b| (b % Mod998244353::MOD as u64) as u32).collect(),
+        a.into_iter().map(|a| (a % Mod998244353::N as u64) as u32).collect(),
+        b.into_iter().map(|b| (b % Mod998244353::N as u64) as u32).collect(),
     );
 
-    const P: [u64; 5] = [
-        Mod645922817::MOD as u64,
-        Mod754974721::MOD as u64,
-        Mod880803841::MOD as u64,
-        Mod897581057::MOD as u64,
-        Mod998244353::MOD as u64,
-    ];
+    const P: [u64; 5] = [Mod645922817::N as u64, Mod754974721::N as u64, Mod880803841::N as u64, Mod897581057::N as u64, Mod998244353::N as u64];
     const PROD01: u64 = (P[0] as u64).wrapping_mul(P[1]);
     const PROD012: u64 = PROD01.wrapping_mul(P[2]);
     const PROD0123: u64 = PROD012.wrapping_mul(P[3]);
@@ -155,7 +149,7 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
         }
 
         res.push(
-            t0.wrapping_add(w[0].wrapping_mul(Mod645922817::MOD as u64))
+            t0.wrapping_add(w[0].wrapping_mul(Mod645922817::N as u64))
                 .wrapping_add(w[1].wrapping_mul(PROD01))
                 .wrapping_add(w[2].wrapping_mul(PROD012))
                 .wrapping_add(w[3].wrapping_mul(PROD0123)),

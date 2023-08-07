@@ -14,7 +14,7 @@ pub struct FftCache<M: Modulo> {
 }
 
 impl<M: Modulo> FftCache<M> {
-    const RANK2: usize = (M::MOD - 1).trailing_zeros() as usize;
+    const RANK2: usize = (M::N - 1).trailing_zeros() as usize;
     pub fn new() -> Self {
         // Create all arrays one size larger than required.
         // This removes the out-of-array reference check within the NTT main loop.

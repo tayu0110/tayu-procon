@@ -22,73 +22,73 @@ impl<M: Modulo> Zero for StaticModint<M> {
 
 impl<M: Modulo> StaticModint<M> {
     #[inline]
-    pub fn new(val: u64) -> Self { StaticModint { val: (val % M::MOD as u64) as u32, _p: PhantomData } }
+    pub const fn new(val: u64) -> Self { StaticModint { val: (val % M::N as u64) as u32, _p: PhantomData } }
 
-    pub fn new_signed(val: i64) -> Self { StaticModint { val: val.rem_euclid(M::MOD as i64) as u32, _p: PhantomData } }
+    pub const fn new_signed(val: i64) -> Self { StaticModint { val: val.rem_euclid(M::N as i64) as u32, _p: PhantomData } }
 
     #[inline]
-    pub fn raw(val: u32) -> Self {
-        debug_assert!(val < M::MOD);
+    pub const fn raw(val: u32) -> Self {
+        debug_assert!(val < M::N);
         StaticModint { val, _p: marker::PhantomData }
     }
 
     #[inline]
-    pub fn zero() -> Self { StaticModint { val: 0, _p: marker::PhantomData } }
+    pub const fn zero() -> Self { StaticModint { val: 0, _p: marker::PhantomData } }
 
     #[inline]
-    pub fn one() -> Self { StaticModint { val: 1, _p: marker::PhantomData } }
+    pub const fn one() -> Self { StaticModint { val: 1, _p: marker::PhantomData } }
 
     #[inline]
-    pub fn modulo() -> u32 { M::MOD }
+    pub const fn modulo() -> u32 { M::N }
 
     #[inline]
-    pub fn val(&self) -> u32 { self.val }
+    pub const fn val(&self) -> u32 { self.val }
 
-    pub fn pow(&self, mut exp: u32) -> Self {
+    pub const fn pow(&self, mut exp: u32) -> Self {
         let (mut val, mut res) = (self.val as u64, 1);
         while exp > 0 {
             if exp & 1 == 1 {
-                res = (res * val) % M::MOD as u64;
+                res = (res * val) % M::N as u64;
             }
-            val = (val * val) % M::MOD as u64;
+            val = (val * val) % M::N as u64;
             exp >>= 1;
         }
         Self { val: res as u32, _p: PhantomData }
     }
 
     #[inline]
-    pub fn inv(&self) -> Self { self.pow(M::MOD - 2) }
+    pub const fn inv(&self) -> Self { self.pow(M::N - 2) }
 
     #[inline]
-    pub fn nth_root(n: u32) -> Self {
+    pub const fn nth_root(n: u32) -> Self {
         debug_assert!(n == 1 << n.trailing_zeros());
-        StaticModint::raw(M::PRIM_ROOT).pow((M::MOD - 1) / n)
+        StaticModint::raw(M::PRIM_ROOT).pow((M::N - 1) / n)
     }
 
     #[inline]
-    pub fn add_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
+    pub const fn add_raw(&self, rhs: u32) -> Self {
+        debug_assert!(rhs < M::N);
         let res = self.val + rhs;
-        StaticModint::raw(if res >= M::MOD { res - M::MOD } else { res })
+        StaticModint::raw(if res >= M::N { res - M::N } else { res })
     }
 
     #[inline]
-    pub fn sub_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
+    pub const fn sub_raw(&self, rhs: u32) -> Self {
+        debug_assert!(rhs < M::N);
         let (res, f) = self.val.overflowing_sub(rhs);
-        StaticModint::raw(if f { res.wrapping_add(M::MOD) } else { res })
+        StaticModint::raw(if f { res.wrapping_add(M::N) } else { res })
     }
 
     #[inline]
-    pub fn mul_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
+    pub const fn mul_raw(&self, rhs: u32) -> Self {
+        debug_assert!(rhs < M::N);
         StaticModint::new(self.val as u64 * rhs as u64)
     }
 
     #[inline]
-    pub fn div_raw(&self, rhs: u32) -> Self {
-        debug_assert!(rhs < M::MOD);
-        *self / StaticModint::raw(rhs)
+    pub const fn div_raw(&self, rhs: u32) -> Self {
+        debug_assert!(rhs < M::N);
+        self.mul_raw(StaticModint::<M>::raw(rhs).inv().val)
     }
 }
 

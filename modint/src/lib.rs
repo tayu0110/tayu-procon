@@ -43,8 +43,8 @@ mod tests {
 
     #[test]
     fn modint_test() {
-        assert_eq!(Mod998244353::MOD, 998244353);
-        assert_eq!(Mod1000000007::MOD, 1000000007);
+        assert_eq!(Mod998244353::N, 998244353);
+        assert_eq!(Mod1000000007::N, 1000000007);
 
         const A: u32 = 347384953;
         const B: u32 = 847362948;

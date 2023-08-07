@@ -1,5 +1,5 @@
 use super::MontgomeryModint;
-use modint_common::Modulo;
+use modint_common::*;
 use numeric::{One, Zero};
 use std::arch::x86_64::{
     __m256i, _mm256_i32gather_epi32, _mm256_loadu_si256, _mm256_set1_epi32, _mm256_setzero_si256, _mm256_storeu_si256, _mm256_unpackhi_epi32, _mm256_unpackhi_epi64, _mm256_unpacklo_epi32,
@@ -23,7 +23,7 @@ impl<M: Modulo> Modintx8<M> {
     pub fn splat_raw(val: u32) -> Self {
         unsafe {
             Self {
-                val: M::multiplyx8(_mm256_set1_epi32(val as i32), M::R2X8),
+                val: mmulx8::<M>(_mm256_set1_epi32(val as i32), M::R2X8),
                 _phantom: PhantomData,
             }
         }
@@ -36,7 +36,7 @@ impl<M: Modulo> Modintx8<M> {
     pub fn from_rawval(val: __m256i) -> Self { Self { val, _phantom: PhantomData } }
 
     #[inline]
-    pub fn val(&self) -> __m256i { M::restorex8(M::reducex8(self.val)) }
+    pub fn val(&self) -> __m256i { unsafe { mrestorex8::<M>(mreducex8::<M>(self.val)) } }
 
     #[inline]
     pub fn rawval(&self) -> __m256i { self.val }
@@ -87,19 +87,34 @@ impl<M: Modulo> Zero for Modintx8<M> {
 impl<M: Modulo> Add for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: Self) -> Self::Output { Self { val: M::addx8(self.val, rhs.val), _phantom: PhantomData } }
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            val: unsafe { maddx8::<M>(self.val, rhs.val) },
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<M: Modulo> Sub for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: Self) -> Self::Output { Self { val: M::subtractx8(self.val, rhs.val), _phantom: PhantomData } }
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            val: unsafe { msubx8::<M>(self.val, rhs.val) },
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<M: Modulo> Mul for Modintx8<M> {
     type Output = Self;
     #[inline(always)]
-    fn mul(self, rhs: Self) -> Self::Output { Self { val: M::multiplyx8(self.val, rhs.val), _phantom: PhantomData } }
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            val: unsafe { mmulx8::<M>(self.val, rhs.val) },
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<M: Modulo> std::fmt::Debug for Modintx8<M> {

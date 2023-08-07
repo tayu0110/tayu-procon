@@ -56,7 +56,7 @@ pub fn convolution_998_upper223(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     let c3 = convolution(na, nb);
 
     const MOD: i64 = 998244353;
-    const P: [i64; 3] = [Mod3221225473::MOD as i64, Mod3489660929::MOD as i64, Mod2281701377::MOD as i64];
+    const P: [i64; 3] = [Mod3221225473::N as i64, Mod3489660929::N as i64, Mod2281701377::N as i64];
     c1.into_iter()
         .zip(c2.into_iter().zip(c3.into_iter()))
         .map(|(c1, (c2, c3))| garner(&[c1.val() as i64, c2.val() as i64, c3.val() as i64], &P, MOD).0 as u32)
@@ -75,7 +75,7 @@ pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     let c3 = convolution(na, nb);
 
     const MOD: i64 = 1000_000_007;
-    const P: [i64; 3] = [Mod3221225473::MOD as i64, Mod3489660929::MOD as i64, Mod2281701377::MOD as i64];
+    const P: [i64; 3] = [Mod3221225473::N as i64, Mod3489660929::N as i64, Mod2281701377::N as i64];
     c1.into_iter()
         .zip(c2.into_iter().zip(c3.into_iter()))
         .map(|(c1, (c2, c3))| garner(&[c1.val() as i64, c2.val() as i64, c3.val() as i64], &P, MOD).0 as u32)
@@ -106,13 +106,13 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
     let c7 = convolution(na, nb);
 
     const P: [u64; 7] = [
-        Mod3221225473::MOD as u64,
-        Mod3489660929::MOD as u64,
-        Mod2281701377::MOD as u64,
-        Mod1811939329::MOD as u64,
-        Mod2013265921::MOD as u64,
-        Mod2483027969::MOD as u64,
-        Mod2885681153::MOD as u64,
+        Mod3221225473::N as u64,
+        Mod3489660929::N as u64,
+        Mod2281701377::N as u64,
+        Mod1811939329::N as u64,
+        Mod2013265921::N as u64,
+        Mod2483027969::N as u64,
+        Mod2885681153::N as u64,
     ];
     let mut res = vec![];
     for i in 0..c1.len() {
