@@ -17,8 +17,8 @@ fn gentleman_sande_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offset: u
             }
         } else {
             for now in top..top + offset {
-                let c = a[now + offset];
-                a[now + offset] = (a[now] - c) * rot;
+                let c = a[now + offset] * rot;
+                a[now + offset] = a[now] - c;
                 a[now] += c;
             }
         }
@@ -37,15 +37,15 @@ fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: u
         let rot2 = rot * rot;
         let rot3 = rot * rot2;
         for now in top..top + offset {
-            let (c0, c1, c2, c3) = (a[now], a[now + offset], a[now + offset * 2], a[now + offset * 3]);
-            let c01 = c0 + c1;
-            let c01n = c0 - c1;
-            let c23 = c2 + c3;
-            let c23nim = (c2 - c3) * im;
-            a[now] = c01 + c23;
-            a[now + offset] = (c01n + c23nim) * rot;
-            a[now + offset * 2] = (c01 - c23) * rot2;
-            a[now + offset * 3] = (c01n - c23nim) * rot3;
+            let (c0, c1, c2, c3) = (a[now], a[now + offset] * rot, a[now + offset * 2] * rot2, a[now + offset * 3] * rot3);
+            let c02 = c0 + c2;
+            let c02n = c0 - c2;
+            let c13 = c1 + c3;
+            let c13nim = (c1 - c3) * im;
+            a[now] = c02 + c13;
+            a[now + offset] = c02 - c13;
+            a[now + offset * 2] = c02n + c13nim;
+            a[now + offset * 3] = c02n - c13nim;
         }
         if top + width != deg {
             rot *= rate[block.trailing_ones() as usize];
@@ -55,37 +55,37 @@ fn gentleman_sande_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offset: u
 
 #[inline]
 pub fn gentleman_sande_radix_4_butterfly<M: Modulo>(deg: usize, log: usize, a: &mut [Modint<M>], cache: &FftCache<M>) {
-    if log & 1 != 0 {
-        let width = 1 << 1;
-        let offset = width >> 1;
-        gentleman_sande_radix_2_kernel(deg, width, offset, a, &cache.rate2);
-    }
-    for i in (log & 1..log).step_by(2) {
-        let width = 1 << (i + 2);
-        let offset = width >> 2;
-        gentleman_sande_radix_4_kernel(deg, width, offset, cache.root[2], a, &cache.rate3);
+    for i in (0..log).step_by(2) {
+        let width = deg >> i;
+        if i + 1 == log {
+            let offset = width >> 1;
+            gentleman_sande_radix_2_kernel(deg, width, offset, a, &cache.rate2);
+        } else {
+            let offset = width >> 2;
+            gentleman_sande_radix_4_kernel(deg, width, offset, cache.root[2], a, &cache.rate3);
+        }
     }
 }
 
 #[inline]
 pub fn gentleman_sande_radix_4_butterfly_inv<M: Modulo>(deg: usize, log: usize, a: &mut [Modint<M>], cache: &FftCache<M>) {
-    if log & 1 != 0 {
-        let width = 1 << 1;
-        let offset = width >> 1;
-        gentleman_sande_radix_2_kernel(deg, width, offset, a, &cache.irate2);
-    }
-    for i in (log & 1..log).step_by(2) {
-        let width = 1 << (i + 2);
-        let offset = width >> 2;
-        gentleman_sande_radix_4_kernel(deg, width, offset, cache.iroot[2], a, &cache.irate3);
+    for i in (0..log).step_by(2) {
+        let width = deg >> i;
+        if i + 1 == log {
+            let offset = width >> 1;
+            gentleman_sande_radix_2_kernel(deg, width, offset, a, &cache.irate2);
+        } else {
+            let offset = width >> 2;
+            gentleman_sande_radix_4_kernel(deg, width, offset, cache.iroot[2], a, &cache.irate3);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::common::bit_reverse;
-    use super::*;
     use super::{gentleman_sande_radix_4_butterfly, gentleman_sande_radix_4_butterfly_inv};
+    use crate::fft_cache::FftCache;
     use montgomery_modint::{Mod998244353, MontgomeryModint};
 
     type Modint = MontgomeryModint<Mod998244353>;
@@ -94,17 +94,18 @@ mod tests {
         let deg = a.len();
         let log = deg.trailing_zeros() as usize;
         debug_assert_eq!(a.len(), 1 << log);
-        bit_reverse(deg, a);
-        let cache = FftCache::<Mod998244353>::new();
+        let cache = FftCache::new();
         gentleman_sande_radix_4_butterfly(deg, log, a, &cache);
+        bit_reverse(deg, a);
     }
+
     pub fn intt_gentleman_sande_radix_4(a: &mut [Modint]) {
         let deg = a.len();
         let log = deg.trailing_zeros() as usize;
         debug_assert_eq!(a.len(), 1 << log);
-        bit_reverse(deg, a);
-        let cache = FftCache::<Mod998244353>::new();
+        let cache = FftCache::new();
         gentleman_sande_radix_4_butterfly_inv(deg, log, a, &cache);
+        bit_reverse(deg, a);
         let inv = Modint::new(deg as u32).inv();
         a.iter_mut().for_each(|c| *c *= inv)
     }

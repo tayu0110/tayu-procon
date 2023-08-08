@@ -13,8 +13,6 @@ fn simple_ntt_bench(b: &mut Bencher) {
     b.iter(|| {
         for i in 15..=20 {
             let mut data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
-            // let data = ntt(data, &cache);
-            // let _ = intt(data, &cache);
             ntt(&mut data, &cache);
             intt(&mut data, &cache);
         }

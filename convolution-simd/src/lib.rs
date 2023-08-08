@@ -64,14 +64,12 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     a.resize(n, 0);
     b.resize(n, 0);
 
-    let cache = FftCache::<M>::new();
-
-    a.ntt_with_cache(&cache);
-    b.ntt_with_cache(&cache);
+    <Vec<u32> as Nttable<M>>::ntt(&mut a);
+    <Vec<u32> as Nttable<M>>::ntt(&mut b);
 
     Nttable::<M>::dot_assign(&mut a, &b);
 
-    a.intt_with_cache(&cache);
+    <Vec<u32> as Nttable<M>>::intt(&mut a);
     a.resize(deg, 0);
     a
 }
@@ -177,7 +175,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         .map(|a| {
             let mut x = vec![0u32; THRESHOLD];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            x.ntt_with_cache(&cache);
+            <Vec<u32> as Nttable<Mod998244353>>::ntt(&mut x);
             x
         })
         .collect::<Vec<_>>();
@@ -186,7 +184,7 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
         .map(|a| {
             let mut x = vec![0u32; THRESHOLD];
             unsafe { copy_nonoverlapping(a.as_ptr(), x.as_mut_ptr(), a.len()) }
-            x.ntt_with_cache(&cache);
+            <Vec<u32> as Nttable<Mod998244353>>::ntt(&mut x);
             x
         })
         .collect::<Vec<_>>();

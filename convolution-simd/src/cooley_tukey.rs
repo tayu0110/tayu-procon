@@ -43,8 +43,8 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(deg: usize, width: usize, offse
             let (c0, c1) = (c0 + c1, (c0 - c1) * rot);
             let r0 = c0.unpacklo32(c1);
             let r1 = c0.unpackhi32(c1);
-            storeu(a[top..].as_mut_ptr() as _, permute2f128(r0.rawval(), r1.rawval(), 0x20));
-            storeu(a[top + 8..].as_mut_ptr() as _, permute2f128(r0.rawval(), r1.rawval(), 0x31));
+            storeu(a[top..].as_mut_ptr() as _, permute2f128::<0x20>(r0.rawval(), r1.rawval()));
+            storeu(a[top + 8..].as_mut_ptr() as _, permute2f128::<0x31>(r0.rawval(), r1.rawval()));
         }
     } else {
         for block in 0..blocks {
@@ -92,10 +92,10 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             let r01hi = r0.unpackhi32(r1);
             let r23lo = r2.unpacklo32(r3);
             let r23hi = r2.unpackhi32(r3);
-            let r01lo = permute4x64(r01lo.rawval(), 0b11_01_10_00);
-            let r01hi = permute4x64(r01hi.rawval(), 0b11_01_10_00);
-            let r23lo = permute4x64(r23lo.rawval(), 0b11_01_10_00);
-            let r23hi = permute4x64(r23hi.rawval(), 0b11_01_10_00);
+            let r01lo = permute4x64::<0b11_01_10_00>(r01lo.rawval());
+            let r01hi = permute4x64::<0b11_01_10_00>(r01hi.rawval());
+            let r23lo = permute4x64::<0b11_01_10_00>(r23lo.rawval());
+            let r23hi = permute4x64::<0b11_01_10_00>(r23hi.rawval());
             storeu(a[top..].as_mut_ptr() as _, unpacklo64(r01lo, r23lo));
             storeu(a[top + 8..].as_mut_ptr() as _, unpacklo64(r01hi, r23hi));
             storeu(a[top + 16..].as_mut_ptr() as _, unpackhi64(r01lo, r23lo));
@@ -128,10 +128,10 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
             let r01hi = r0.unpackhi64(r1);
             let r23lo = r2.unpacklo64(r3);
             let r23hi = r2.unpackhi64(r3);
-            storeu(a[top..].as_mut_ptr() as _, permute2f128(r01lo.rawval(), r23lo.rawval(), 0x20));
-            storeu(a[top + 8..].as_mut_ptr() as _, permute2f128(r01hi.rawval(), r23hi.rawval(), 0x20));
-            storeu(a[top + 16..].as_mut_ptr() as _, permute2f128(r01lo.rawval(), r23lo.rawval(), 0x31));
-            storeu(a[top + 24..].as_mut_ptr() as _, permute2f128(r01hi.rawval(), r23hi.rawval(), 0x31));
+            storeu(a[top..].as_mut_ptr() as _, permute2f128::<0x20>(r01lo.rawval(), r23lo.rawval()));
+            storeu(a[top + 8..].as_mut_ptr() as _, permute2f128::<0x20>(r01hi.rawval(), r23hi.rawval()));
+            storeu(a[top + 16..].as_mut_ptr() as _, permute2f128::<0x31>(r01lo.rawval(), r23lo.rawval()));
+            storeu(a[top + 24..].as_mut_ptr() as _, permute2f128::<0x31>(r01hi.rawval(), r23hi.rawval()));
         }
     } else if offset == 4 && blocks >= 2 {
         let vindex = _mm256_setr_epi32(0, 1, 2, 3, 16, 17, 18, 19);
@@ -152,10 +152,10 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(deg: usize, width: usize, offse
                     rot3,
                     imag
                 );
-                storeu(a[top..].as_mut_ptr() as _, permute2f128(r0.rawval(), r1.rawval(), 0x20));
-                storeu(a[top + 8..].as_mut_ptr() as _, permute2f128(r2.rawval(), r3.rawval(), 0x20));
-                storeu(a[top + 16..].as_mut_ptr() as _, permute2f128(r0.rawval(), r1.rawval(), 0x31));
-                storeu(a[top + 24..].as_mut_ptr() as _, permute2f128(r2.rawval(), r3.rawval(), 0x31));
+                storeu(a[top..].as_mut_ptr() as _, permute2f128::<0x20>(r0.rawval(), r1.rawval()));
+                storeu(a[top + 8..].as_mut_ptr() as _, permute2f128::<0x20>(r2.rawval(), r3.rawval()));
+                storeu(a[top + 16..].as_mut_ptr() as _, permute2f128::<0x31>(r0.rawval(), r1.rawval()));
+                storeu(a[top + 24..].as_mut_ptr() as _, permute2f128::<0x31>(r2.rawval(), r3.rawval()));
             }
             rot = next_rot * rate[(!(block + 1)).trailing_zeros() as usize];
         }

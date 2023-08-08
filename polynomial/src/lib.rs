@@ -1,4 +1,4 @@
-use convolution_simd::{fft_cache::FftCache, Nttable};
+use convolution_simd::Nttable;
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
@@ -49,7 +49,7 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    fn mul_with_cache(mut self, rhs: &Self, cache: &FftCache<M>) -> Self {
+    fn multiply(mut self, rhs: &Self) -> Self {
         if self.deg().min(rhs.deg()) <= 32 {
             return self.naive_multiply(rhs);
         }
@@ -58,10 +58,10 @@ impl<M: Modulo> Polynomial<M> {
         let deg = len.next_power_of_two();
         self.resize(deg);
         rhs.resize(deg);
-        self.coef.ntt_with_cache(&cache);
-        rhs.coef.ntt_with_cache(&cache);
+        self.coef.ntt();
+        rhs.coef.ntt();
         let mut res = self.coef.dot(&rhs.coef);
-        res.intt_with_cache(&cache);
+        res.intt();
         let mut res: Self = res.into();
         res.resize(len);
         res
@@ -70,7 +70,8 @@ impl<M: Modulo> Polynomial<M> {
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
     // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
     // reference: https://judge.yosupo.jp/submission/68532
-    fn inv_with_cache(&self, deg: usize, cache: &FftCache<M>) -> Self {
+    #[inline]
+    pub fn inv(&self, deg: usize) -> Self {
         let mut g = vec![Modint::zero(); deg.next_power_of_two()];
         g[0] = self.coef[0].inv();
         let mut size = 1;
@@ -79,14 +80,14 @@ impl<M: Modulo> Polynomial<M> {
             f.resize(2 * size, Modint::zero());
             let hg = {
                 let mut g_ntt = g[0..2 * size].to_vec();
-                g_ntt.ntt_with_cache(&cache);
-                f.ntt_with_cache(&cache);
+                g_ntt.ntt();
+                f.ntt();
                 let mut fg = f.dot(&g_ntt);
-                fg.intt_with_cache(&cache);
+                fg.intt();
                 fg[..size].iter_mut().for_each(|h| *h = Modint::zero());
-                fg.ntt_with_cache(&cache);
+                fg.ntt();
                 fg.dot_assign(&g_ntt);
-                fg.intt_with_cache(&cache);
+                fg.intt();
                 fg
             };
             if size < 8 {
@@ -102,12 +103,6 @@ impl<M: Modulo> Polynomial<M> {
 
         g.resize(deg, Modint::zero());
         g.into()
-    }
-
-    #[inline]
-    pub fn inv(&self, deg: usize) -> Self {
-        let cache = Self::gen_caches();
-        self.inv_with_cache(deg, &cache)
     }
 
     #[inline]
@@ -140,17 +135,16 @@ impl<M: Modulo> Polynomial<M> {
             };
         }
 
-        let cache = Self::gen_caches();
         for i in (1..m).rev() {
             let new_deg = (subproduct_tree[i << 1].deg() - 1) << 1;
             subproduct_tree[i << 1].resize(new_deg);
             subproduct_tree[(i << 1) | 1].resize(new_deg);
-            subproduct_tree[i << 1].coef.ntt_with_cache(&cache);
-            subproduct_tree[(i << 1) | 1].coef.ntt_with_cache(&cache);
+            subproduct_tree[i << 1].coef.ntt();
+            subproduct_tree[(i << 1) | 1].coef.ntt();
             subproduct_tree[i] = Self {
                 coef: subproduct_tree[i << 1].clone().coef.dot(&subproduct_tree[(i << 1) | 1].coef),
             };
-            subproduct_tree[i].coef.intt_with_cache(&cache);
+            subproduct_tree[i].coef.intt();
             let k = subproduct_tree[i].coef[0] - Modint::one();
             subproduct_tree[i].coef.push(k);
             subproduct_tree[i].coef[0] = Modint::one();
@@ -158,14 +152,14 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree
     }
 
-    fn transposed_uptree(m: usize, mut subproduct_tree: Vec<Polynomial<M>>, cache: &FftCache<M>) -> Vec<Polynomial<M>> {
+    fn transposed_uptree(m: usize, mut subproduct_tree: Vec<Polynomial<M>>) -> Vec<Polynomial<M>> {
         for i in 1..m {
             let (a, b) = subproduct_tree.split_at_mut(i << 1);
             let n = a[i].deg() >> 1;
-            a[i].coef.ntt_with_cache(&cache);
+            a[i].coef.ntt();
             for j in 0..2 {
                 b[j].coef.dot_assign(&a[i].coef);
-                b[j].coef.intt_with_cache(&cache);
+                b[j].coef.intt();
                 b[j].reverse();
                 b[j].resize(n);
                 b[j].reverse();
@@ -180,11 +174,10 @@ impl<M: Modulo> Polynomial<M> {
     pub fn multipoint_evaluation(mut self, xs: Vec<Modint<M>>) -> Vec<Modint<M>> {
         let len = xs.len();
         let m = len.next_power_of_two();
-        let cache = Self::gen_caches();
         let mut subproduct_tree = Self::gen_subproduct_tree(xs);
 
         let n = self.deg();
-        let alpha = subproduct_tree[1].inv_with_cache(n, &cache);
+        let alpha = subproduct_tree[1].inv(n);
         self.reverse();
         let mut t = alpha * self;
         t.resize(n);
@@ -193,7 +186,7 @@ impl<M: Modulo> Polynomial<M> {
         t.reverse();
         subproduct_tree[1] = t;
 
-        let subproduct_tree = Self::transposed_uptree(m, subproduct_tree, &cache);
+        let subproduct_tree = Self::transposed_uptree(m, subproduct_tree);
         subproduct_tree[m..m + len].into_iter().map(|v| *v.coef.get(0).unwrap_or(&Modint::zero())).collect()
     }
 
@@ -202,7 +195,6 @@ impl<M: Modulo> Polynomial<M> {
         assert_eq!(len, fs.len());
         let m = len.next_power_of_two();
 
-        let cache = Self::gen_caches();
         let mut subproduct_tree = Self::gen_subproduct_tree(xs);
         let mut keep = subproduct_tree.clone();
 
@@ -211,7 +203,7 @@ impl<M: Modulo> Polynomial<M> {
         let mut p = p.derivative();
 
         let n = p.deg();
-        let alpha = subproduct_tree[1].inv_with_cache(n, &cache);
+        let alpha = subproduct_tree[1].inv(n);
         p.reverse();
         let mut t = alpha * p;
         t.resize(n);
@@ -220,12 +212,12 @@ impl<M: Modulo> Polynomial<M> {
         t.reverse();
         subproduct_tree[1] = t;
 
-        let mut subproduct_tree = Self::transposed_uptree(m, subproduct_tree, &cache);
+        let mut subproduct_tree = Self::transposed_uptree(m, subproduct_tree);
 
         for i in 1..m {
             let n = keep[i << 1].deg() >> 1;
-            keep[i << 1].coef.intt_with_cache(&cache);
-            keep[(i << 1) | 1].coef.intt_with_cache(&cache);
+            keep[i << 1].coef.intt();
+            keep[(i << 1) | 1].coef.intt();
             keep[i << 1].resize(n + 1);
             keep[(i << 1) | 1].resize(n + 1);
             keep[i << 1].reverse();
@@ -256,13 +248,10 @@ impl<M: Modulo> Polynomial<M> {
                 keep[i].resize(new_deg);
                 keep[i].reverse();
             }
-            subproduct_tree[i] = l.mul_with_cache(&kr, &cache) + r.mul_with_cache(&kl, &cache);
+            subproduct_tree[i] = l * kr + r * kl;
         }
         subproduct_tree.pop().unwrap()
     }
-
-    #[inline(always)]
-    fn gen_caches() -> FftCache<M> { FftCache::new() }
 }
 
 impl<M: Modulo> Add<Self> for Polynomial<M> {
@@ -295,8 +284,7 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
         if self.deg().min(rhs.deg()) <= 8 {
             return self.naive_multiply(&rhs);
         }
-        let cache = FftCache::new();
-        self.mul_with_cache(&rhs, &cache)
+        self.multiply(&rhs)
     }
 }
 
