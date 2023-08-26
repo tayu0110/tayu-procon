@@ -210,6 +210,7 @@ pub fn chinese_remainder_theorem(mut a: i64, mut m1: i64, mut b: i64, mut m2: i6
 }
 
 /// Return a minimum integer x (mod modulo) satisfying x = a[i] (mod p[i]) for any i and p[1]*p[2]*p[3].... (mod modulo)
+///
 /// Note: For any i, j (i != j), gcd(p[i], p[j]) MUST be 1.
 //      x = t1 + t2p1 + t3p1p2 + t4p1p2p3 + ...
 //          x  = a1 (mod p1)
@@ -338,7 +339,7 @@ pub fn divisors_enumeration(n: u64) -> Vec<u64> {
     res
 }
 
-/// Returns the result of prime factorization of integer n.
+/// Returns the result of prime factorization of integer `n`.
 pub fn factorize(mut n: u64) -> Vec<u64> {
     if n == 1 {
         return vec![];
@@ -361,7 +362,8 @@ pub fn factorize(mut n: u64) -> Vec<u64> {
     res
 }
 
-/// Find non-trival prime factors of integer n by Pollard's rho algorithm.
+/// Find non-trival prime factors of integer `n` by Pollard's rho algorithm.
+///
 /// If found, return this; If not found, return None.
 fn pollard_rho(n: u64) -> Option<u64> {
     // 1 is trival prime factor. So return None.
@@ -419,6 +421,9 @@ fn pollard_rho(n: u64) -> Option<u64> {
     pollard_rho(g as u64)
 }
 
+/// Same processing as ```tonelli_shanks()```, but without the prime number determination of `p`.
+///
+/// It works correctly only when `p` is a prime number, but it is the user's responsibility to manage whether `p` is a prime number or not.
 pub fn tonelli_shanks_unchecked(n: u64, p: u64) -> Option<u64> {
     // ArbitraryMontgomeryModint expects only odd number for p. So, the case that p is equal to 2 must be processed the top of this procedure.
     if p == 2 {
@@ -474,9 +479,31 @@ pub fn tonelli_shanks_unchecked(n: u64, p: u64) -> Option<u64> {
     unreachable!()
 }
 
+/// Return a square root of `n` on mod `p`.
+/// If return value is not found, return `None`.
+///
+/// `p` must be a prime number.
 pub fn tonelli_shanks(n: u64, p: u64) -> Option<u64> {
     assert!(miller_rabin_test(p));
     tonelli_shanks_unchecked(n, p)
+}
+
+/// Return xor bases for list `a`.
+///
+/// Return values are not in any specific order, so you need sort if necessary.
+pub fn xor_base(a: &[u64]) -> Vec<u64> {
+    let mut res = vec![];
+    for &(mut a) in a {
+        for &base in &res {
+            a = a.min(a ^ base);
+        }
+
+        if a > 0 {
+            res.push(a);
+        }
+    }
+
+    res
 }
 
 #[cfg(test)]
