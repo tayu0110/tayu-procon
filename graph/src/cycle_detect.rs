@@ -33,11 +33,11 @@ fn dfs_for_cycle_detect(now: usize, state: &mut [u8], stack: &mut Vec<usize>, gr
         }
 
         if let Some(mut res) = dfs_for_cycle_detect(to, state, stack, graph) {
-            if res != std::usize::MAX {
+            if res != usize::MAX {
                 stack.push(now);
             }
             if res == now {
-                res = std::usize::MAX;
+                res = usize::MAX;
             }
             return Some(res);
         }

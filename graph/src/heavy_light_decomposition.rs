@@ -1,5 +1,6 @@
 use crate::UnDirectedTree;
-use std::collections::VecDeque;
+use ds::FixedRingQueue;
+use std::sync::Mutex;
 
 fn decomposition(now: usize, par: usize, tree: &UnDirectedTree, children: &mut Vec<usize>) -> u32 {
     let mut res = 1;
@@ -20,9 +21,9 @@ fn decomposition(now: usize, par: usize, tree: &UnDirectedTree, children: &mut V
 }
 
 /// Perform Heavy-Light Decomposition.
-/// Return an array containing the only child of each vertex after decomposition (std::usize::MAX for leaves).
+/// Return an array containing the only child of each vertex after decomposition (usize::MAX for leaves).
 pub fn heavy_light_decomposition(tree: &UnDirectedTree) -> Vec<usize> {
-    let mut children = vec![std::usize::MAX; tree.size()];
+    let mut children = vec![usize::MAX; tree.size()];
     decomposition(0, 0, tree, &mut children);
 
     children
@@ -35,9 +36,9 @@ pub fn path_query(tree: &UnDirectedTree) -> (impl Fn(usize, usize) -> Vec<(usize
     let children = heavy_light_decomposition(tree);
 
     let n = children.len();
-    let mut index = vec![std::u32::MAX; n];
+    let mut index = vec![u32::MAX; n];
     let mut cnt = 0;
-    let mut group = vec![std::u32::MAX; n];
+    let mut group = vec![u32::MAX; n];
     // Root is 0.
     group[0] = 0;
     #[derive(Clone)]
@@ -46,17 +47,19 @@ pub fn path_query(tree: &UnDirectedTree) -> (impl Fn(usize, usize) -> Vec<(usize
         parent_index: u32,
         height: u16,
     }
-    let mut leader = vec![LeaderInfo { self_index: 0, parent_index: std::u32::MAX, height: 0 }];
+    let mut leader = vec![LeaderInfo { self_index: 0, parent_index: u32::MAX, height: 0 }];
     let mut groups = 1;
 
-    let mut next = VecDeque::new();
-    next.push_back(0u32);
+    static QUEUE: Mutex<FixedRingQueue<u32>> = Mutex::new(FixedRingQueue::new());
+    let mut next = QUEUE.lock().unwrap();
+    next.clear();
+    next.push(0u32);
 
-    while let Some(i) = next.pop_front() {
-        if index[i as usize] == std::u32::MAX {
+    while let Some(i) = next.pop() {
+        if index[i as usize] == u32::MAX {
             let mut now = i as usize;
-            while now as u32 != std::u32::MAX {
-                for &to in tree.neighbors(now).filter(|&&to| to != children[now] && index[to] == std::u32::MAX) {
+            while now as u32 != u32::MAX {
+                for &to in tree.neighbors(now).filter(|&&to| to != children[now] && index[to] == u32::MAX) {
                     leader.push(LeaderInfo {
                         self_index: to as u32,
                         parent_index: now as u32,
@@ -64,7 +67,7 @@ pub fn path_query(tree: &UnDirectedTree) -> (impl Fn(usize, usize) -> Vec<(usize
                     });
                     group[to] = groups;
                     groups += 1;
-                    next.push_back(to as u32);
+                    next.push(to as u32);
                 }
                 index[now] = cnt;
                 group[now] = group[i as usize];
@@ -133,9 +136,6 @@ mod tests {
         let tree = UnDirectedTree::try_from(edges).unwrap();
 
         let children = heavy_light_decomposition(&tree);
-        assert_eq!(
-            children,
-            vec![1, 2, 3, std::usize::MAX, std::usize::MAX, std::usize::MAX, 7, 8, std::usize::MAX, std::usize::MAX, 11, std::usize::MAX]
-        );
+        assert_eq!(children, vec![1, 2, 3, usize::MAX, usize::MAX, usize::MAX, 7, 8, usize::MAX, usize::MAX, 11, usize::MAX]);
     }
 }

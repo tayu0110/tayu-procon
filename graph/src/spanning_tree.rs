@@ -1,18 +1,20 @@
 use super::{Graph, InvalidTree, Tree, UnDirected};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
 use unionfind::UnionFind;
 
 /// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
 pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, InvalidTree> {
-    let mut nt = std::collections::BinaryHeap::new();
+    let mut nt = BinaryHeap::new();
     for from in 0..graph.size() {
         for (to, weight) in graph.edges(from) {
-            nt.push(std::cmp::Reverse((*weight, from, *to)));
+            nt.push(Reverse((*weight, from, *to)));
         }
     }
 
     let mut uf = UnionFind::new(graph.size());
     let mut edges = vec![];
-    while let Some(std::cmp::Reverse((w, f, t))) = nt.pop() {
+    while let Some(Reverse((w, f, t))) = nt.pop() {
         if !uf.is_same(f, t) {
             edges.push((f, t, w));
             uf.merge(f, t);
@@ -33,7 +35,7 @@ pub fn manhattan_minimum_spanning_tree(xy: &Vec<(i64, i64)>) -> Vec<(i64, usize,
     for _ in 0..2 {
         for _ in 0..2 {
             idx.sort_by(|&i, &j| (xs[i] + ys[i]).cmp(&(xs[j] + ys[j])));
-            let mut sweep = std::collections::BTreeMap::new();
+            let mut sweep = BTreeMap::new();
             for &i in &idx {
                 while let Some((&k, &j)) = sweep.range(-ys[i]..).next() {
                     if xs[i] - xs[j] < ys[i] - ys[j] {

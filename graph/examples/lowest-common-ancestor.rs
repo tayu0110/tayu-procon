@@ -1,3 +1,4 @@
+// https://judge.yosupo.jp/problem/lca
 use graph::{lca, UnDirectedTree};
 use iolib::scan;
 
@@ -7,7 +8,7 @@ fn main() {
     let mut out = std::io::BufWriter::new(out.lock());
 
     scan!(n: usize, q: usize, p: [usize; n - 1], q: [(usize, usize); q]);
-    let p = vec![std::usize::MAX].into_iter().chain(p.into_iter()).collect();
+    let p = vec![usize::MAX].into_iter().chain(p.into_iter()).collect();
 
     let mut tree = UnDirectedTree::from_par_list(p).unwrap();
 

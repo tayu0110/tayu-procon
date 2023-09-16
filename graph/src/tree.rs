@@ -1,6 +1,9 @@
-use std::{collections::VecDeque, marker::PhantomData};
-
 use super::{Directed, Direction, Edge, Edges, EdgesMut, Graph, InvalidTree, Neighbors, UnDirected};
+use ds::FixedRingQueue;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::marker::PhantomData;
+use std::sync::Mutex;
 
 pub type DirectedTree = Tree<Directed>;
 pub type UnDirectedTree = Tree<UnDirected>;
@@ -21,13 +24,15 @@ impl<'a, D: Direction> Tree<D> {
     fn make_parlist(&mut self) {
         let mut par = vec![std::usize::MAX; self.size];
 
-        let mut nt = VecDeque::new();
-        nt.push_back(self.root);
-        while let Some(now) = nt.pop_front() {
+        static QUEUE: Mutex<FixedRingQueue<usize>> = Mutex::new(FixedRingQueue::new());
+        let mut nt = QUEUE.lock().unwrap();
+        nt.clear();
+        nt.push(self.root);
+        while let Some(now) = nt.pop() {
             for &to in self.neighbors(now) {
-                if par[now] != to && par[to] == std::usize::MAX {
+                if par[now] != to && par[to] == usize::MAX {
                     par[to] = now;
-                    nt.push_back(to);
+                    nt.push(to);
                 }
             }
         }
@@ -70,10 +75,10 @@ impl<'a, D: Direction> Tree<D> {
         Self::from_weighted_edges(edges)
     }
 
-    /// The parent of root node is std::usize::MAX.
+    /// The parent of root node is usize::MAX.
     #[inline]
     pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
-        let edges = pars.into_iter().enumerate().filter(|v| v.1 != std::usize::MAX).map(|(i, par)| (par, i, 1)).collect();
+        let edges = pars.into_iter().enumerate().filter(|v| v.1 != usize::MAX).map(|(i, par)| (par, i, 1)).collect();
         Self::from_weighted_edges(edges)
     }
 
@@ -110,28 +115,24 @@ impl<'a, D: Direction> Tree<D> {
         self.rebuild();
     }
 
-    pub fn rebuild(&mut self) {
-        let mut nt = std::collections::VecDeque::new();
-        nt.push_back((self.root, std::usize::MAX));
-        self.par = None;
-    }
+    pub fn rebuild(&mut self) { self.par = None; }
 
     pub fn reroot_with_diameter(&mut self) {
         let mut dist = vec![-1; self.size];
-        let mut nt = std::collections::BinaryHeap::new();
-        nt.push(std::cmp::Reverse((0, self.root)));
+        let mut nt = BinaryHeap::new();
+        nt.push(Reverse((0, self.root)));
 
-        let mut max = (std::i64::MIN, 0);
-        while let Some(std::cmp::Reverse((nd, now))) = nt.pop() {
+        let mut max = (i64::MIN, 0);
+        while let Some(Reverse((nd, now))) = nt.pop() {
             if dist[now] >= 0 {
                 continue;
             }
             dist[now] = nd;
-            max = std::cmp::max(max, (nd, now));
+            max = max.max((nd, now));
 
             for Edge { to, weight } in &self.graph[now] {
                 if dist[*to] < 0 {
-                    nt.push(std::cmp::Reverse((nd + weight, *to)));
+                    nt.push(Reverse((nd + weight, *to)));
                 }
             }
         }
@@ -140,17 +141,17 @@ impl<'a, D: Direction> Tree<D> {
     }
 }
 
-impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize)>> for Tree<D> {
+impl<D: Direction> TryFrom<Vec<(usize, usize)>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<(usize, usize)>) -> Result<Self, Self::Error> { Self::from_edges(value) }
 }
 
-impl<D: Direction> std::convert::TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
+impl<D: Direction> TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<(usize, usize, i64)>) -> Result<Self, Self::Error> { Self::from_weighted_edges(value) }
 }
 
-impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Tree<D> {
+impl<D: Direction> From<Vec<Vec<usize>>> for Tree<D> {
     fn from(g: Vec<Vec<usize>>) -> Self {
         let mut graph = vec![vec![]; g.len()];
         for i in 0..g.len() {
@@ -168,7 +169,7 @@ impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Tree<D> {
     }
 }
 
-impl<D: Direction> std::convert::TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
+impl<D: Direction> TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
     type Error = InvalidTree;
     fn try_from(value: Vec<Vec<(usize, i64)>>) -> Result<Self, Self::Error> {
         let edges = if D::is_directed() {
@@ -190,6 +191,6 @@ impl<D: Direction> std::convert::TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
     }
 }
 
-impl<D: Direction> std::convert::From<Tree<D>> for Graph<D> {
+impl<D: Direction> From<Tree<D>> for Graph<D> {
     fn from(from: Tree<D>) -> Self { Graph { size: from.size, graph: from.graph, _d: from._d } }
 }

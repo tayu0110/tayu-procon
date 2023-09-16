@@ -1,7 +1,7 @@
 use super::GraphLike;
 
 pub fn warshall_floyd(graph: &impl GraphLike) -> Vec<Vec<i64>> {
-    let mut res = vec![vec![std::i64::MAX; graph.size()]; graph.size()];
+    let mut res = vec![vec![i64::MAX; graph.size()]; graph.size()];
 
     for from in 0..graph.size() {
         res[from][from] = 0;

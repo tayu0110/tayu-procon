@@ -1,4 +1,7 @@
+use std::sync::Mutex;
+
 use super::{CycleDetectionError, Directed, Graph};
+use ds::FixedRingQueue;
 
 /// Returns the topological sort of a directed graph.  
 /// If a cycle is detected, a topological sort cannot be defined, so CycleDetectionError is returned.  
@@ -12,8 +15,11 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
         }
     }
 
-    let mut nt = ins.iter().enumerate().filter(|(_, v)| **v == 0).map(|(i, _)| i).collect::<std::collections::VecDeque<_>>();
-    while let Some(now) = nt.pop_front() {
+    static QUEUE: Mutex<FixedRingQueue<usize>> = Mutex::new(FixedRingQueue::new());
+    let mut nt = QUEUE.lock().unwrap();
+    nt.clear();
+    nt.extend(ins.iter().enumerate().filter(|(_, v)| **v == 0).map(|(i, _)| i));
+    while let Some(now) = nt.pop() {
         if ins[now] < 0 {
             continue;
         }
@@ -24,7 +30,7 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
             if ins[to] > 0 {
                 ins[to] -= 1;
                 if ins[to] == 0 {
-                    nt.push_back(to);
+                    nt.push(to);
                 }
             }
         }
