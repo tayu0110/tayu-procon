@@ -1,6 +1,6 @@
 use convolution_simd::Nttable;
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
-use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Rem, Sub};
 
 type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
@@ -11,6 +11,9 @@ pub struct Polynomial<M: Modulo> {
 }
 
 impl<M: Modulo> Polynomial<M> {
+    #[inline]
+    pub fn empty() -> Self { Self { coef: vec![] } }
+
     #[inline]
     pub fn deg(&self) -> usize { self.coef.len() }
 
@@ -29,7 +32,7 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     pub fn derivative(self) -> Self {
-        let coef = self.coef[1..].into_iter().enumerate().map(|(i, p)| *p * Modint::raw(i as u32 + 1)).collect::<Vec<_>>();
+        let coef = self.coef.into_iter().enumerate().skip(1).map(|(i, p)| p * Modint::raw(i as u32)).collect::<Vec<_>>();
         coef.into()
     }
 
@@ -50,7 +53,7 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     fn multiply(mut self, rhs: &Self) -> Self {
-        if self.deg().min(rhs.deg()) <= 32 {
+        if self.deg().min(rhs.deg()) <= 8 {
             return self.naive_multiply(rhs);
         }
         let mut rhs = rhs.clone();
@@ -217,10 +220,10 @@ impl<M: Modulo> Polynomial<M> {
         for i in 1..m {
             let n = keep[i << 1].deg() >> 1;
             keep[i << 1].coef.intt();
-            keep[(i << 1) | 1].coef.intt();
             keep[i << 1].resize(n + 1);
-            keep[(i << 1) | 1].resize(n + 1);
             keep[i << 1].reverse();
+            keep[(i << 1) | 1].coef.intt();
+            keep[(i << 1) | 1].resize(n + 1);
             keep[(i << 1) | 1].reverse();
         }
 
@@ -228,7 +231,7 @@ impl<M: Modulo> Polynomial<M> {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| *v = vec![fs[i] / *v.coef.get(0).unwrap_or(&Modint::zero())].into());
-        subproduct_tree[m + len..].iter_mut().for_each(|v| *v = Self { coef: vec![] });
+        subproduct_tree[m + len..].fill(Self::empty());
         for i in (1..m).rev() {
             let (r, l) = (subproduct_tree.pop().unwrap(), subproduct_tree.pop().unwrap());
             let (kr, kl) = (keep.pop().unwrap(), keep.pop().unwrap());
@@ -281,9 +284,6 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
         if self.deg() == 0 || rhs.deg() == 0 {
             return <Vec<Modint<M>> as Into<Polynomial<M>>>::into(vec![]);
         }
-        if self.deg().min(rhs.deg()) <= 8 {
-            return self.naive_multiply(&rhs);
-        }
         self.multiply(&rhs)
     }
 }
@@ -330,6 +330,10 @@ impl<M: Modulo> From<Vec<Modint<M>>> for Polynomial<M> {
     fn from(v: Vec<Modint<M>>) -> Self { Self { coef: v } }
 }
 
+impl<M: Modulo> From<&[Modint<M>]> for Polynomial<M> {
+    fn from(value: &[Modint<M>]) -> Self { Self { coef: value.to_vec() } }
+}
+
 impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
     fn into(mut self) -> Vec<u32> {
         let l = self.deg() >> 3 << 3;
@@ -344,6 +348,15 @@ impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
 
 impl<M: Modulo> Into<Vec<Modint<M>>> for Polynomial<M> {
     fn into(self) -> Vec<Modint<M>> { self.coef }
+}
+
+impl<M: Modulo> Index<usize> for Polynomial<M> {
+    type Output = Modint<M>;
+    fn index(&self, index: usize) -> &Self::Output { &self.coef[index] }
+}
+
+impl<M: Modulo> IndexMut<usize> for Polynomial<M> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut self.coef[index] }
 }
 
 #[cfg(test)]
