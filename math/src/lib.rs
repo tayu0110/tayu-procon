@@ -1,4 +1,9 @@
+#[cfg(feature = "const_methods")]
+mod const_methods;
+
 use arbitrary_montgomery_modint::ArbitraryMontgomeryModint;
+#[cfg(feature = "const_methods")]
+pub use const_methods::*;
 use numeric::Integer;
 use simple_rand::xor_shift;
 
@@ -504,6 +509,52 @@ pub fn xor_base(a: &[u64]) -> Vec<u64> {
     }
 
     res
+}
+
+/// Enumerate prime numbers using a linear sieve.
+///
+/// The constructor is const fn, so compile-time computation is possible.
+///
+/// MAX is exclusive. For example, MAX=10, think of it as enumerating the prime numbers "2..10", not "2..=10".
+pub struct Sieve<const MAX: usize = 1000010> {
+    count: usize,
+    primes: [usize; MAX],
+}
+
+impl<const MAX: usize> Sieve<MAX> {
+    pub const fn new() -> Self {
+        let mut primes = [usize::MAX; MAX];
+        let mut count = 0;
+
+        let mut i = 2;
+        while i < MAX {
+            if primes[i] == usize::MAX {
+                primes[i] = i;
+                primes[count] = i;
+                count += 1;
+            }
+
+            let mut j = 0;
+            while j < count {
+                if primes[j] > primes[i] || primes[j] * i >= MAX {
+                    break;
+                }
+                primes[primes[j] * i] = primes[j];
+                j += 1;
+            }
+
+            i += 1;
+        }
+
+        Self { count, primes }
+    }
+
+    pub const fn count(&self) -> usize { self.count }
+}
+
+impl std::ops::Index<usize> for Sieve {
+    type Output = usize;
+    fn index(&self, index: usize) -> &Self::Output { &self.primes[index] }
 }
 
 #[cfg(test)]

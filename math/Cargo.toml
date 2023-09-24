@@ -9,7 +9,12 @@ license = "CC0-1.0"
 [dependencies]
 numeric = { package = "numeric", path = "../numeric" }
 arbitrary-montgomery-modint = { version = "0.1.0", path = "../modint/arbitrary-montgomery-modint" }
+arbitrary-modint = { version = "0.1.0", path = "../modint/arbitrary-modint", optional = true }
 simple-rand = { package = "simple-rand", path = "../simple-rand" }
 
 [dev-dependencies]
 iolib = { package = "iolib", path = "../iolib" }
+
+[features]
+# default = ["const_methods"]
+const_methods = ["dep:arbitrary-modint"]

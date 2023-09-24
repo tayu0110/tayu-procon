@@ -1,3 +1,6 @@
+mod static_modint;
+
+pub use static_modint::*;
 use std::{
     cell::RefCell,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},

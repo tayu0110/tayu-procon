@@ -2,6 +2,7 @@ use std::{
     collections::{btree_map, BTreeMap},
     fmt::Debug,
     iter::FusedIterator,
+    mem::MaybeUninit,
     ops::RangeBounds,
 };
 
@@ -138,6 +139,67 @@ where
 {
 }
 
+pub struct FixedRingQueue<T, const SIZE: usize = { 1 << 20 }> {
+    buf: [MaybeUninit<T>; SIZE],
+    head: usize,
+    tail: usize,
+}
+
+impl<T: Clone + Copy, const SIZE: usize> FixedRingQueue<T, SIZE> {
+    const MASK: usize = {
+        assert!(1 << SIZE.trailing_zeros() == SIZE);
+        SIZE - 1
+    };
+
+    pub const fn new() -> Self { Self { buf: [MaybeUninit::uninit(); SIZE], head: 0, tail: 0 } }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool { self.head == self.tail }
+
+    #[inline]
+    pub fn is_full(&self) -> bool { self.len() == SIZE }
+
+    #[inline]
+    pub fn len(&self) -> usize { self.tail - self.head }
+
+    #[inline]
+    pub fn capacity(&self) -> usize { SIZE }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.head = 0;
+        self.tail = 0;
+    }
+
+    pub fn push(&mut self, val: T) {
+        debug_assert!(!self.is_full());
+        self.buf[self.tail & Self::MASK].write(val);
+        self.tail += 1;
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        (!self.is_empty()).then(|| {
+            let res = unsafe { self.buf[(self.head) & Self::MASK].assume_init() };
+            self.head += 1;
+            res
+        })
+    }
+}
+
+impl<T: Clone + Copy, const SIZE: usize> FromIterator<T> for FixedRingQueue<T, SIZE> {
+    #[inline]
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut que = FixedRingQueue::new();
+        iter.into_iter().for_each(|v| que.push(v));
+        que
+    }
+}
+
+impl<T: Clone + Copy, const SIZE: usize> Extend<T> for FixedRingQueue<T, SIZE> {
+    #[inline]
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) { iter.into_iter().for_each(|v| self.push(v)); }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +245,37 @@ mod tests {
         assert!(!multiset.contains(&0));
         assert_eq!(multiset.len(), 3);
         assert!(!multiset.has_duplicate());
+    }
+
+    #[test]
+    fn ring_queue_test() {
+        const SIZE: usize = 1 << 5;
+        let mut nt = FixedRingQueue::<i32, SIZE>::new();
+
+        assert!(nt.is_empty());
+
+        nt.push(1);
+        nt.push(2);
+        nt.push(10);
+        nt.push(5);
+
+        assert_eq!(nt.len(), 4);
+        assert!(!nt.is_full());
+        assert_eq!(nt.pop().expect("why queue is empty?"), 1);
+
+        for i in 0..(1 << 5) - 3 {
+            nt.push(i);
+        }
+
+        assert!(nt.is_full());
+
+        assert_eq!(nt.pop().expect("why queue is empty"), 2);
+        assert_eq!(nt.pop().expect("why queue is empty"), 10);
+        assert_eq!(nt.pop().expect("why queue is empty"), 5);
+        assert_eq!(nt.pop().expect("why queue is empty"), 0);
+
+        while let Some(_) = nt.pop() {}
+
+        assert!(nt.is_empty());
     }
 }
