@@ -20,7 +20,12 @@ pub fn cycle_detect(graph: &Graph<Directed>) -> Option<Vec<usize>> {
 
     None
 }
-fn dfs_for_cycle_detect(now: usize, state: &mut [u8], stack: &mut Vec<usize>, graph: &Graph<Directed>) -> Option<usize> {
+fn dfs_for_cycle_detect(
+    now: usize,
+    state: &mut [u8],
+    stack: &mut Vec<usize>,
+    graph: &Graph<Directed>,
+) -> Option<usize> {
     state[now] = 1;
 
     for &to in graph.neighbors(now) {

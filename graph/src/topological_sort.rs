@@ -18,7 +18,12 @@ pub fn topological_sort(graph: &Graph<Directed>) -> Result<Vec<usize>, CycleDete
     static QUEUE: Mutex<FixedRingQueue<usize>> = Mutex::new(FixedRingQueue::new());
     let mut nt = QUEUE.lock().unwrap();
     nt.clear();
-    nt.extend(ins.iter().enumerate().filter(|(_, v)| **v == 0).map(|(i, _)| i));
+    nt.extend(
+        ins.iter()
+            .enumerate()
+            .filter(|(_, v)| **v == 0)
+            .map(|(i, _)| i),
+    );
     while let Some(now) = nt.pop() {
         if ins[now] < 0 {
             continue;

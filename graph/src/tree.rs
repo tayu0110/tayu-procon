@@ -1,4 +1,6 @@
-use super::{Directed, Direction, Edge, Edges, EdgesMut, Graph, InvalidTree, Neighbors, UnDirected};
+use super::{
+    Directed, Direction, Edge, Edges, EdgesMut, Graph, InvalidTree, Neighbors, UnDirected,
+};
 use ds::FixedRingQueue;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -78,7 +80,12 @@ impl<'a, D: Direction> Tree<D> {
     /// The parent of root node is usize::MAX.
     #[inline]
     pub fn from_par_list(pars: Vec<usize>) -> Result<Self, InvalidTree> {
-        let edges = pars.into_iter().enumerate().filter(|v| v.1 != usize::MAX).map(|(i, par)| (par, i, 1)).collect();
+        let edges = pars
+            .into_iter()
+            .enumerate()
+            .filter(|v| v.1 != usize::MAX)
+            .map(|(i, par)| (par, i, 1))
+            .collect();
         Self::from_weighted_edges(edges)
     }
 
@@ -92,14 +99,22 @@ impl<'a, D: Direction> Tree<D> {
     #[inline]
     pub fn edges(&'a self, index: usize) -> Edges<'a> {
         Edges {
-            inner: Box::new(self.graph[index].iter().map(|Edge { to, weight }| (to, weight))),
+            inner: Box::new(
+                self.graph[index]
+                    .iter()
+                    .map(|Edge { to, weight }| (to, weight)),
+            ),
         }
     }
 
     #[inline]
     pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
         EdgesMut {
-            inner: Box::new(self.graph[index].iter_mut().map(|Edge { to, weight }| (&*to, weight))),
+            inner: Box::new(
+                self.graph[index]
+                    .iter_mut()
+                    .map(|Edge { to, weight }| (&*to, weight)),
+            ),
         }
     }
 
@@ -148,7 +163,9 @@ impl<D: Direction> TryFrom<Vec<(usize, usize)>> for Tree<D> {
 
 impl<D: Direction> TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
     type Error = InvalidTree;
-    fn try_from(value: Vec<(usize, usize, i64)>) -> Result<Self, Self::Error> { Self::from_weighted_edges(value) }
+    fn try_from(value: Vec<(usize, usize, i64)>) -> Result<Self, Self::Error> {
+        Self::from_weighted_edges(value)
+    }
 }
 
 impl<D: Direction> From<Vec<Vec<usize>>> for Tree<D> {
@@ -183,7 +200,11 @@ impl<D: Direction> TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
             value
                 .into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
+                .map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |(to, _)| from <= *to)
+                        .map(move |(to, weight)| (from, to, weight))
+                })
                 .flatten()
                 .collect()
         };

@@ -6,7 +6,13 @@ pub struct EulerTour {
 }
 
 impl EulerTour {
-    fn dfs(now: usize, par: usize, vertexes: &mut Vec<usize>, edges: &mut Vec<usize>, t: &Vec<Vec<(usize, usize)>>) {
+    fn dfs(
+        now: usize,
+        par: usize,
+        vertexes: &mut Vec<usize>,
+        edges: &mut Vec<usize>,
+        t: &Vec<Vec<(usize, usize)>>,
+    ) {
         vertexes.push(now);
 
         for &(to, index) in &t[now] {

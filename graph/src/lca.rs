@@ -3,6 +3,9 @@ use ds::FixedRingQueue;
 use std::sync::Mutex;
 
 /// Returns a closure that finds the Lowest Common Ancestor of the two vertices belonging to the tree.
+#[deprecated(
+    note = "HeavyLightDecomposition::lca is superior in both speed and memory than this, so you should use it."
+)]
 pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
     const MAX_RANK_LOG: usize = 25;
     let mut doubling = vec![vec![u32::MAX; tree.size()]; MAX_RANK_LOG];

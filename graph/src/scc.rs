@@ -38,7 +38,13 @@ fn dfs_for_scc(now: usize, used: &mut Vec<bool>, order: &mut Vec<usize>, graph: 
     order.push(now);
 }
 
-fn rdfs_for_scc(now: usize, group: i32, groups: &mut Vec<i32>, list: &mut Vec<usize>, graph: &Graph<Directed>) {
+fn rdfs_for_scc(
+    now: usize,
+    group: i32,
+    groups: &mut Vec<i32>,
+    list: &mut Vec<usize>,
+    graph: &Graph<Directed>,
+) {
     groups[now] = group;
     for &to in graph.neighbors(now) {
         if groups[to] < 0 {

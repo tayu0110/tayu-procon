@@ -11,13 +11,29 @@ pub fn low_link<D: Direction>(graph: &Graph<D>) -> Vec<(usize, usize)> {
     let mut res = vec![];
     for start in 0..graph.size() {
         if ord[start] == usize::MAX {
-            next_ord = dfs_for_lowlink(start, usize::MAX, next_ord, &mut ord, &mut low, &mut res, &graph);
+            next_ord = dfs_for_lowlink(
+                start,
+                usize::MAX,
+                next_ord,
+                &mut ord,
+                &mut low,
+                &mut res,
+                &graph,
+            );
         }
     }
     res
 }
 
-fn dfs_for_lowlink<D: Direction>(now: usize, par: usize, now_ord: usize, ord: &mut Vec<usize>, low: &mut Vec<usize>, res: &mut Vec<(usize, usize)>, graph: &Graph<D>) -> usize {
+fn dfs_for_lowlink<D: Direction>(
+    now: usize,
+    par: usize,
+    now_ord: usize,
+    ord: &mut Vec<usize>,
+    low: &mut Vec<usize>,
+    res: &mut Vec<(usize, usize)>,
+    graph: &Graph<D>,
+) -> usize {
     ord[now] = now_ord;
     low[now] = ord[now];
 

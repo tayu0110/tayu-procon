@@ -42,7 +42,13 @@ pub fn dijkstra_v2<D: Direction>(from: usize, graph: &Graph<D>) -> Vec<i64> {
         if let Some((_, to)) = checked
             .iter()
             .enumerate()
-            .filter_map(|(next, &checked)| if !checked && res[next] != i64::MAX { Some((res[next], next)) } else { None })
+            .filter_map(|(next, &checked)| {
+                if !checked && res[next] != i64::MAX {
+                    Some((res[next], next))
+                } else {
+                    None
+                }
+            })
             .min()
         {
             now = to;

@@ -81,7 +81,10 @@ impl<'a> Iterator for EdgesMut<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bellman_ford, dijkstra_heap, dijkstra_v2, low_link, scc, topological_sort, warshall_floyd, DirectedGraph, UnDirectedGraph};
+    use super::{
+        bellman_ford, dijkstra_heap, dijkstra_v2, low_link, scc, topological_sort, warshall_floyd,
+        DirectedGraph, UnDirectedGraph,
+    };
     use std::i64::MAX;
 
     #[test]
@@ -93,7 +96,19 @@ mod tests {
         //       ^
         //       |
         //       7
-        let weighted_edges = vec![(0, 1, 3), (1, 8, 5), (2, 0, 1), (2, 5, 9), (3, 0, 7), (3, 9, 3), (4, 6, 2), (4, 5, 4), (7, 0, 8), (8, 2, 6), (8, 4, 1)];
+        let weighted_edges = vec![
+            (0, 1, 3),
+            (1, 8, 5),
+            (2, 0, 1),
+            (2, 5, 9),
+            (3, 0, 7),
+            (3, 9, 3),
+            (4, 6, 2),
+            (4, 5, 4),
+            (7, 0, 8),
+            (8, 2, 6),
+            (8, 4, 1),
+        ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
 
         let dist = dijkstra_heap(0, &dir);
@@ -120,10 +135,13 @@ mod tests {
         );
 
         let groups = scc(&dir);
-        let groups = groups.into_iter().enumerate().fold(vec![0; 10], |mut v, (i, g)| {
-            g.into_iter().for_each(|w| v[w] = i);
-            v
-        });
+        let groups = groups
+            .into_iter()
+            .enumerate()
+            .fold(vec![0; 10], |mut v, (i, g)| {
+                g.into_iter().for_each(|w| v[w] = i);
+                v
+            });
         assert_eq!(groups[0], groups[1]);
         assert_eq!(groups[0], groups[2]);
         assert_eq!(groups[0], groups[8]);
@@ -139,7 +157,18 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, 2), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
+        let signed_weighted_edges = vec![
+            (0, 1, 1),
+            (1, 2, 2),
+            (2, 3, -3),
+            (2, 5, -6),
+            (3, 4, 4),
+            (4, 1, 1),
+            (5, 6, 3),
+            (6, 7, 7),
+            (7, 8, -9),
+            (8, 5, 4),
+        ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         let dist = bellman_ford(0, &dir).unwrap();
@@ -149,12 +178,27 @@ mod tests {
         //       |     |     |     ^    (4, 3), (5, 6), (5, 8), (6, 7), (7, 8)
         //       v     v     v     |
         //       4 --> 3     6 --> 7
-        let edges = vec![(0, 1), (1, 2), (1, 4), (2, 3), (2, 5), (4, 3), (5, 6), (5, 8), (6, 7), (7, 8)];
+        let edges = vec![
+            (0, 1),
+            (1, 2),
+            (1, 4),
+            (2, 3),
+            (2, 5),
+            (4, 3),
+            (5, 6),
+            (5, 8),
+            (6, 7),
+            (7, 8),
+        ];
         let dir: DirectedGraph = DirectedGraph::from_edges(9, edges);
-        let list = topological_sort(&dir).unwrap().into_iter().enumerate().fold(vec![0; 9], |mut v, (i, s)| {
-            v[s] = i;
-            v
-        });
+        let list = topological_sort(&dir)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .fold(vec![0; 9], |mut v, (i, s)| {
+                v[s] = i;
+                v
+            });
         eprintln!("list: {:?}", list);
         assert!(list[0] < list[1]);
         assert!(list[1] < list[4]);
@@ -165,14 +209,25 @@ mod tests {
         // 0 --- 1 --- 2 --- 5 --- 8    (0, 1), (1, 2), (1, 4), (2, 3), (2, 5),
         //       |     |     |     |    (3, 4), (5, 6), (5, 8), (6, 7), (7, 8)
         //       4 --- 3     6 --- 7
-        let edges = vec![(0, 1), (1, 2), (1, 4), (2, 3), (2, 5), (3, 4), (5, 6), (5, 8), (6, 7), (7, 8)];
+        let edges = vec![
+            (0, 1),
+            (1, 2),
+            (1, 4),
+            (2, 3),
+            (2, 5),
+            (3, 4),
+            (5, 6),
+            (5, 8),
+            (6, 7),
+            (7, 8),
+        ];
         let undir: UnDirectedGraph = UnDirectedGraph::from_edges(9, edges);
         let mut links = low_link(&undir);
         links.sort();
         assert_eq!(links, vec![(0, 1), (2, 5)]);
     }
 
-    use super::{lca, nth_ancestor, spanning_tree, Edge, UnDirectedTree};
+    use super::{nth_ancestor, spanning_tree, Edge, UnDirectedTree};
 
     #[test]
     fn tree_test() {
@@ -181,7 +236,9 @@ mod tests {
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
         // |par|NA| 0| 0| 1| 1| 2| 3| 4| 4| 5| 7| 9|
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
-        let mut undir = UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9]).unwrap();
+        let mut undir =
+            UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9])
+                .unwrap();
 
         let anc = nth_ancestor(&mut undir);
         assert_eq!(anc(6, 2), 1);
@@ -189,13 +246,6 @@ mod tests {
         assert_eq!(anc(3, 100000), std::usize::MAX);
         assert_eq!(anc(11, 3), 2);
         assert_eq!(anc(0, 1), std::usize::MAX);
-
-        let lca = lca(&mut undir);
-        assert_eq!(lca(10, 8), 4);
-        assert_eq!(lca(11, 6), 0);
-        assert_eq!(lca(2, 9), 2);
-        assert_eq!(lca(0, 7), 0);
-        assert_eq!(lca(3, 10), 1);
 
         // 9 --- 1 --- 8 --- 4 --- 6     (0, 1, 3), (0, 2, 1), (0, 3, 7), (0, 7, 8),
         // |     |     |     |           (1, 8, 5), (1, 9, 4),
@@ -232,7 +282,20 @@ mod tests {
             .iter()
             .map(|(f, t)| (*f, *t))
             .collect::<Vec<(_, _)>>();
-        assert_eq!(set, vec![(0, 1), (0, 2), (0, 7), (1, 8), (1, 9), (3, 9), (4, 5), (4, 6), (4, 8)]);
+        assert_eq!(
+            set,
+            vec![
+                (0, 1),
+                (0, 2),
+                (0, 7),
+                (1, 8),
+                (1, 9),
+                (3, 9),
+                (4, 5),
+                (4, 6),
+                (4, 8)
+            ]
+        );
     }
 
     #[test]
@@ -243,7 +306,18 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, -5), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
+        let signed_weighted_edges = vec![
+            (0, 1, 1),
+            (1, 2, -5),
+            (2, 3, -3),
+            (2, 5, -6),
+            (3, 4, 4),
+            (4, 1, 1),
+            (5, 6, 3),
+            (6, 7, 7),
+            (7, 8, -9),
+            (8, 5, 4),
+        ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!
@@ -259,7 +333,18 @@ mod tests {
         //       |     v     v     |    (4, 1, 1),              (5, 6, 3)
         //       4 <-- 3     6 --> 7    (6, 7, 7),              (7, 8, -9)
         //                              (8, 5, 4)
-        let signed_weighted_edges = vec![(0, 1, 1), (1, 2, -5), (2, 3, -3), (2, 5, -6), (3, 4, 4), (4, 1, 1), (5, 6, 3), (6, 7, 7), (7, 8, -9), (8, 5, 4)];
+        let signed_weighted_edges = vec![
+            (0, 1, 1),
+            (1, 2, -5),
+            (2, 3, -3),
+            (2, 5, -6),
+            (3, 4, 4),
+            (4, 1, 1),
+            (5, 6, 3),
+            (6, 7, 7),
+            (7, 8, -9),
+            (8, 5, 4),
+        ];
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(9, signed_weighted_edges);
 
         // Panic!!!
@@ -277,7 +362,17 @@ mod tests {
         //       |                       (6, 7, 4), (6, 9, 1)
         //       |
         //       8
-        let edges = vec![(1, 2, 3), (1, 3, 1), (1, 5, 7), (1, 8, 8), (3, 4, 9), (4, 6, 3), (5, 10, 4), (6, 7, 4), (6, 9, 1)];
+        let edges = vec![
+            (1, 2, 3),
+            (1, 3, 1),
+            (1, 5, 7),
+            (1, 8, 8),
+            (3, 4, 9),
+            (4, 6, 3),
+            (5, 10, 4),
+            (6, 7, 4),
+            (6, 9, 1),
+        ];
 
         // Panic!!!
         let _ = UnDirectedTree::from_weighted_edges(edges).unwrap();

@@ -1,5 +1,6 @@
 // https://judge.yosupo.jp/problem/vertex_set_path_composite
-use graph::path_query;
+use graph::HeavyLightDecomposition;
+use graph::PathVertex;
 use iolib::{putln, scan};
 use montgomery_modint::{Mod998244353, MontgomeryModint};
 use segtree::SegmentTree;
@@ -7,21 +8,19 @@ use segtree::SegmentTree;
 type Modint = MontgomeryModint<Mod998244353>;
 
 fn main() {
-    scan!(n: usize, q: usize, p: [(u32, u32); n], e: [(usize, usize); n - 1]);
+    scan!(
+        n: usize,
+        q: usize,
+        p: [(u32, u32); n],
+        e: [(usize, usize); n - 1]
+    );
 
-    let mut t = vec![vec![]; n];
-    for (u, v) in e {
-        t[u].push(v);
-        t[v].push(u);
-    }
-
-    let tree = t.into();
-    let (path_query, index) = path_query(&tree);
+    let hld = HeavyLightDecomposition::from_edges(n, e);
 
     let mut p = {
         let mut np = vec![(Modint::zero(), Modint::zero()); n];
         for i in 0..n {
-            np[index(i)] = (p[i].0.into(), p[i].1.into());
+            np[hld.index(i)] = (p[i].0.into(), p[i].1.into());
         }
 
         np
@@ -37,18 +36,26 @@ fn main() {
 
         if t == 0 {
             scan!(p: usize, c: u32, d: u32);
-            let idx = index(p);
+            let idx = hld.index(p);
             st.set(idx, (c.into(), d.into()));
             st_rev.set(n - 1 - idx, (c.into(), d.into()));
         } else {
             scan!(u: usize, v: usize, x: u32);
-            let indices = path_query(u, v);
 
             let (mut a, mut b) = (Modint::one(), Modint::zero());
-            for (u, v) in indices {
-                let (na, nb) = if u <= v { f(&(a, b), &st.foldr(u, v + 1)) } else { f(&(a, b), &st_rev.foldr(n - 1 - u, n - v)) };
-                a = na;
-                b = nb;
+            for path in hld.path_vertex_ranges(u, v) {
+                match path {
+                    PathVertex::Range { from, to } => {
+                        let (na, nb) = if from <= to {
+                            f(&(a, b), &st.foldr(from, to + 1))
+                        } else {
+                            f(&(a, b), &st_rev.foldr(n - 1 - from, n - to))
+                        };
+
+                        (a, b) = (na, nb);
+                    }
+                    _ => unreachable!(),
+                };
             }
 
             putln!((a * x.into() + b).val());
