@@ -1,12 +1,12 @@
-use std::ffi::c_void;
+use std::ffi::{c_int, c_long, c_void};
 extern "C" {
     pub fn mmap(
         addr: *mut c_void,
         length: usize,
-        prot: i32,
-        flags: i32,
-        fd: i32,
-        offset: i64,
+        prot: c_int,
+        flags: c_int,
+        fd: c_int,
+        offset: c_long,
     ) -> *mut c_void;
 }
 

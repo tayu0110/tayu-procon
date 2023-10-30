@@ -1,11 +1,4 @@
-use core::convert::TryInto;
-
-// This function requests the size of 'buf' must be 4.
-// If this condition is not satisfied, the behavior cannot be not defined.
-#[allow(dead_code)]
-pub(crate) unsafe fn parse4c(buf: &[u8]) -> u64 {
-    let buf: [u8; 4] = buf.try_into().unwrap();
-    let mut chunk = u32::from_le_bytes(buf);
+fn parse4c_core(mut chunk: u32) -> u64 {
     let lower = (chunk & 0x0f000f00) >> 8;
     let upper = (chunk & 0x000f000f) * 10;
     chunk = lower + upper;
@@ -13,6 +6,19 @@ pub(crate) unsafe fn parse4c(buf: &[u8]) -> u64 {
     let lower = (chunk & 0x00ff0000) >> 16;
     let upper = (chunk & 0x000000ff) * 100;
     (lower + upper) as u64
+}
+
+// This function requests the size of 'buf' must be 4.
+// If this condition is not satisfied, the behavior cannot be not defined.
+pub(crate) unsafe fn parse4c(buf: [u8; 4]) -> u64 {
+    let chunk = u32::from_le_bytes(buf);
+    parse4c_core(chunk)
+}
+
+pub(crate) unsafe fn parse4lec(buf: [u8; 4], digits: u8) -> u64 {
+    let offset = (4 - digits) << 3;
+    let chunk = u32::from_le_bytes(buf).wrapping_shl(offset as u32);
+    parse4c_core(chunk)
 }
 
 fn parse8c_core(mut chunk: u64) -> u64 {
@@ -31,8 +37,7 @@ fn parse8c_core(mut chunk: u64) -> u64 {
 
 // This function requests the size of 'buf' must be 8.
 // If this condition is not satisfied, the behavior cannot be not defined.
-pub(crate) unsafe fn parse8c(buf: &[u8]) -> u64 {
-    let buf: [u8; 8] = buf.try_into().unwrap();
+pub(crate) unsafe fn parse8c(buf: [u8; 8]) -> u64 {
     let chunk = u64::from_le_bytes(buf);
     parse8c_core(chunk)
 }
@@ -42,8 +47,7 @@ pub(crate) unsafe fn parse8c(buf: &[u8]) -> u64 {
 // If this condition is not satisfied, the behavior cannot be not defined.
 // The 'buf' must be filled with the 0th element in order from the upper digits of the target to be parsed.
 // For example, to parse "123", buf[0]='1',buf[1]='2',buf[2]='3'.
-pub(crate) unsafe fn parse8lec(buf: &[u8], digits: u8) -> u64 {
-    let buf: [u8; 8] = buf.try_into().unwrap();
+pub(crate) unsafe fn parse8lec(buf: [u8; 8], digits: u8) -> u64 {
     // Since little-endian is assumed, the extra digits are present in the upper (8 - 'digits') byte of the chunk.
     // Therefore, by shifting the chunks to the left of the (8 - 'digits') byte, the extra digits can be removed.
     // Example: buf = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38], digits = 3
@@ -96,27 +100,18 @@ pub(crate) unsafe fn parse16lec(buf: &[u8], digits: u8) -> u64 {
 }
 
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{
-    __m128i, _mm_lddqu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_packus_epi32,
-    _mm_storeu_si128, _mm_sub_epi8,
-};
-union ConstSimd {
-    arr: [u8; 16],
-    xmm: __m128i,
-}
-macro_rules! const_simd {
-    ( $elem:expr ) => {
-        unsafe { ConstSimd { arr: $elem }.xmm }
-    };
-}
-static ZEROS: __m128i = const_simd!([b'0'; 16]);
-static TEN: __m128i = const_simd!([10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1]);
-static HUN: __m128i = const_simd!([100, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0]);
-static THO: __m128i = const_simd!([16, 39, 1, 0, 16, 39, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+use std::arch::x86_64::{__m128i, _mm_lddqu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_packus_epi32, _mm_storeu_si128, _mm_sub_epi8};
+use std::mem::transmute;
+
+const ZEROS: __m128i = unsafe { transmute([b'0'; 16]) };
+const TEN: __m128i = unsafe { transmute([10u8, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1]) };
+const HUN: __m128i = unsafe { transmute([100u8, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0]) };
+const THO: __m128i = unsafe { transmute([16u8, 39, 1, 0, 16, 39, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) };
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "sse2")]
 #[target_feature(enable = "sse3")]
+#[target_feature(enable = "ssse3")]
 #[target_feature(enable = "sse4.1")]
 #[target_feature(enable = "sse4.2")]
 // This function requests the size of 'buf' must be 16.
@@ -138,20 +133,23 @@ mod tests {
     #[test]
     fn parse4c_test() {
         let s = "1234".as_bytes();
-        assert_eq!(unsafe { parse4c(s) }, 1234);
+        assert_eq!(unsafe { parse4c(s.try_into().unwrap()) }, 1234);
+
+        let s = "1230".as_bytes();
+        assert_eq!(unsafe { parse4lec(s.try_into().unwrap(), 3) }, 123);
     }
 
     #[test]
     fn parse8c_test() {
         let s = "12345678".as_bytes();
-        assert_eq!(unsafe { parse8c(s) }, 12345678);
+        assert_eq!(unsafe { parse8c(s.try_into().unwrap()) }, 12345678);
     }
 
     #[test]
     fn parse8lec_test() {
         let s = "12345678".as_bytes();
-        assert_eq!(unsafe { parse8lec(s, 3) }, 123);
-        assert_eq!(unsafe { parse8lec(s, 5) }, 12345);
+        assert_eq!(unsafe { parse8lec(s.try_into().unwrap(), 3) }, 123);
+        assert_eq!(unsafe { parse8lec(s.try_into().unwrap(), 5) }, 12345);
     }
 
     #[test]

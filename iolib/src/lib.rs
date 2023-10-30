@@ -4,7 +4,6 @@ mod output;
 mod parse_number;
 
 pub use input::{get_stdin_source, FastInput, Readable};
-// pub use output::OUTPUT;
 pub use output::get_output_source;
 
 #[macro_export]

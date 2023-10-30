@@ -1,7 +1,11 @@
+use crate::parse_number::{parse4c, parse4lec};
+
 use super::ext::{mmap, MAP_PRIVATE, PROT_READ};
 use super::parse_number::{parse16c, parse8c, parse8lec};
+use std::arch::x86_64::{__m128i, _mm_cmpgt_epi8, _mm_loadu_si128, _mm_storeu_si128};
 use std::fs::File;
 use std::io::Read;
+use std::mem::transmute;
 use std::os::unix::io::FromRawFd;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 
@@ -10,15 +14,11 @@ pub trait Readable {
 }
 
 impl Readable for char {
-    fn read(src: &mut FastInput) -> Self {
-        src.read_char()
-    }
+    fn read(src: &mut FastInput) -> Self { src.read_char() }
 }
 
 impl Readable for String {
-    fn read(src: &mut FastInput) -> Self {
-        src.read_string()
-    }
+    fn read(src: &mut FastInput) -> Self { src.read_string() }
 }
 
 macro_rules! impl_readable_integer {
@@ -62,18 +62,10 @@ pub struct FastInput {
 }
 
 impl FastInput {
-    fn new(file: File, buf: Box<[u8]>) -> Self {
-        Self {
-            head: 0,
-            _file: file,
-            buf,
-        }
-    }
+    fn new(file: File, buf: Box<[u8]>) -> Self { Self { head: 0, _file: file, buf } }
 
     #[inline]
-    fn peek(&self) -> u8 {
-        self.buf[self.head]
-    }
+    fn peek(&self) -> u8 { self.buf[self.head] }
 
     #[inline]
     fn next(&mut self) -> Option<u8> {
@@ -86,9 +78,7 @@ impl FastInput {
     }
 
     #[inline]
-    pub fn read<R: Readable>(&mut self) -> R {
-        R::read(self)
-    }
+    pub fn read<R: Readable>(&mut self) -> R { R::read(self) }
 
     #[inline]
     pub fn read_char(&mut self) -> char {
@@ -104,28 +94,110 @@ impl FastInput {
         )
     }
 
+    const SEPARATORS: __m128i = unsafe { transmute([0x22i8; 16]) };
+
+    fn next_separator(&self, mut now: usize) -> usize {
+        let mut buf = [0u64; 2];
+        unsafe {
+            while now + 16 <= self.buf.len() {
+                let bytes = _mm_loadu_si128(self.buf[now..now + 16].as_ptr() as _);
+                let gt = _mm_cmpgt_epi8(Self::SEPARATORS, bytes);
+                _mm_storeu_si128(buf.as_mut_ptr() as _, gt);
+
+                if buf[0] > 0 {
+                    return now + (buf[0].trailing_zeros() >> 3) as usize;
+                } else if buf[1] > 0 {
+                    return now + 8 + (buf[1].trailing_zeros() >> 3) as usize;
+                }
+
+                now += 16;
+            }
+        }
+
+        while now < self.buf.len() && !self.buf[now].is_ascii_whitespace() {
+            now += 1;
+        }
+        now
+    }
+
     #[inline]
     pub fn read_u64(&mut self) -> u64 {
-        let mut tail = self.head;
-        while tail < self.buf.len() && !self.buf[tail].is_ascii_whitespace() {
-            tail += 1;
-        }
+        let tail = self.next_separator(self.head);
 
         let offset = tail - self.head;
         let res = if offset < 8 {
-            unsafe { parse8lec(&self.buf[self.head..self.head + 8], offset as u8) }
+            unsafe {
+                parse8lec(
+                    self.buf[self.head..self.head + 8]
+                        .try_into()
+                        .unwrap_unchecked(),
+                    offset as u8,
+                )
+            }
         } else if offset == 8 {
-            unsafe { parse8c(&self.buf[self.head..self.head + 8]) }
+            unsafe {
+                parse8c(
+                    self.buf[self.head..self.head + 8]
+                        .try_into()
+                        .unwrap_unchecked(),
+                )
+            }
+        } else if offset == 12 {
+            let upper = unsafe {
+                parse4c(
+                    self.buf[self.head..self.head + 4]
+                        .try_into()
+                        .unwrap_unchecked(),
+                )
+            };
+            let lower = unsafe {
+                parse8c(
+                    self.buf[self.head + 4..self.head + 12]
+                        .try_into()
+                        .unwrap_unchecked(),
+                )
+            };
+            upper * 10000_0000 + lower
         } else if offset < 16 {
             let rem = offset - 8;
-            let upper = unsafe { parse8lec(&self.buf[self.head..self.head + 8], rem as u8) };
-            let lower = unsafe { parse8c(&self.buf[self.head + rem..self.head + offset]) };
+            let upper = unsafe {
+                parse8lec(
+                    self.buf[self.head..self.head + 8]
+                        .try_into()
+                        .unwrap_unchecked(),
+                    rem as u8,
+                )
+            };
+            let lower = unsafe {
+                parse8c(
+                    self.buf[self.head + rem..self.head + offset]
+                        .try_into()
+                        .unwrap_unchecked(),
+                )
+            };
             upper * 10000_0000 + lower
         } else if offset == 16 {
             unsafe { parse16c(&self.buf[self.head..self.head + 16]) }
+        } else if offset == 20 {
+            let upper = unsafe {
+                parse4c(
+                    self.buf[self.head..self.head + 4]
+                        .try_into()
+                        .unwrap_unchecked(),
+                )
+            };
+            let lower = unsafe { parse16c(&self.buf[self.head + 4..self.head + 20]) };
+            upper * 10000_0000_0000_0000 + lower
         } else {
             let rem = offset - 16;
-            let upper = unsafe { parse8lec(&self.buf[self.head..self.head + 8], rem as u8) };
+            let upper = unsafe {
+                parse4lec(
+                    self.buf[self.head..self.head + 4]
+                        .try_into()
+                        .unwrap_unchecked(),
+                    rem as u8,
+                )
+            };
             let lower = unsafe { parse16c(&self.buf[self.head + rem..self.head + offset]) };
             upper * 10000_0000_0000_0000 + lower
         };
@@ -135,10 +207,7 @@ impl FastInput {
 
     #[inline]
     pub fn read_string(&mut self) -> String {
-        let mut tail = self.head;
-        while tail < self.buf.len() && !self.buf[tail].is_ascii_whitespace() {
-            tail += 1;
-        }
+        let tail = self.next_separator(self.head);
 
         let res = String::from_utf8_lossy(&self.buf[self.head..tail]).into_owned();
         self.head = tail + 1;
@@ -174,11 +243,7 @@ fn init() -> &'static mut FastInput {
 }
 
 #[inline]
-fn get_input() -> &'static mut FastInput {
-    unsafe { INPUT.as_mut().unwrap_unchecked() }
-}
+fn get_input() -> &'static mut FastInput { unsafe { INPUT.as_mut().unwrap_unchecked() } }
 
 #[inline]
-pub fn get_stdin_source() -> &'static mut FastInput {
-    unsafe { STDINT_SOURCE() }
-}
+pub fn get_stdin_source() -> &'static mut FastInput { unsafe { STDINT_SOURCE() } }

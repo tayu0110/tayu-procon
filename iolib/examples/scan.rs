@@ -1,7 +1,11 @@
 use iolib::scan;
 
 fn main() {
-    scan!(n: usize, m: usize, p: [[[(usize, usize, i64); 2]; 2]; m / 4]);
+    scan!(
+        n: usize,
+        m: usize,
+        p: [[[(usize, usize, i64); 2]; 2]; m / 4]
+    );
 
     let mut t = vec![vec![]; n];
     for (u, v, w) in p.into_iter().flatten().into_iter().flatten() {
