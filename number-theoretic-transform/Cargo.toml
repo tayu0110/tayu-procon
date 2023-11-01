@@ -1,0 +1,15 @@
+[package]
+name = "number-theoretic-transform"
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
+
+[features]
+default = ["simd"]
+simd = []
+minimul = []

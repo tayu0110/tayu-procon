@@ -2,22 +2,8 @@
 
 extern crate test;
 
-use convolution_simd::{convolution, convolution_1e97, convolution_mod_2_64, fft_cache::FftCache, intt, ntt};
-use montgomery_modint::{Mod4194304001, Mod998244353, MontgomeryModint};
-
-use test::Bencher;
-#[bench]
-fn simple_ntt_bench(b: &mut Bencher) {
-    type Modint = MontgomeryModint<Mod998244353>;
-    let cache = FftCache::new();
-    b.iter(|| {
-        for i in 15..=20 {
-            let mut data = (0..1 << i).map(|v| Modint::raw(v)).collect::<Vec<_>>();
-            ntt(&mut data, &cache);
-            intt(&mut data, &cache);
-        }
-    })
-}
+use convolution_simd::{convolution, convolution_1e97, convolution_mod_2_64};
+use montgomery_modint::{Mod4194304001, Mod998244353};
 
 #[test]
 fn convolution_test() {

@@ -8,6 +8,7 @@ license = "CC0-1.0"
 
 [dependencies]
 montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
+number-theoretic-transform = { version = "0.1.0", path = "../number-theoretic-transform" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
@@ -15,3 +16,31 @@ proconio = { version = "0.4.3", features = ["derive"] }
 
 [lib]
 doctest = false
+
+[features]
+default = ["large-convolution", "arbitrary-modulo-convolution"]
+large-convolution = []
+arbitrary-modulo-convolution = []
+
+[profile.release]
+debug = true
+
+[[example]]
+name = "convolution-large"
+required-features = ["large-convolution"]
+
+[[example]]
+name = "convolution-mod2-64"
+required-features = ["arbitrary-modulo-convolution"]
+
+[[example]]
+name = "convolution-mod1000000007"
+required-features = ["arbitrary-modulo-convolution"]
+
+[[example]]
+name = "arbitrary-convolution"
+required-features = ["arbitrary-modulo-convolution"]
+
+[[test]]
+name = "convolution"
+required-features = ["arbitrary-modulo-convolution", "large-convolution"]

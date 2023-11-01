@@ -2,8 +2,8 @@ use montgomery_modint::{Modulo, MontgomeryModint};
 
 type Modint<M> = MontgomeryModint<M>;
 
-// AtCoder-Library like FftCache
-// reference: https://github.com/atcoder/ac-library/blob/master/atcoder/convolution.hpp
+/// AtCoder-Library like FftCache
+/// reference: https://github.com/atcoder/ac-library/blob/master/atcoder/convolution.hpp
 pub struct FftCache<M: Modulo> {
     pub root: [Modint<M>; 35],
     pub iroot: [Modint<M>; 35],
@@ -60,14 +60,14 @@ impl<M: Modulo> FftCache<M> {
     #[inline]
     pub fn gen_rate(&self, log: usize) -> Vec<Modint<M>> {
         if log == 2 {
-            return self.rate2.clone().into();
+            return self.rate2.into();
         } else if log == 3 {
-            return self.rate3.clone().into();
+            return self.rate3.into();
         }
         let mut rate = vec![Modint::one(); Self::RANK2.saturating_sub(log - 1)];
         let mut prod = Modint::one();
-        for i in 0..Self::RANK2.saturating_sub(log - 1) {
-            rate[i] = self.root[i + log] * prod;
+        for (i, rate) in rate.iter_mut().enumerate() {
+            *rate = self.root[i + log] * prod;
             prod *= self.iroot[i + log];
         }
         rate
@@ -76,15 +76,15 @@ impl<M: Modulo> FftCache<M> {
     #[inline]
     pub fn gen_irate(&self, log: usize) -> Vec<Modint<M>> {
         if log == 2 {
-            return self.irate2.clone().into();
+            return self.irate2.into();
         }
         if log == 3 {
-            return self.irate3.clone().into();
+            return self.irate3.into();
         }
         let mut irate = vec![Modint::one(); Self::RANK2.saturating_sub(log - 1)];
         let mut iprod = Modint::one();
-        for i in 0..Self::RANK2.saturating_sub(log - 1) {
-            irate[i] = self.iroot[i + log] * iprod;
+        for (i, irate) in irate.iter_mut().enumerate() {
+            *irate = self.iroot[i + log] * iprod;
             iprod *= self.root[i + log];
         }
         irate
