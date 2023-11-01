@@ -10,7 +10,6 @@ license = "CC0-1.0"
 bitset = { path = "./bitset" }
 complex = { path = "./complex" }
 convolution = { path = "./convolution" }
-convolution-simd = { path = "./convolution-simd" }
 fenwick-tree = { path = "./fenwick-tree" }
 flow = { path = "./flow" }
 geometry = { path = "./geometry" }

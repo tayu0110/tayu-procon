@@ -1,7 +1,6 @@
 pub use bitset;
 pub use complex;
 pub use convolution;
-pub use convolution_simd;
 pub use fenwick_tree;
 pub use flow;
 pub use geometry;

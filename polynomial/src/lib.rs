@@ -1,5 +1,6 @@
-use convolution_simd::Nttable;
+use convolution::hadamard;
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
+use number_theoretic_transform::NumberTheoreticTransform;
 use std::ops::{Add, Div, Index, IndexMut, Mul, Rem, Sub};
 
 type Modint<M> = MontgomeryModint<M>;
@@ -32,7 +33,13 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     pub fn derivative(self) -> Self {
-        let coef = self.coef.into_iter().enumerate().skip(1).map(|(i, p)| p * Modint::raw(i as u32)).collect::<Vec<_>>();
+        let coef = self
+            .coef
+            .into_iter()
+            .enumerate()
+            .skip(1)
+            .map(|(i, p)| p * Modint::raw(i as u32))
+            .collect::<Vec<_>>();
         coef.into()
     }
 
@@ -63,11 +70,10 @@ impl<M: Modulo> Polynomial<M> {
         rhs.resize(deg);
         self.coef.ntt();
         rhs.coef.ntt();
-        let mut res = self.coef.dot(&rhs.coef);
-        res.intt();
-        let mut res: Self = res.into();
-        res.resize(len);
-        res
+        hadamard(&mut self.coef, &rhs.coef);
+        self.coef.intt();
+        self.resize(len);
+        self
     }
 
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
@@ -85,21 +91,27 @@ impl<M: Modulo> Polynomial<M> {
                 let mut g_ntt = g[0..2 * size].to_vec();
                 g_ntt.ntt();
                 f.ntt();
-                let mut fg = f.dot(&g_ntt);
-                fg.intt();
-                fg[..size].iter_mut().for_each(|h| *h = Modint::zero());
-                fg.ntt();
-                fg.dot_assign(&g_ntt);
-                fg.intt();
-                fg
+                hadamard(&mut f, &g_ntt);
+                f.intt();
+                f[..size].iter_mut().for_each(|h| *h = Modint::zero());
+                f.ntt();
+                hadamard(&mut f, &g_ntt);
+                f.intt();
+                f
             };
             if size < 8 {
-                g[size..].iter_mut().zip(hg[size..].iter().take(size)).for_each(|(p, &v)| *p -= v);
+                g[size..]
+                    .iter_mut()
+                    .zip(hg[size..].iter().take(size))
+                    .for_each(|(p, &v)| *p -= v);
             } else {
                 g[size..]
                     .chunks_exact_mut(8)
                     .zip(hg[size..].chunks_exact(8))
-                    .for_each(|(p, v)| unsafe { (Modintx8::load(p.as_ptr()) - Modintx8::load(v.as_ptr())).store(p.as_mut_ptr()) });
+                    .for_each(|(p, v)| unsafe {
+                        (Modintx8::load(p.as_ptr()) - Modintx8::load(v.as_ptr()))
+                            .store(p.as_mut_ptr())
+                    });
             }
             size <<= 1;
         }
@@ -116,7 +128,12 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     pub fn shrink(&mut self) {
-        let garbage_cnt = self.coef.iter().rev().take_while(|&&v| v == Modint::zero()).count();
+        let garbage_cnt = self
+            .coef
+            .iter()
+            .rev()
+            .take_while(|&&v| v == Modint::zero())
+            .count();
         self.coef.resize(self.deg() - garbage_cnt, Modint::zero());
     }
 
@@ -145,7 +162,11 @@ impl<M: Modulo> Polynomial<M> {
             subproduct_tree[i << 1].coef.ntt();
             subproduct_tree[(i << 1) | 1].coef.ntt();
             subproduct_tree[i] = Self {
-                coef: subproduct_tree[i << 1].clone().coef.dot(&subproduct_tree[(i << 1) | 1].coef),
+                coef: {
+                    let mut coef = subproduct_tree[i << 1].clone().coef;
+                    hadamard(&mut coef, &subproduct_tree[(i << 1) | 1].coef);
+                    coef
+                },
             };
             subproduct_tree[i].coef.intt();
             let k = subproduct_tree[i].coef[0] - Modint::one();
@@ -160,12 +181,12 @@ impl<M: Modulo> Polynomial<M> {
             let (a, b) = subproduct_tree.split_at_mut(i << 1);
             let n = a[i].deg() >> 1;
             a[i].coef.ntt();
-            for j in 0..2 {
-                b[j].coef.dot_assign(&a[i].coef);
-                b[j].coef.intt();
-                b[j].reverse();
-                b[j].resize(n);
-                b[j].reverse();
+            for b in b.iter_mut().take(2) {
+                hadamard(&mut b.coef, &a[i].coef);
+                b.coef.intt();
+                b.reverse();
+                b.resize(n);
+                b.reverse();
             }
             b.swap(0, 1);
         }
@@ -190,7 +211,10 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree[1] = t;
 
         let subproduct_tree = Self::transposed_uptree(m, subproduct_tree);
-        subproduct_tree[m..m + len].into_iter().map(|v| *v.coef.get(0).unwrap_or(&Modint::zero())).collect()
+        subproduct_tree[m..m + len]
+            .iter()
+            .map(|v| *v.coef.get(0).unwrap_or(&Modint::zero()))
+            .collect()
     }
 
     pub fn interpolation(xs: Vec<Modint<M>>, fs: Vec<Modint<M>>) -> Self {
@@ -233,7 +257,10 @@ impl<M: Modulo> Polynomial<M> {
             .for_each(|(i, v)| *v = vec![fs[i] / *v.coef.get(0).unwrap_or(&Modint::zero())].into());
         subproduct_tree[m + len..].fill(Self::empty());
         for i in (1..m).rev() {
-            let (r, l) = (subproduct_tree.pop().unwrap(), subproduct_tree.pop().unwrap());
+            let (r, l) = (
+                subproduct_tree.pop().unwrap(),
+                subproduct_tree.pop().unwrap(),
+            );
             let (kr, kl) = (keep.pop().unwrap(), keep.pop().unwrap());
             if l.deg() == 0 && r.deg() == 0 {
                 subproduct_tree[i] = l;
@@ -272,9 +299,14 @@ impl<M: Modulo> Add<Self> for Polynomial<M> {
 
 impl<M: Modulo> Sub<Self> for Polynomial<M> {
     type Output = Self;
-    fn sub(self, mut rhs: Self) -> Self::Output {
-        rhs.coef.iter_mut().for_each(|v| *v = -*v);
-        self + rhs
+    fn sub(self, rhs: Self) -> Self::Output {
+        let (mut l, mut r) = (self.coef, rhs.coef);
+        if l.len() < r.len() {
+            std::mem::swap(&mut l, &mut r);
+        }
+
+        l.iter_mut().zip(r.iter()).for_each(|(l, r)| *l -= *r);
+        Polynomial { coef: l }
     }
 }
 
@@ -318,10 +350,13 @@ impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
     fn from(mut v: Vec<u32>) -> Self {
         let l = v.len() >> 3 << 3;
         v[..l].chunks_exact_mut(8).for_each(|v| {
-            let w = unsafe { Modintx8::<M>::load(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8) };
+            let w =
+                unsafe { Modintx8::<M>::load(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8) };
             unsafe { w.store(v.as_mut_ptr() as _) }
         });
-        v[l..].iter_mut().for_each(|v| *v = Modint::<M>::new(*v).val);
+        v[l..]
+            .iter_mut()
+            .for_each(|v| *v = Modint::<M>::new(*v).val);
         Self { coef: unsafe { std::mem::transmute(v) } }
     }
 }
@@ -334,20 +369,22 @@ impl<M: Modulo> From<&[Modint<M>]> for Polynomial<M> {
     fn from(value: &[Modint<M>]) -> Self { Self { coef: value.to_vec() } }
 }
 
-impl<M: Modulo> Into<Vec<u32>> for Polynomial<M> {
-    fn into(mut self) -> Vec<u32> {
-        let l = self.deg() >> 3 << 3;
-        self.coef[..l].chunks_exact_mut(8).for_each(|v| {
+impl<M: Modulo> From<Polynomial<M>> for Vec<u32> {
+    fn from(mut value: Polynomial<M>) -> Self {
+        let l = value.deg() >> 3 << 3;
+        value.coef[..l].chunks_exact_mut(8).for_each(|v| {
             let w = unsafe { Modintx8::load(v.as_ptr()) };
             unsafe { Modintx8::from_rawval(w.val()).store(v.as_mut_ptr()) }
         });
-        self.coef[l..].iter_mut().for_each(|v| *v = Modint::from_rawval(v.val()));
-        unsafe { std::mem::transmute(self.coef) }
+        value.coef[l..]
+            .iter_mut()
+            .for_each(|v| *v = Modint::from_rawval(v.val()));
+        unsafe { std::mem::transmute(value.coef) }
     }
 }
 
-impl<M: Modulo> Into<Vec<Modint<M>>> for Polynomial<M> {
-    fn into(self) -> Vec<Modint<M>> { self.coef }
+impl<M: Modulo> From<Polynomial<M>> for Vec<Modint<M>> {
+    fn from(value: Polynomial<M>) -> Self { value.coef }
 }
 
 impl<M: Modulo> Index<usize> for Polynomial<M> {
@@ -372,7 +409,11 @@ mod tests {
         let coef = vec![1, 2, 4, 8, 16];
         let poly2 = Polynomial::<Mod998244353>::from(coef);
 
-        let add = (poly + poly2).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let add = (poly + poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
         assert_eq!(add, vec![6, 6, 7, 10, 17]);
     }
 
@@ -381,7 +422,11 @@ mod tests {
         let poly = Polynomial::<Mod998244353>::from(vec![5, 4, 3, 2, 1]);
         let poly2 = Polynomial::<Mod998244353>::from(vec![1, 2, 4, 8, 16]);
 
-        let sub = (poly - poly2).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let sub = (poly - poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
         assert_eq!(sub, vec![4, 2, 998244352, 998244347, 998244338]);
     }
 
@@ -390,7 +435,11 @@ mod tests {
         let poly = Polynomial::<Mod998244353>::from(vec![5, 4, 3, 2, 1]);
         let poly2 = Polynomial::<Mod998244353>::from(vec![1, 2, 4, 8, 16]);
 
-        let mul = (poly * poly2).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let mul = (poly * poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
         assert_eq!(mul, vec![5, 14, 31, 64, 129, 98, 68, 40, 16]);
     }
 
@@ -399,7 +448,11 @@ mod tests {
         let poly = Polynomial::<Mod998244353>::from(vec![0, 0, 0, 0, 0, 0, 1]);
         let poly2 = Polynomial::<Mod998244353>::from(vec![998244352, 998244352, 1]);
 
-        let div = (poly / poly2).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let div = (poly / poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
         assert_eq!(div, vec![5, 3, 2, 1, 1]);
     }
 
@@ -408,16 +461,34 @@ mod tests {
         let poly = Polynomial::<Mod998244353>::from(vec![0, 0, 0, 0, 0, 0, 1]);
         let poly2 = Polynomial::<Mod998244353>::from(vec![998244352, 998244352, 1]);
 
-        let rem = (poly % poly2).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let rem = (poly % poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
         assert_eq!(rem, vec![5, 8]);
     }
 
     #[test]
     fn polynomial_inverse_test() {
-        let poly = Polynomial::<Mod998244353>::from(vec![907649121, 290651129, 813718295, 770591820, 913049957, 587190944, 411145555, 899491439, 722412549, 182227749]);
-        let inv = poly.inv(poly.deg()).coef.into_iter().map(|v| v.val()).collect::<Vec<_>>();
+        let poly = Polynomial::<Mod998244353>::from(vec![
+            907649121, 290651129, 813718295, 770591820, 913049957, 587190944, 411145555, 899491439,
+            722412549, 182227749,
+        ]);
+        let inv = poly
+            .inv(poly.deg())
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
 
-        assert_eq!(inv, vec![827228041, 288540417, 325694325, 929405258, 743378152, 901428113, 379325593, 870509167, 978731889, 911693879]);
+        assert_eq!(
+            inv,
+            vec![
+                827228041, 288540417, 325694325, 929405258, 743378152, 901428113, 379325593,
+                870509167, 978731889, 911693879
+            ]
+        );
     }
 
     #[test]
@@ -426,15 +497,33 @@ mod tests {
         let xs = vec![5.into(), 6.into(), 7.into(), 8.into(), 9.into()];
         let ys = poly.multipoint_evaluation(xs);
 
-        assert_eq!(ys, vec![586.into(), 985.into(), 1534.into(), 2257.into(), 3178.into()]);
+        assert_eq!(
+            ys,
+            vec![
+                586.into(),
+                985.into(),
+                1534.into(),
+                2257.into(),
+                3178.into()
+            ]
+        );
     }
 
     #[test]
     fn lagrange_interpolation_test() {
         let xs = vec![5.into(), 6.into(), 7.into(), 8.into(), 9.into()];
-        let fs = vec![586.into(), 985.into(), 1534.into(), 2257.into(), 3178.into()];
+        let fs = vec![
+            586.into(),
+            985.into(),
+            1534.into(),
+            2257.into(),
+            3178.into(),
+        ];
 
         let res = Polynomial::<Mod998244353>::interpolation(xs, fs);
-        assert_eq!(res.coef, vec![1.into(), 2.into(), 3.into(), 4.into(), 0.into()]);
+        assert_eq!(
+            res.coef,
+            vec![1.into(), 2.into(), 3.into(), 4.into(), 0.into()]
+        );
     }
 }

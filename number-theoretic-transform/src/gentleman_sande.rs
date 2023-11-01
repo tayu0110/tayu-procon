@@ -1,4 +1,4 @@
-use crate::fft_cache::FftCache;
+use super::FftCache;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use montgomery_modint::MontgomeryModintx8;
 use montgomery_modint::{Modulo, MontgomeryModint};

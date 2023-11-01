@@ -1,4 +1,4 @@
-use crate::fft_cache::FftCache;
+use super::FftCache;
 use montgomery_modint::Modulo;
 
 pub trait NumberTheoreticTransform<M: Modulo> {
