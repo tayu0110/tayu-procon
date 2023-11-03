@@ -9,5 +9,13 @@ license = "CC0-1.0"
 [dependencies]
 
 [dev-dependencies]
+iolib = { path = "../iolib" }
 proconio = "0.4.5"
 rand = "0.8.5"
+
+[features]
+default = ["full"]
+full = ["fixed-ring-queue", "btree-multiset", "double-ended-priority-queue"]
+fixed-ring-queue = []
+btree-multiset = []
+double-ended-priority-queue = []

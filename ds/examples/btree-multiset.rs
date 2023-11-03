@@ -15,7 +15,9 @@ fn main() {
         if t == 1 {
             input! {x: usize}
             if !multiset.contains(&x) {
-                if let (Some(k), Some(k2)) = (multiset.range(x..).next(), multiset.range(..=x).next_back()) {
+                if let (Some(k), Some(k2)) =
+                    (multiset.range(x..).next(), multiset.range(..=x).next_back())
+                {
                     min.insert(k ^ x);
                     min.insert(k2 ^ x);
                     min.remove(&(k ^ k2));
@@ -31,7 +33,9 @@ fn main() {
             input! {x: usize}
             multiset.remove(&x);
             if multiset.count(&x) == 0 {
-                if let (Some(k), Some(k2)) = (multiset.range(x..).next(), multiset.range(..=x).next_back()) {
+                if let (Some(k), Some(k2)) =
+                    (multiset.range(x..).next(), multiset.range(..=x).next_back())
+                {
                     min.remove(&(k ^ x));
                     min.remove(&(k2 ^ x));
                     min.insert(k ^ k2);
@@ -41,12 +45,10 @@ fn main() {
                     min.remove(&(k ^ x));
                 }
             }
+        } else if multiset.has_duplicate() {
+            println!("0");
         } else {
-            if multiset.has_duplicate() {
-                println!("0");
-            } else {
-                println!("{}", min.first().unwrap());
-            }
+            println!("{}", min.first().unwrap());
         }
     }
 }

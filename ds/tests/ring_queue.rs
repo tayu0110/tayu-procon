@@ -19,7 +19,7 @@ fn ring_queue_bench(b: &mut Bencher) {
             nt.push(rng.gen::<usize>());
         }
 
-        while let Some(_) = nt.pop() {}
+        while nt.pop().is_some() {}
     });
 }
 
@@ -33,6 +33,6 @@ fn vec_deque_bench(b: &mut Bencher) {
             nt.push_back(rng.gen::<usize>());
         }
 
-        while let Some(_) = nt.pop_front() {}
+        while nt.pop_front().is_some() {}
     });
 }
