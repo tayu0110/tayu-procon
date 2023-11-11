@@ -2,6 +2,9 @@
 // Utility
 ////////////////////////////////////////////////////////////////////////////////
 
+mod grid;
+pub use grid::*;
+
 pub trait BinarySearch<T> {
     type Output;
     fn lower_bound(&self, _target: T) -> Option<Self::Output> { unimplemented!() }
