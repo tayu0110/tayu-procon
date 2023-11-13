@@ -1,6 +1,7 @@
 mod btree_multiset;
 mod fixed_ring_queue;
 mod interval_heap;
+mod link_cut_tree;
 
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
@@ -8,6 +9,8 @@ pub use btree_multiset::*;
 pub use fixed_ring_queue::*;
 #[cfg(feature = "double-ended-priority-queue")]
 pub use interval_heap::*;
+#[cfg(feature = "link-cut-tree")]
+pub use link_cut_tree::*;
 
 #[cfg(test)]
 mod tests {

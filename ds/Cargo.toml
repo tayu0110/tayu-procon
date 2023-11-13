@@ -15,7 +15,13 @@ rand = "0.8.5"
 
 [features]
 default = ["full"]
-full = ["fixed-ring-queue", "btree-multiset", "double-ended-priority-queue"]
+full = [
+  "fixed-ring-queue",
+  "btree-multiset",
+  "double-ended-priority-queue",
+  "link-cut-tree",
+]
 fixed-ring-queue = []
 btree-multiset = []
 double-ended-priority-queue = []
+link-cut-tree = []
