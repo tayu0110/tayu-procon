@@ -375,6 +375,10 @@ impl LinkCutTree {
         Ok(res)
     }
 
+    /// Connect the path from `index` to root with Heavy Edge.
+    ///
+    /// After the call, `index` becomes the root of an internally managed Splay tree. <br/>
+    /// The return value is used internally and has no meaning externally. (It is the index of the vertex which was the root before `index` became the root of the Splay tree.)
     pub fn expose(&self, index: usize) -> usize {
         let mut now = self.nodes[index];
         now.splay();
@@ -395,6 +399,7 @@ impl LinkCutTree {
         now.index()
     }
 
+    /// Returns the root of the tree to which `index` belongs.
     pub fn root(&self, index: usize) -> usize {
         self.expose(index);
 
@@ -407,6 +412,7 @@ impl LinkCutTree {
         now.index()
     }
 
+    /// Determine if `u` and `v` belong to the same tree.
     pub fn is_connected(&mut self, u: usize, v: usize) -> bool {
         if u == v {
             return true;
@@ -418,6 +424,29 @@ impl LinkCutTree {
         self.nodes[u].parent.is_some()
     }
 
+    /// This method makes `child` connect to `parent` as a child vertex.
+    ///
+    /// When `parent` and `child` already belong to the same tree, return `Err`.
+    ///
+    /// # Sample
+    /// ```rust
+    /// use ds::LinkCutTree;
+    ///
+    /// let mut tree = LinkCutTree::new(3);
+    /// let ok = tree.link(0, 1);
+    /// assert!(ok.is_ok());
+    /// assert!(tree.is_connected(0, 1));
+    ///
+    /// let ok = tree.link(1, 2);
+    /// assert!(ok.is_ok());
+    /// assert!(tree.is_connected(1, 2));
+    /// assert!(tree.is_connected(0, 2));
+    ///
+    /// // Vertex 0 is an ancestor of vertex 2.
+    /// // So, this call is failed.
+    /// let bad = tree.link(0, 2);
+    /// assert!(bad.is_err());
+    /// ```
     pub fn link(&mut self, parent: usize, child: usize) -> Result<(), &'static str> {
         if self.is_connected(parent, child) {
             return Err("These nodes already belong to the same group.");
@@ -431,18 +460,95 @@ impl LinkCutTree {
         Ok(())
     }
 
+    /// This method cuts the link between `new_root` and its parent.
+    ///
+    /// As a result, `new_root` and its descendants become a new tree with `new_root` as its root.
+    ///
+    /// # Sample
+    /// ```rust
+    /// use ds::LinkCutTree;
+    ///
+    /// let mut tree = LinkCutTree::new(6);
+    /// //      0
+    /// //     / \
+    /// //    1   2
+    /// //   / \   \
+    /// //  3   4   5
+    /// tree.link(0, 1).unwrap();
+    /// tree.link(0, 2).unwrap();
+    /// tree.link(1, 3).unwrap();
+    /// tree.link(1, 4).unwrap();
+    /// tree.link(2, 5).unwrap();
+    ///
+    /// assert!(tree.is_connected(0, 1));
+    /// assert!(tree.is_connected(0, 3));
+    ///
+    /// assert_eq!(tree.root(3), 0);
+    /// assert_eq!(tree.root(5), 0);
+    ///
+    /// // Cut the link between vertex 0 and vertex 1
+    /// //      0
+    /// //       \
+    /// //    1   2
+    /// //   / \   \
+    /// //  3   4   5
+    /// tree.cut(1);
+    ///
+    /// assert!(!tree.is_connected(0, 1));
+    /// assert!(!tree.is_connected(0, 3));
+    ///
+    /// assert_eq!(tree.root(3), 1);
+    /// assert_eq!(tree.root(5), 0);
+    /// ```
     pub fn cut(&mut self, new_root: usize) {
         self.expose(new_root);
 
         self.nodes[new_root].disconnect_left();
     }
 
+    /// Make `new_root` the new root of the tree to which it belongs.
+    ///
+    /// # Sample
+    /// ```rust
+    /// use ds::LinkCutTree;
+    ///
+    /// let mut tree = LinkCutTree::new(6);
+    /// //      0
+    /// //     / \
+    /// //    1   2
+    /// //   / \   \
+    /// //  3   4   5
+    /// tree.link(0, 1).unwrap();
+    /// tree.link(0, 2).unwrap();
+    /// tree.link(1, 3).unwrap();
+    /// tree.link(1, 4).unwrap();
+    /// tree.link(2, 5).unwrap();
+    ///
+    /// assert_eq!(tree.root(3), 0);
+    /// assert_eq!(tree.root(5), 0);
+    ///
+    /// // Make vertex 1 the new root of this tree.
+    /// //      1
+    /// //     /|\
+    /// //    3 4 0
+    /// //         \
+    /// //          2
+    /// //           \
+    /// //            5
+    /// tree.evert(1);
+    ///
+    /// assert_eq!(tree.root(3), 1);
+    /// assert_eq!(tree.root(5), 1);
+    /// ```
     pub fn evert(&mut self, new_root: usize) {
         self.expose(new_root);
         self.nodes[new_root].toggle();
         self.nodes[new_root].propagate();
     }
 
+    /// Return the Lowest Common Ancestor of `u` and `v`.
+    ///
+    /// This method is very slow...so unless you are simply looking for LCA and require very tight memory constraints, you should use `graph::HeavyLightDecomposition::lca`.
     pub fn lca(&self, u: usize, v: usize) -> usize {
         self.expose(u);
         self.expose(v)
