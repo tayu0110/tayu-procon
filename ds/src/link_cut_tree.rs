@@ -1,59 +1,95 @@
 #![allow(clippy::collapsible_else_if, clippy::comparison_chain)]
 
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
-enum Edge {
-    Light(NodeRef),
-    Heavy(NodeRef),
+enum Edge<M: MapMonoid> {
+    Light(NodeRef<M>),
+    Heavy(NodeRef<M>),
     None,
 }
 
-// Left children are sallower than self, and right children are deeper than self.
-// If the index is negative, it is assumed to have the REVERSE flag.
-#[derive(Debug, PartialEq)]
-struct Node {
-    parent: Option<NodeRef>,
-    left: Option<NodeRef>,
-    right: Option<NodeRef>,
-    index: i32,
+pub trait MapMonoid {
+    type M;
+    type Act;
+
+    fn e() -> Self::M;
+    fn op(l: &Self::M, r: &Self::M) -> Self::M;
+    fn id() -> Self::Act;
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act;
+    fn map(m: &Self::M, act: &Self::Act) -> Self::M;
 }
 
-impl Node {
-    pub const fn new(index: usize) -> Self {
-        Self { parent: None, left: None, right: None, index: index as i32 }
+// Left children are sallower than self, and right children are deeper than self.
+// The most significant bit (i.e., the 31st bit) of `index` is used as the reverse flag.
+#[derive(Debug, PartialEq)]
+struct Node<M: MapMonoid> {
+    parent: Option<NodeRef<M>>,
+    left: Option<NodeRef<M>>,
+    right: Option<NodeRef<M>>,
+    index: u32,
+    val: M::M,
+    sum: M::M,
+    lazy: M::Act,
+}
+
+impl<M: MapMonoid> Node<M> {
+    pub fn new(index: usize) -> Self {
+        Self {
+            parent: None,
+            left: None,
+            right: None,
+            index: index as u32,
+            val: M::e(),
+            sum: M::e(),
+            lazy: M::id(),
+        }
     }
 
-    pub const fn index(&self) -> usize { self.index.unsigned_abs() as usize }
+    pub const fn index(&self) -> usize { (self.index & !(1 << 31)) as usize }
 
-    pub const fn is_reversed(&self) -> bool { self.index < 0 }
+    pub const fn is_reversed(&self) -> bool { self.index >= (1 << 31) }
 
     pub fn toggle(&mut self) {
-        self.index = -self.index;
-        std::mem::swap(&mut self.left, &mut self.right);
+        self.index ^= 1 << 31;
+        (self.left, self.right) = (self.right, self.left);
     }
 
     fn propagate(&mut self) {
-        if self.is_reversed() {
-            std::mem::swap(&mut self.left, &mut self.right);
-
-            if let Some(mut left) = self.left {
+        if let Some(mut left) = self.left {
+            left.lazy = M::composite(&left.lazy, &self.lazy);
+            left.sum = M::map(&left.sum, &self.lazy);
+            if self.is_reversed() {
                 left.toggle();
             }
-            if let Some(mut right) = self.right {
+        }
+        if let Some(mut right) = self.right {
+            right.lazy = M::composite(&right.lazy, &self.lazy);
+            right.sum = M::map(&right.sum, &self.lazy);
+            if self.is_reversed() {
                 right.toggle();
             }
+        }
 
-            self.toggle();
+        self.lazy = M::id();
+        self.index = self.index() as u32;
+    }
+
+    fn update(&mut self) {
+        self.sum = match (self.left, self.right) {
+            (Some(l), Some(r)) => M::op(&M::op(&l.sum, &self.val), &r.sum),
+            (Some(l), _) => M::op(&l.sum, &self.val),
+            (_, Some(r)) => M::op(&self.val, &r.sum),
+            _ => M::map(&self.val, &M::id()),
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct NodeRef(NonNull<Node>);
+struct NodeRef<M: MapMonoid>(NonNull<Node<M>>);
 
-impl NodeRef {
-    fn new(node: Node) -> Self {
+impl<M: MapMonoid> NodeRef<M> {
+    fn new(node: Node<M>) -> Self {
         let reference = Box::leak(Box::new(node));
         Self(NonNull::new(reference as *mut _).unwrap())
     }
@@ -100,14 +136,14 @@ impl NodeRef {
         }
     }
 
-    fn disconnect_parent(&mut self) -> Edge {
+    fn disconnect_parent(&mut self) -> Edge<M> {
         if let Some(mut parent) = self.parent {
             match (parent.left, parent.right) {
-                (Some(l), _) if l.index == self.index => {
+                (Some(l), _) if l == *self => {
                     parent.left = None;
                     self.parent = None;
                 }
-                (_, Some(r)) if r.index == self.index => {
+                (_, Some(r)) if r == *self => {
                     parent.right = None;
                     self.parent = None;
                 }
@@ -145,7 +181,7 @@ impl NodeRef {
         //       / \
         //      d   e
         // If not, it is not necessary to do anything.
-        let Some(right) = self.disconnect_right() else { return self };
+        let Some(mut right) = self.disconnect_right() else { return self };
 
         // If right has left-child, disconnect it
         //      |
@@ -163,13 +199,24 @@ impl NodeRef {
             self.connect_right(right_left);
         }
 
+        self.update();
+
         let self_is_shallow = self.is_left_child();
         // If self has a parent, disconnect it
         //        a       c
         //       / \       \
         //      b   d       e
         match self.disconnect_parent() {
-            Edge::Heavy(par) => {
+            Edge::Heavy(mut par) => {
+                // connect self to right as left-child
+                //      c
+                //     / \
+                //    a   e
+                //   / \
+                //  b   d
+                right.connect_left(self);
+                right.update();
+
                 // and connect it to right as a parent
                 //           |
                 //    a      c
@@ -180,22 +227,22 @@ impl NodeRef {
                 } else {
                     par.connect_right(right);
                 }
+                par.update();
             }
             Edge::Light(par) => {
+                // connect self to right as left-child
+                right.connect_left(self);
+                right.update();
+
                 // In the case of Light Edge, the parent does not update.
                 right.weak_connect_parent(par);
             }
-            Edge::None => {}
+            Edge::None => {
+                // connect self to right as left-child
+                right.connect_left(self);
+                right.update();
+            }
         }
-
-        // connect self to right as left-child
-        //      |
-        //      c
-        //     / \
-        //    a   e
-        //   / \
-        //  b   d
-        right.connect_left(self);
 
         // return new root of the original subtree.
         right
@@ -222,7 +269,7 @@ impl NodeRef {
         //   / \
         //  d   e
         // If not, it is not necessary to do anything.
-        let Some(left) = self.disconnect_left() else { return self };
+        let Some(mut left) = self.disconnect_left() else { return self };
 
         // If left has right-child, disconnect it
         //      |
@@ -240,45 +287,58 @@ impl NodeRef {
             self.connect_left(left_right);
         }
 
+        self.update();
+
         let self_is_shallow = self.is_left_child();
         // If self has a parent, disconnect it
         //        a       b
         //       / \     /
         //      e   c   d
         match self.disconnect_parent() {
-            Edge::Heavy(par) => {
+            Edge::Heavy(mut par) => {
+                // connect self to left as right-child
+                //      b
+                //     / \
+                //    d   a
+                //       / \
+                //      e   c
+                left.connect_right(self);
+                left.update();
+
                 // and connect it to left as a parent
                 if self_is_shallow {
                     par.connect_left(left);
                 } else {
                     par.connect_right(left);
                 }
+                par.update();
             }
             Edge::Light(par) => {
+                // connect self to left as right-child
+                left.connect_right(self);
+                left.update();
+
                 // In the case of Light Edge, the parent does not update.
                 left.weak_connect_parent(par);
             }
-            Edge::None => {}
+            Edge::None => {
+                // connect self to left as right-child
+                left.connect_right(self);
+                left.update();
+            }
         }
-
-        // connect self to left as right-child
-        //      |
-        //      b
-        //     / \
-        //    d   a
-        //       / \
-        //      e   c
-        left.connect_right(self);
 
         // return new root of the original subtree
         left
     }
 
     fn splay(mut self) {
+        self.propagate();
         while !self.is_root() {
             let &(mut parent) = self.parent.as_ref().unwrap();
 
             if parent.is_root() {
+                // zig step
                 parent.propagate();
                 self.propagate();
                 if self.is_left_child() {
@@ -336,26 +396,45 @@ impl NodeRef {
     }
 }
 
-impl Clone for NodeRef {
+impl<M: MapMonoid> Clone for NodeRef<M> {
     fn clone(&self) -> Self { Self(self.0) }
 }
 
-impl Copy for NodeRef {}
+impl<M: MapMonoid> Copy for NodeRef<M> {}
 
-impl Deref for NodeRef {
-    type Target = Node;
+impl<M: MapMonoid> PartialEq for NodeRef<M> {
+    fn eq(&self, other: &Self) -> bool { self.index == other.index }
+}
+
+impl<M: MapMonoid> Deref for NodeRef<M> {
+    type Target = Node<M>;
     fn deref(&self) -> &Self::Target { unsafe { self.0.as_ref() } }
 }
 
-impl DerefMut for NodeRef {
+impl<M: MapMonoid> DerefMut for NodeRef<M> {
     fn deref_mut(&mut self) -> &mut Self::Target { unsafe { self.0.as_mut() } }
 }
 
-pub struct LinkCutTree {
-    nodes: Vec<NodeRef>,
+impl<M> Debug for NodeRef<M>
+where
+    M: MapMonoid,
+    M::M: Debug,
+    M::Act: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NodeRef {{ index: {:?}, val: {:?}, sum: {:?}, lazy: {:?}, rev: {:?}, parent: {:?}, left: {:?}, right: {:?} }}",
+            self.index(), self.val, self.sum, self.lazy, self.is_reversed(), self.parent.map(|p| p.index()), self.left, self.right
+        )
+    }
 }
 
-impl LinkCutTree {
+pub struct LinkCutTree<M: MapMonoid> {
+    nodes: Vec<NodeRef<M>>,
+}
+
+impl<M: MapMonoid> LinkCutTree<M> {
     pub fn new(size: usize) -> Self {
         Self {
             nodes: (0..size).map(|i| NodeRef::new(Node::new(i))).collect(),
@@ -385,11 +464,13 @@ impl LinkCutTree {
         // Change a child deeper than itself to a connection at Light Edge.
         // After Expose is complete, only its own ancestors will be connected at Heavy Edge.
         now.right = None;
+        now.update();
         debug_assert!(now.is_root());
-        while let Some(parent) = now.parent {
+        while let Some(mut parent) = now.parent {
             parent.splay();
             debug_assert!(parent.is_root());
             now.force_connect_parent(parent);
+            parent.update();
 
             now = parent;
         }
@@ -413,7 +494,7 @@ impl LinkCutTree {
     }
 
     /// Determine if `u` and `v` belong to the same tree.
-    pub fn is_connected(&mut self, u: usize, v: usize) -> bool {
+    pub fn is_connected(&self, u: usize, v: usize) -> bool {
         if u == v {
             return true;
         }
@@ -428,9 +509,11 @@ impl LinkCutTree {
     ///
     /// When `parent` and `child` already belong to the same tree, return `Err`.
     ///
-    /// # Sample
+    /// # Example
     /// ```rust
-    /// use ds::LinkCutTree;
+    /// use ds::NoOpLinkCutTree;
+    ///
+    /// type LinkCutTree = NoOpLinkCutTree;
     ///
     /// let mut tree = LinkCutTree::new(3);
     /// let ok = tree.link(0, 1);
@@ -456,7 +539,16 @@ impl LinkCutTree {
         self.expose(child);
 
         self.nodes[child].force_connect_parent(self.nodes[parent]);
+        self.nodes[parent].update();
 
+        Ok(())
+    }
+
+    /// Link `u` and `v` with unknown parent-child relationship.
+    /// In fact, it is equivalent to the operation of Evert `v` and then connect `v` to `u` as a child.
+    pub fn link_flat(&mut self, u: usize, v: usize) -> Result<(), &'static str> {
+        self.evert(v);
+        self.link(u, v)?;
         Ok(())
     }
 
@@ -464,9 +556,11 @@ impl LinkCutTree {
     ///
     /// As a result, `new_root` and its descendants become a new tree with `new_root` as its root.
     ///
-    /// # Sample
+    /// # Example
     /// ```rust
-    /// use ds::LinkCutTree;
+    /// use ds::NoOpLinkCutTree;
+    ///
+    /// type LinkCutTree = NoOpLinkCutTree;
     ///
     /// let mut tree = LinkCutTree::new(6);
     /// //      0
@@ -504,13 +598,32 @@ impl LinkCutTree {
         self.expose(new_root);
 
         self.nodes[new_root].disconnect_left();
+        self.nodes[new_root].update();
+    }
+
+    /// Try to cut the edge between nodes `u` and `v`.
+    /// If there is no direct connection between the nodes, return `Err`.
+    pub fn try_cut(&mut self, u: usize, v: usize) -> Result<(), &'static str> {
+        self.evert(u);
+        self.expose(v);
+
+        if self.nodes[u].parent != Some(self.nodes[v]) {
+            return Err("There is no direct connection between node `u` and node `v`.");
+        }
+
+        self.nodes[v].disconnect_left();
+        self.nodes[v].update();
+
+        Ok(())
     }
 
     /// Make `new_root` the new root of the tree to which it belongs.
     ///
-    /// # Sample
+    /// # Example
     /// ```rust
-    /// use ds::LinkCutTree;
+    /// use ds::NoOpLinkCutTree;
+    ///
+    /// type LinkCutTree = NoOpLinkCutTree;
     ///
     /// let mut tree = LinkCutTree::new(6);
     /// //      0
@@ -542,6 +655,7 @@ impl LinkCutTree {
     /// ```
     pub fn evert(&mut self, new_root: usize) {
         self.expose(new_root);
+        assert!(self.nodes[new_root].right.is_none());
         self.nodes[new_root].toggle();
         self.nodes[new_root].propagate();
     }
@@ -549,13 +663,39 @@ impl LinkCutTree {
     /// Return the Lowest Common Ancestor of `u` and `v`.
     ///
     /// This method is very slow...so unless you are simply looking for LCA and require very tight memory constraints, you should use `graph::HeavyLightDecomposition::lca`.
-    pub fn lca(&self, u: usize, v: usize) -> usize {
-        self.expose(u);
-        self.expose(v)
+    pub fn lca(&self, u: usize, v: usize) -> Option<usize> {
+        self.is_connected(u, v).then(|| {
+            self.expose(u);
+            self.expose(v)
+        })
+    }
+
+    pub fn set(&mut self, index: usize, val: M::M) {
+        self.expose(index);
+        self.nodes[index].val = val;
+        self.nodes[index].update();
+    }
+
+    pub fn val(&self, index: usize) -> Option<&M::M> {
+        self.nodes.get(index).as_ref().map(|n| &n.val)
+    }
+
+    pub fn update_by(&mut self, index: usize, f: impl Fn(&M::M) -> M::M) {
+        let new = f(&self.nodes[index].val);
+        self.set(index, new);
+    }
+
+    pub fn fold(&mut self, u: usize, v: usize) -> Option<&M::M> {
+        self.is_connected(u, v).then(|| {
+            self.evert(v);
+            assert!(self.nodes[v].is_root());
+            self.expose(u);
+            &self.nodes[u].sum
+        })
     }
 }
 
-impl Drop for LinkCutTree {
+impl<M: MapMonoid> Drop for LinkCutTree<M> {
     fn drop(&mut self) {
         self.nodes.iter_mut().for_each(|p| unsafe {
             p.parent = None;
@@ -567,13 +707,42 @@ impl Drop for LinkCutTree {
     }
 }
 
+impl<M> Debug for LinkCutTree<M>
+where
+    M: MapMonoid,
+    M::M: Debug,
+    M::Act: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LinkCutTree {{ nodes: {:?} }}", self.nodes)
+    }
+}
+
+/// If the Link-Cut Tree does not require any operations, this type can be used as a dummy.  <br/>
+/// `NoOpLinkCutTree` is equivalent to `LinkCutTree<DefaultZST>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultZST;
+
+impl MapMonoid for DefaultZST {
+    type M = DefaultZST;
+    type Act = DefaultZST;
+
+    fn e() -> Self::M { DefaultZST }
+    fn op(_: &Self::M, _: &Self::M) -> Self::M { DefaultZST }
+    fn map(_: &Self::M, _: &Self::Act) -> Self::M { DefaultZST }
+    fn id() -> Self::Act { DefaultZST }
+    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act { DefaultZST }
+}
+
+pub type NoOpLinkCutTree = LinkCutTree<DefaultZST>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn link_cut_is_connected_test() {
-        let mut lct = LinkCutTree::new(6);
+        let mut lct = NoOpLinkCutTree::new(6);
         //        0
         //       /
         //      1   2
@@ -610,7 +779,7 @@ mod tests {
 
     #[test]
     fn evert_test() {
-        let mut lct = LinkCutTree::new(6);
+        let mut lct = NoOpLinkCutTree::new(6);
         //        0
         //       / \
         //      1   2

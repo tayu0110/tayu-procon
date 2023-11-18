@@ -1,11 +1,11 @@
 // https://atcoder.jp/contests/njpc2017/tasks/njpc2017_h
-use ds::LinkCutTree;
+use ds::NoOpLinkCutTree;
 use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, p: [usize; n - 1], c: [u8; n], q: usize);
 
-    let mut lct = LinkCutTree::new(n);
+    let mut lct = NoOpLinkCutTree::new(n);
     for (i, &p) in p.iter().enumerate() {
         if c[i + 1] != c[p - 1] {
             lct.link(p - 1, i + 1).unwrap();
