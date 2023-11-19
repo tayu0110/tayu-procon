@@ -1,3 +1,5 @@
+#![allow(clippy::uninit_assumed_init)]
+
 use std::mem::MaybeUninit;
 
 pub struct FixedRingQueue<T, const SIZE: usize = { 1 << 20 }> {
@@ -6,13 +8,19 @@ pub struct FixedRingQueue<T, const SIZE: usize = { 1 << 20 }> {
     tail: usize,
 }
 
-impl<T: Clone + Copy, const SIZE: usize> FixedRingQueue<T, SIZE> {
+impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
     const MASK: usize = {
         assert!(1 << SIZE.trailing_zeros() == SIZE);
         SIZE - 1
     };
 
-    pub const fn new() -> Self { Self { buf: [MaybeUninit::uninit(); SIZE], head: 0, tail: 0 } }
+    pub const fn new() -> Self {
+        Self {
+            buf: unsafe { MaybeUninit::uninit().assume_init() },
+            head: 0,
+            tail: 0,
+        }
+    }
 
     #[inline]
     pub fn is_empty(&self) -> bool { self.head == self.tail }
@@ -40,14 +48,17 @@ impl<T: Clone + Copy, const SIZE: usize> FixedRingQueue<T, SIZE> {
 
     pub fn pop(&mut self) -> Option<T> {
         (!self.is_empty()).then(|| {
-            let res = unsafe { self.buf[(self.head) & Self::MASK].assume_init() };
+            let res = std::mem::replace(
+                &mut self.buf[(self.head) & Self::MASK],
+                MaybeUninit::uninit(),
+            );
             self.head += 1;
-            res
+            unsafe { res.assume_init() }
         })
     }
 }
 
-impl<T: Clone + Copy, const SIZE: usize> FromIterator<T> for FixedRingQueue<T, SIZE> {
+impl<T, const SIZE: usize> FromIterator<T> for FixedRingQueue<T, SIZE> {
     #[inline]
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut que = FixedRingQueue::new();
@@ -56,7 +67,7 @@ impl<T: Clone + Copy, const SIZE: usize> FromIterator<T> for FixedRingQueue<T, S
     }
 }
 
-impl<T: Clone + Copy, const SIZE: usize> Extend<T> for FixedRingQueue<T, SIZE> {
+impl<T, const SIZE: usize> Extend<T> for FixedRingQueue<T, SIZE> {
     #[inline]
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         iter.into_iter().for_each(|v| self.push(v));
