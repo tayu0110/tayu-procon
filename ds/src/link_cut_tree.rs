@@ -514,11 +514,9 @@ impl<M: MapMonoid> LinkCutTree<M> {
     ///
     /// # Example
     /// ```rust
-    /// use ds::NoOpLinkCutTree;
+    /// use ds::LinkCutTree;
     ///
-    /// type LinkCutTree = NoOpLinkCutTree;
-    ///
-    /// let mut tree = LinkCutTree::new(3);
+    /// let mut tree = <LinkCutTree>::new(3);
     /// let ok = tree.link(0, 1);
     /// assert!(ok.is_ok());
     /// assert!(tree.is_connected(0, 1));
@@ -561,11 +559,9 @@ impl<M: MapMonoid> LinkCutTree<M> {
     ///
     /// # Example
     /// ```rust
-    /// use ds::NoOpLinkCutTree;
+    /// use ds::LinkCutTree;
     ///
-    /// type LinkCutTree = NoOpLinkCutTree;
-    ///
-    /// let mut tree = LinkCutTree::new(6);
+    /// let mut tree = <LinkCutTree>::new(6);
     /// //      0
     /// //     / \
     /// //    1   2
@@ -624,11 +620,9 @@ impl<M: MapMonoid> LinkCutTree<M> {
     ///
     /// # Example
     /// ```rust
-    /// use ds::NoOpLinkCutTree;
+    /// use ds::LinkCutTree;
     ///
-    /// type LinkCutTree = NoOpLinkCutTree;
-    ///
-    /// let mut tree = LinkCutTree::new(6);
+    /// let mut tree = <LinkCutTree>::new(6);
     /// //      0
     /// //     / \
     /// //    1   2
