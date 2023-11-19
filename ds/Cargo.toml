@@ -12,6 +12,7 @@ license = "CC0-1.0"
 iolib = { path = "../iolib" }
 proconio = "0.4.5"
 rand = "0.8.5"
+static-modint = { path = "../modint/static-modint" }
 
 [features]
 default = ["full"]

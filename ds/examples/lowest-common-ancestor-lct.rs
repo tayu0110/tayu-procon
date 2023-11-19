@@ -1,11 +1,11 @@
 // https://judge.yosupo.jp/problem/lca
-use ds::NoOpLinkCutTree;
+use ds::LinkCutTree;
 use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, q: usize);
 
-    let mut lct = NoOpLinkCutTree::new(n);
+    let mut lct = <LinkCutTree>::new(n);
     for i in 1..n {
         scan!(p: usize);
         lct.link(p, i).unwrap();

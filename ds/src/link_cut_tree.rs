@@ -19,6 +19,8 @@ pub trait MapMonoid {
     fn id() -> Self::Act;
     fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act;
     fn map(m: &Self::M, act: &Self::Act) -> Self::M;
+    /// If the `M` operation is not commutative (i.e., `MapMonoid::op` is not commutative), implement `reverse`.
+    fn reverse(m: &mut Self::M) { let _ = m; }
 }
 
 // Left children are sallower than self, and right children are deeper than self.
@@ -53,6 +55,7 @@ impl<M: MapMonoid> Node<M> {
 
     pub fn toggle(&mut self) {
         self.index ^= 1 << 31;
+        M::reverse(&mut self.sum);
         (self.left, self.right) = (self.right, self.left);
     }
 
@@ -430,7 +433,7 @@ where
     }
 }
 
-pub struct LinkCutTree<M: MapMonoid> {
+pub struct LinkCutTree<M: MapMonoid = DefaultZST> {
     nodes: Vec<NodeRef<M>>,
 }
 
@@ -544,7 +547,7 @@ impl<M: MapMonoid> LinkCutTree<M> {
         Ok(())
     }
 
-    /// Link `u` and `v` with unknown parent-child relationship.
+    /// Link `u` and `v` with unknown parent-child relationship.  <br/>
     /// In fact, it is equivalent to the operation of Evert `v` and then connect `v` to `u` as a child.
     pub fn link_flat(&mut self, u: usize, v: usize) -> Result<(), &'static str> {
         self.evert(v);
@@ -687,10 +690,10 @@ impl<M: MapMonoid> LinkCutTree<M> {
 
     pub fn fold(&mut self, u: usize, v: usize) -> Option<&M::M> {
         self.is_connected(u, v).then(|| {
-            self.evert(v);
-            assert!(self.nodes[v].is_root());
-            self.expose(u);
-            &self.nodes[u].sum
+            self.evert(u);
+            assert!(self.nodes[u].is_root());
+            self.expose(v);
+            &self.nodes[v].sum
         })
     }
 }
@@ -718,8 +721,7 @@ where
     }
 }
 
-/// If the Link-Cut Tree does not require any operations, this type can be used as a dummy.  <br/>
-/// `NoOpLinkCutTree` is equivalent to `LinkCutTree<DefaultZST>`.
+/// If the Link-Cut Tree does not require any operations, this type can be used as a dummy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DefaultZST;
 
@@ -734,15 +736,13 @@ impl MapMonoid for DefaultZST {
     fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act { DefaultZST }
 }
 
-pub type NoOpLinkCutTree = LinkCutTree<DefaultZST>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn link_cut_is_connected_test() {
-        let mut lct = NoOpLinkCutTree::new(6);
+        let mut lct = <LinkCutTree>::new(6);
         //        0
         //       /
         //      1   2
@@ -779,7 +779,7 @@ mod tests {
 
     #[test]
     fn evert_test() {
-        let mut lct = NoOpLinkCutTree::new(6);
+        let mut lct = <LinkCutTree>::new(6);
         //        0
         //       / \
         //      1   2
