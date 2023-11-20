@@ -2,7 +2,7 @@
 use iolib::scan;
 use math::garner_prechecked;
 
-const MOD: i64 = 1000_000_007;
+const MOD: i64 = 1_000_000_007;
 
 fn main() {
     scan!(n: usize, p: [(i64, i64); n]);

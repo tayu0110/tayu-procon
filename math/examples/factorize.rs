@@ -17,6 +17,6 @@ fn main() {
         for f in f {
             write!(out, " {}", f).unwrap();
         }
-        writeln!(out, "").unwrap();
+        writeln!(out).unwrap();
     }
 }

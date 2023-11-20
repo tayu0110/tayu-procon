@@ -73,7 +73,9 @@ pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
 
 /// Return an integer x satisfying a^x = b (mod p)
 #[inline]
-pub fn mod_log(a: i64, b: i64, p: i64) -> Option<i64> { mod_log_with_lower_bound_constraint(a, b, p, 0) }
+pub fn mod_log(a: i64, b: i64, p: i64) -> Option<i64> {
+    mod_log_with_lower_bound_constraint(a, b, p, 0)
+}
 
 /// Return an integer x satisfying a^x = b (mod p) and x >= lower
 /// If no integers satisfy the condition, return None.
@@ -157,16 +159,20 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
 /// If an integer i satisfying f^{i}(a) = b (mod p) is found, return i. If not, return None.
 ///     f(a: i64, i: i64) -> i64      : return an integer x satisfying f^{i}(a) = x (mod p)
 ///     f_inv(a: i64, i: i64) -> i64  : return an integer x satisfying f^{-i}(a) = x (mod p). Also, f_inv(f(a, 1), 1) = a is required.
-pub fn baby_step_giant_step(a: i64, b: i64, p: i64, f: impl Fn(i64, i64) -> i64, f_inv: impl Fn(i64, i64) -> i64) -> Option<i64> {
+pub fn baby_step_giant_step(
+    a: i64,
+    b: i64,
+    p: i64,
+    f: impl Fn(i64, i64) -> i64,
+    f_inv: impl Fn(i64, i64) -> i64,
+) -> Option<i64> {
     let m = (p as f64).sqrt().ceil() as i64;
     assert!(m * m >= p);
 
     let mut map = std::collections::HashMap::new();
     for j in 0..=m {
         let now = f(a, j);
-        if !map.contains_key(&now) {
-            map.insert(now, j);
-        }
+        map.entry(now).or_insert(j);
     }
 
     let mut now = f_inv(b, 0);
@@ -191,7 +197,12 @@ pub fn baby_step_giant_step(a: i64, b: i64, p: i64, f: impl Fn(i64, i64) -> i64,
 //          -> a + s * m1 * k = b - s * m2 * l = x
 //          -> x = a (mod m1) && x = b (mod m2)
 #[inline]
-pub fn chinese_remainder_theorem(mut a: i64, mut m1: i64, mut b: i64, mut m2: i64) -> Option<(i64, i64)> {
+pub fn chinese_remainder_theorem(
+    mut a: i64,
+    mut m1: i64,
+    mut b: i64,
+    mut m2: i64,
+) -> Option<(i64, i64)> {
     if m1 < m2 {
         std::mem::swap(&mut a, &mut b);
         std::mem::swap(&mut m1, &mut m2);
@@ -298,22 +309,26 @@ pub fn miller_rabin_test(p: u64) -> bool {
     let mont_one = mont_zero.one();
     let mont_neg_one = mont_zero - mont_one;
 
-    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022].iter().map(|&a| a % p).filter(|&a| a != 0).all(|a| {
-        let a = ArbitraryMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
-        let at = a.pow(t);
-        // a^t = 1 (mod p) or a^t = -1 (mod p)
-        if at == mont_one || at == mont_neg_one {
-            return true;
-        }
+    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022]
+        .iter()
+        .map(|&a| a % p)
+        .filter(|&a| a != 0)
+        .all(|a| {
+            let a = ArbitraryMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
+            let at = a.pow(t);
+            // a^t = 1 (mod p) or a^t = -1 (mod p)
+            if at == mont_one || at == mont_neg_one {
+                return true;
+            }
 
-        // found i satisfying a^((2^i)*t) = -1 (mod p)
-        (1..s)
-            .scan(at, |at, _| {
-                *at *= *at;
-                Some(*at)
-            })
-            .any(|at| at == mont_neg_one)
-    })
+            // found i satisfying a^((2^i)*t) = -1 (mod p)
+            (1..s)
+                .scan(at, |at, _| {
+                    *at *= *at;
+                    Some(*at)
+                })
+                .any(|at| at == mont_neg_one)
+        })
 }
 
 pub fn divisors_enumeration(n: u64) -> Vec<u64> {
@@ -439,7 +454,7 @@ pub fn tonelli_shanks_unchecked(n: u64, p: u64) -> Option<u64> {
     type Modint = ArbitraryMontgomeryModint;
     let mn = Modint::new(n, p);
     if mn.rawval() == 0 {
-        assert_eq!(0 * 0 % p, n);
+        assert_eq!(0 % p, n);
         return Some(0);
     }
 
@@ -575,7 +590,10 @@ mod tests {
         assert_eq!(lcm(8, 12), 24);
         assert_eq!(lcm(0, 12), 0);
 
-        assert_eq!(lcm(1000_000_000_000_000_000i64, 2000_000_000_000_000_000i64), 2000_000_000_000_000_000i64);
+        assert_eq!(
+            lcm(1_000_000_000_000_000_000i64, 2_000_000_000_000_000_000i64),
+            2_000_000_000_000_000_000i64
+        );
 
         let (g, x, y) = ext_gcd(111, 30);
 
