@@ -8,11 +8,15 @@ impl UnionFind {
 
     #[inline]
     pub fn root(&mut self, index: usize) -> usize {
-        if self.tree[index] < 0 {
-            return index;
+        let mut now = index;
+        while self.tree[now] >= 0 {
+            now = self.tree[now] as usize;
         }
-        self.tree[index] = self.root(self.tree[index] as usize) as i32;
-        self.tree[index] as usize
+        let (res, mut now) = (now, index);
+        while self.tree[now] >= 0 {
+            (self.tree[now], now) = (res as i32, self.tree[now] as usize);
+        }
+        res
     }
 
     #[inline]
@@ -22,7 +26,9 @@ impl UnionFind {
     }
 
     #[inline]
-    pub fn is_same(&mut self, left: usize, right: usize) -> bool { self.root(left) == self.root(right) }
+    pub fn is_same(&mut self, left: usize, right: usize) -> bool {
+        self.root(left) == self.root(right)
+    }
 
     #[inline]
     pub fn merge(&mut self, left: usize, right: usize) -> bool {
@@ -31,7 +37,7 @@ impl UnionFind {
             return false;
         }
         if self.tree[rl] > self.tree[rr] {
-            std::mem::swap(&mut rl, &mut rr);
+            (rl, rr) = (rr, rl);
         }
         self.tree[rl] += self.tree[rr];
         self.tree[rr] = rl as i32;
@@ -47,7 +53,13 @@ impl UnionFind {
 pub struct AlreadySameGroupError(usize, usize);
 
 impl std::fmt::Display for AlreadySameGroupError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Node {} and Node {} are already belong to the same group.", self.0, self.1) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Node {} and Node {} are already belong to the same group.",
+            self.0, self.1
+        )
+    }
 }
 
 impl std::error::Error for AlreadySameGroupError {}
@@ -83,7 +95,12 @@ impl WeightedUnionFind {
 
     pub fn is_same(&mut self, l: usize, r: usize) -> bool { self.root(l) == self.root(r) }
 
-    pub fn merge(&mut self, l: usize, r: usize, mut weight: i64) -> Result<(), AlreadySameGroupError> {
+    pub fn merge(
+        &mut self,
+        l: usize,
+        r: usize,
+        mut weight: i64,
+    ) -> Result<(), AlreadySameGroupError> {
         if self.is_same(l, r) {
             return Err(AlreadySameGroupError(l, r));
         }
