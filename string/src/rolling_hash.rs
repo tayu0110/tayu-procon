@@ -34,8 +34,7 @@ fn gcd(mut a: u64, mut b: u64) -> u64 {
 
 fn get_rand() -> u64 {
     xor_shift(gen_seed())
-        .skip_while(|&ns| gcd(ns, MOD - 1) != 1)
-        .next()
+        .find(|&ns| gcd(ns, MOD - 1) == 1)
         .unwrap()
 }
 
