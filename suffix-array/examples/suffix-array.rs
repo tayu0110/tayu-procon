@@ -15,5 +15,5 @@ fn main() {
     for sa in sa.into_iter().skip(1) {
         write!(out, " {}", sa).unwrap();
     }
-    writeln!(out, "").unwrap();
+    writeln!(out).unwrap();
 }
