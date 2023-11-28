@@ -1,5 +1,6 @@
 #![allow(clippy::comparison_chain, clippy::upper_case_acronyms)]
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::ops::Index;
@@ -67,6 +68,17 @@ enum Type {
     LMS,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+struct BucketInfo {
+    start: u32,
+    filled: u32,
+}
+
+impl BucketInfo {
+    fn next_index(&self) -> usize { (self.start + self.filled) as usize }
+}
+
 const THRESHOLD_NAIVE: usize = 10;
 
 #[inline]
@@ -90,11 +102,11 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
     let mut types = vec![Type::S; s.len()];
     types[s.len() - 1] = Type::L;
 
-    let mut char_start = vec![0u32; map.kinds() + 1];
-    char_start[map.to_usize(s.last().unwrap()) + 1] = 1;
+    let mut bucket_info = vec![BucketInfo::default(); map.kinds() + 1];
+    bucket_info[map.to_usize(s.last().unwrap()) + 1].start = 1;
 
     for (i, c) in s.windows(2).enumerate().rev() {
-        char_start[map.to_usize(&c[0]) + 1] += 1;
+        bucket_info[map.to_usize(&c[0]) + 1].start += 1;
 
         types[i] = if c[0] < c[1] {
             Type::S
@@ -117,12 +129,17 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
         .map(|(i, _)| i as u32)
         .collect::<Vec<_>>();
 
-    for i in 0..map.kinds() {
-        char_start[i + 1] += char_start[i];
+    for info in Cell::from_mut(&mut bucket_info[..])
+        .as_slice_of_cells()
+        .windows(2)
+    {
+        let mut new = info[1].get();
+        new.start += info[0].get().start;
+        info[1].set(new);
     }
 
     // Calculate Pseudo SA
-    let max_lms_num = induced_sort(&lms_indices, &char_start, s, &types, sa, map);
+    let max_lms_num = induced_sort(&lms_indices, &mut bucket_info, s, &types, sa, map);
 
     // If there is only one LMS-Type(tailling '\0') and the type[0] one is not S-Type, there is no need for a second sort
     // since the order of operations of the sort is unique since all elements except the last element are L-Types.
@@ -170,19 +187,20 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
             .for_each(|(lms, i)| *lms = restore_index[*i as usize]);
     };
 
-    induced_sort(&lms_indices, &char_start, s, &types, sa, map);
+    bucket_info.iter_mut().for_each(|b| b.filled = 0);
+    induced_sort(&lms_indices, &mut bucket_info, s, &types, sa, map);
 }
 
 #[inline]
 fn induced_sort<T: Ord>(
     lms_indices: &[u32],
-    char_start: &[u32],
+    bucket_info: &mut [BucketInfo],
     s: &[T],
     types: &[Type],
     sa: &mut [u32],
     map: &impl IndexMap<T>,
 ) -> u32 {
-    let kinds = char_start.len() - 1;
+    let kinds = bucket_info.len() - 1;
 
     let mut filled_lms = vec![0; kinds];
     lms_indices
@@ -190,41 +208,43 @@ fn induced_sort<T: Ord>(
         .map(|&lms| (lms, map.to_u32(&s[lms as usize])))
         .for_each(|(lms, c)| {
             filled_lms[c as usize] += 1;
-            sa[(char_start[c as usize + 1] - filled_lms[c as usize]) as usize] = lms;
+            sa[(bucket_info[c as usize + 1].start - filled_lms[c as usize]) as usize] = lms;
         });
 
     let mut max_lms_num = 0;
-    let mut filled = vec![0; kinds];
     {
         let nc = map.to_usize(&s[s.len() - 1]);
-        sa[char_start[nc] as usize] = s.len() as u32 - 1;
-        filled[nc] += 1;
+        let tar = bucket_info[nc].next_index();
+        sa[tar] = s.len() as u32 - 1;
+        bucket_info[nc].filled += 1;
     }
 
-    for backet_index in 0..kinds {
-        let mut rem = filled[backet_index];
-        let mut checked = char_start[backet_index] as usize;
+    for bucket_index in 0..kinds {
+        let mut rem = bucket_info[bucket_index].filled;
+        let mut checked = bucket_info[bucket_index].start as usize;
         while rem > 0 {
             if sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
                 let nc = map.to_usize(&s[sa[checked] as usize - 1]);
-                sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
-                filled[nc] += 1;
-                rem += (backet_index == nc) as u32;
+                let tar = bucket_info[nc].next_index();
+                sa[tar] = sa[checked] - 1;
+                bucket_info[nc].filled += 1;
+                rem += (bucket_index == nc) as u32;
             }
             checked += 1;
             rem -= 1;
         }
 
-        for lms_index in 0..filled_lms[backet_index] {
-            let lms = sa[(char_start[backet_index + 1] - 1 - lms_index) as usize] as usize;
+        for lms_index in 0..filled_lms[bucket_index] {
+            let lms = sa[(bucket_info[bucket_index + 1].start - 1 - lms_index) as usize] as usize;
             if lms > 0 && types[lms - 1] == Type::L {
                 let nc = map.to_usize(&s[lms - 1]);
-                sa[(char_start[nc] + filled[nc]) as usize] = lms as u32 - 1;
-                filled[nc] += 1;
+                let tar = bucket_info[nc].next_index();
+                sa[tar] = lms as u32 - 1;
+                bucket_info[nc].filled += 1;
             }
         }
 
-        max_lms_num = max_lms_num.max(filled_lms[backet_index]);
+        max_lms_num = max_lms_num.max(filled_lms[bucket_index]);
     }
 
     // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
@@ -233,12 +253,13 @@ fn induced_sort<T: Ord>(
         return max_lms_num;
     }
 
-    filled.fill(0);
+    bucket_info.iter_mut().for_each(|b| b.filled = 0);
     for i in (0..s.len()).rev() {
         if sa[i] != u32::MAX && sa[i] > 0 && types[sa[i] as usize - 1] != Type::L {
             let c = map.to_usize(&s[sa[i] as usize - 1]);
-            sa[(char_start[c + 1] - 1 - filled[c]) as usize] = sa[i] - 1;
-            filled[c] += 1;
+            let tar = (bucket_info[c + 1].start - 1 - bucket_info[c].filled) as usize;
+            sa[tar] = sa[i] - 1;
+            bucket_info[c].filled += 1;
         }
     }
 
