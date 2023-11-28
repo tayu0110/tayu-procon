@@ -1,9 +1,9 @@
 #![allow(clippy::comparison_chain, clippy::upper_case_acronyms)]
 
-use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
-use std::ops::Index;
+use std::mem::ManuallyDrop;
+use std::ops::{Index, IndexMut};
 
 pub trait IndexMap<T> {
     fn kinds(&self) -> usize;
@@ -51,9 +51,15 @@ impl<'a, 'b: 'a, T: Ord + 'b> SparseMap<'a, T> {
 }
 
 impl<'a, T: Ord> IndexMap<T> for SparseMap<'a, T> {
-    fn kinds(&self) -> usize { self.map.len() }
-    fn to_u32(&self, from: &T) -> u32 { *self.map.get(from).unwrap() }
-    fn to_usize(&self, from: &T) -> usize { *self.map.get(from).unwrap() as usize }
+    fn kinds(&self) -> usize {
+        self.map.len()
+    }
+    fn to_u32(&self, from: &T) -> u32 {
+        *self.map.get(from).unwrap()
+    }
+    fn to_usize(&self, from: &T) -> usize {
+        *self.map.get(from).unwrap() as usize
+    }
 }
 
 // s[i] := A suffix of the string 's' that begins from i-th element. (0 <= i < s.len()-1)
@@ -68,15 +74,96 @@ enum Type {
     LMS,
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-struct BucketInfo {
-    start: u32,
-    filled: u32,
+struct Buckets {
+    len: usize,
+    sa: ManuallyDrop<*mut u32>,
+    bucket: Vec<BucketInfo>,
 }
 
-impl BucketInfo {
-    fn next_index(&self) -> usize { (self.start + self.filled) as usize }
+impl Buckets {
+    fn new(char_num: Vec<u32>, sa: &mut [u32]) -> Self {
+        let mut now = 0;
+        let len = sa.len();
+        let sa = ManuallyDrop::new(sa.as_mut_ptr());
+        Buckets {
+            len,
+            sa,
+            bucket: char_num
+                .into_iter()
+                .map(|c| {
+                    let res = BucketInfo { front: 0, back: 0, start: now };
+                    now += c;
+                    res
+                })
+                .collect(),
+        }
+    }
+
+    fn get(&self, bucket: usize, index: usize) -> u32 {
+        let index = unsafe { self.bucket.get_unchecked(bucket) }.start as usize + index;
+        unsafe { *self.sa.add(index) }
+    }
+
+    fn get_back(&self, bucket: usize, index: usize) -> u32 {
+        let index = self
+            .bucket
+            .get(bucket + 1)
+            .map_or(self.len, |b| b.start as usize)
+            - 1
+            - index;
+        unsafe { *self.sa.add(index) }
+    }
+
+    fn reset(&mut self) {
+        self.bucket.iter_mut().for_each(|b| {
+            b.front = 0;
+            b.back = 0;
+        });
+    }
+
+    fn push_front(&mut self, index: usize, val: u32) {
+        unsafe {
+            *self.sa.add(
+                self.bucket.get_unchecked(index).start as usize
+                    + self.bucket.get_unchecked(index).front as usize,
+            ) = val;
+            self.bucket.get_unchecked_mut(index).front += 1;
+        }
+    }
+
+    fn push_back(&mut self, index: usize, val: u32) {
+        let next_start = self
+            .bucket
+            .get(index + 1)
+            .map_or(self.len, |b| b.start as usize);
+        unsafe {
+            self.bucket.get_unchecked_mut(index).back += 1;
+            *self
+                .sa
+                .add(next_start - self.bucket.get_unchecked(index).back as usize) = val;
+        }
+    }
+}
+
+impl Index<usize> for Buckets {
+    type Output = BucketInfo;
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { self.bucket.get_unchecked(index) }
+    }
+}
+
+impl IndexMut<usize> for Buckets {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe { self.bucket.get_unchecked_mut(index) }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct BucketInfo {
+    front: u32,
+    back: u32,
+    start: u32,
 }
 
 const THRESHOLD_NAIVE: usize = 10;
@@ -102,11 +189,11 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
     let mut types = vec![Type::S; s.len()];
     types[s.len() - 1] = Type::L;
 
-    let mut bucket_info = vec![BucketInfo::default(); map.kinds() + 1];
-    bucket_info[map.to_usize(s.last().unwrap()) + 1].start = 1;
+    let mut char_num = vec![0; map.kinds()];
+    char_num[map.to_usize(s.last().unwrap())] = 1;
 
     for (i, c) in s.windows(2).enumerate().rev() {
-        bucket_info[map.to_usize(&c[0]) + 1].start += 1;
+        char_num[map.to_usize(&c[0])] += 1;
 
         types[i] = if c[0] < c[1] {
             Type::S
@@ -129,17 +216,10 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
         .map(|(i, _)| i as u32)
         .collect::<Vec<_>>();
 
-    for info in Cell::from_mut(&mut bucket_info[..])
-        .as_slice_of_cells()
-        .windows(2)
-    {
-        let mut new = info[1].get();
-        new.start += info[0].get().start;
-        info[1].set(new);
-    }
+    let mut buckets = Buckets::new(char_num, sa);
 
     // Calculate Pseudo SA
-    let max_lms_num = induced_sort(&lms_indices, &mut bucket_info, s, &types, sa, map);
+    let max_lms_num = induced_sort(&lms_indices, &mut buckets, s, &types, sa, map);
 
     // If there is only one LMS-Type(tailling '\0') and the type[0] one is not S-Type, there is no need for a second sort
     // since the order of operations of the sort is unique since all elements except the last element are L-Types.
@@ -187,64 +267,55 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
             .for_each(|(lms, i)| *lms = restore_index[*i as usize]);
     };
 
-    bucket_info.iter_mut().for_each(|b| b.filled = 0);
-    induced_sort(&lms_indices, &mut bucket_info, s, &types, sa, map);
+    buckets.reset();
+    induced_sort(&lms_indices, &mut buckets, s, &types, sa, map);
 }
 
 #[inline]
 fn induced_sort<T: Ord>(
     lms_indices: &[u32],
-    bucket_info: &mut [BucketInfo],
+    buckets: &mut Buckets,
     s: &[T],
     types: &[Type],
     sa: &mut [u32],
     map: &impl IndexMap<T>,
 ) -> u32 {
-    let kinds = bucket_info.len() - 1;
+    let kinds = map.kinds();
 
-    let mut filled_lms = vec![0; kinds];
     lms_indices
         .iter()
         .map(|&lms| (lms, map.to_u32(&s[lms as usize])))
         .for_each(|(lms, c)| {
-            filled_lms[c as usize] += 1;
-            sa[(bucket_info[c as usize + 1].start - filled_lms[c as usize]) as usize] = lms;
+            buckets.push_back(c as usize, lms);
         });
 
     let mut max_lms_num = 0;
     {
         let nc = map.to_usize(&s[s.len() - 1]);
-        let tar = bucket_info[nc].next_index();
-        sa[tar] = s.len() as u32 - 1;
-        bucket_info[nc].filled += 1;
+        buckets.push_front(nc, s.len() as u32 - 1);
     }
 
     for bucket_index in 0..kinds {
-        let mut rem = bucket_info[bucket_index].filled;
-        let mut checked = bucket_info[bucket_index].start as usize;
-        while rem > 0 {
-            if sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
-                let nc = map.to_usize(&s[sa[checked] as usize - 1]);
-                let tar = bucket_info[nc].next_index();
-                sa[tar] = sa[checked] - 1;
-                bucket_info[nc].filled += 1;
-                rem += (bucket_index == nc) as u32;
+        let filled_lms = buckets[bucket_index].back;
+        let mut checked = 0;
+        while checked < buckets[bucket_index].front as usize {
+            let now = buckets.get(bucket_index, checked);
+            if now > 0 && types[now as usize - 1] == Type::L {
+                let nc = map.to_usize(&s[now as usize - 1]);
+                buckets.push_front(nc, now - 1);
             }
             checked += 1;
-            rem -= 1;
         }
 
-        for lms_index in 0..filled_lms[bucket_index] {
-            let lms = sa[(bucket_info[bucket_index + 1].start - 1 - lms_index) as usize] as usize;
+        for lms_index in 0..filled_lms as usize {
+            let lms = buckets.get_back(bucket_index, lms_index) as usize;
             if lms > 0 && types[lms - 1] == Type::L {
                 let nc = map.to_usize(&s[lms - 1]);
-                let tar = bucket_info[nc].next_index();
-                sa[tar] = lms as u32 - 1;
-                bucket_info[nc].filled += 1;
+                buckets.push_front(nc, lms as u32 - 1);
             }
         }
 
-        max_lms_num = max_lms_num.max(filled_lms[bucket_index]);
+        max_lms_num = max_lms_num.max(filled_lms);
     }
 
     // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
@@ -253,14 +324,16 @@ fn induced_sort<T: Ord>(
         return max_lms_num;
     }
 
-    bucket_info.iter_mut().for_each(|b| b.filled = 0);
-    for i in (0..s.len()).rev() {
-        if sa[i] != u32::MAX && sa[i] > 0 && types[sa[i] as usize - 1] != Type::L {
-            let c = map.to_usize(&s[sa[i] as usize - 1]);
-            let tar = (bucket_info[c + 1].start - 1 - bucket_info[c].filled) as usize;
-            sa[tar] = sa[i] - 1;
-            bucket_info[c].filled += 1;
-        }
+    buckets.reset();
+    // Because sa is used around, s.len() and sa.len() are not always equal.
+    for &sa in sa
+        .iter()
+        .take(s.len())
+        .rev()
+        .filter(|&&sa| (1..u32::MAX).contains(&sa) && types[sa as usize - 1] != Type::L)
+    {
+        let c = map.to_usize(&s[sa as usize - 1]);
+        buckets.push_back(c, sa - 1);
     }
 
     max_lms_num
@@ -317,7 +390,9 @@ impl<'a> SuffixArray<'a> {
     }
 
     #[inline]
-    pub fn get(&self, index: usize) -> usize { self.sa[index] as usize }
+    pub fn get(&self, index: usize) -> usize {
+        self.sa[index] as usize
+    }
 
     /// LCPA\[i\] := Longest Common Prefix between s\[sa\[i\]\] and s\[sa\[i+1\]\]
     pub fn lcp_array(&self) -> Vec<usize> {
@@ -348,18 +423,24 @@ impl<'a> SuffixArray<'a> {
         lcpa
     }
 
-    pub fn iter(&'a self) -> Iter<'a> { Iter { iter: self.sa.iter() } }
+    pub fn iter(&'a self) -> Iter<'a> {
+        Iter { iter: self.sa.iter() }
+    }
 }
 
 impl<'a, T> Index<usize> for SuffixArray<'a, T> {
     type Output = u32;
-    fn index(&self, index: usize) -> &Self::Output { &self.sa[index] }
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.sa[index]
+    }
 }
 
 impl<'a, T> IntoIterator for SuffixArray<'a, T> {
     type Item = u32;
     type IntoIter = std::vec::IntoIter<u32>;
-    fn into_iter(self) -> Self::IntoIter { self.sa.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.sa.into_iter()
+    }
 }
 
 pub struct Iter<'a> {
@@ -368,7 +449,9 @@ pub struct Iter<'a> {
 
 impl<'a> Iterator for Iter<'a> {
     type Item = &'a u32;
-    fn next(&mut self) -> Option<Self::Item> { self.iter.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
 }
 
 #[cfg(test)]

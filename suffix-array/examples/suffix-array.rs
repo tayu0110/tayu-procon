@@ -1,19 +1,16 @@
 // https://judge.yosupo.jp/problem/suffixarray
-use iolib::scan;
+use iolib::{put, putln, scan};
 use suffix_array::SuffixArray;
 
 fn main() {
-    use std::io::Write;
-    let out = std::io::stdout();
-    let mut out = std::io::BufWriter::new(out.lock());
-
     scan!(s: String);
 
     let sa = SuffixArray::new(&s);
 
-    write!(out, "{}", sa[0]).unwrap();
+    put!(sa[0]);
     for sa in sa.into_iter().skip(1) {
-        write!(out, " {}", sa).unwrap();
+        put!(" ");
+        put!(sa);
     }
-    writeln!(out).unwrap();
+    putln!();
 }
