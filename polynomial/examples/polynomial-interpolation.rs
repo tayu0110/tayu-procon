@@ -1,5 +1,5 @@
 // https://judge.yosupo.jp/problem/polynomial_interpolation
-use iolib::{putvec_with_spaceln, scan};
+use iolib::{putvsln, scan};
 use montgomery_modint::Mod998244353;
 use polynomial::Polynomial;
 
@@ -10,5 +10,5 @@ fn main() {
     let y: Polynomial<Mod998244353> = y.into();
 
     let res: Vec<u32> = Polynomial::interpolation(x.into(), y.into()).into();
-    putvec_with_spaceln!(res);
+    putvsln!(res);
 }

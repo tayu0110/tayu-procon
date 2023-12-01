@@ -1,5 +1,5 @@
 // https://atcoder.jp/contests/abc324/tasks/abc324_c
-use iolib::{putln, putvec_with_spaceln, scan};
+use iolib::{putln, putvsln, scan};
 use string::RollingHash;
 
 fn main() {
@@ -38,5 +38,5 @@ fn main() {
     }
 
     putln!(res.len());
-    putvec_with_spaceln!(res);
+    putvsln!(res);
 }

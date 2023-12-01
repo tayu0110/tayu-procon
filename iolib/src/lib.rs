@@ -1,3 +1,5 @@
+// The original source of the scan macro is statiolake/proconio-rs!
+// Please refer to there for the implementation!
 mod ext;
 mod input;
 mod output;
@@ -7,23 +9,78 @@ pub use input::{get_stdin_source, FastInput, Readable};
 pub use output::get_output_source;
 
 #[macro_export]
+macro_rules! read_value {
+    (@kind [[$($kind:tt)*]]) => {
+        $crate::read_value!(@array @kind [] @rest $($kind)*)
+    };
+    (@array @kind [$($kind:tt)*] @rest ; $($rest:tt)*) => {
+        $crate::read_value!(@array @kind [$($kind)*] @len $($rest)*)
+    };
+    (@array @kind [$($kind:tt)*] @rest $t:tt $($rest:tt)*) => {
+        $crate::read_value!(@array @kind [$($kind)* $t] @rest $($rest)*)
+    };
+    (@array @kind [$($kind:tt)*] @len $($len:tt)*) => {{
+        let len = $($len)*;
+        (0..len).map(|_| $crate::read_value!(@kind [$($kind)*])).collect::<Vec<_>>()
+    }};
+
+    (@kind [($($kind:tt)*)]) => {
+        $crate::read_value!(@tuple @kind [] @current [] @rest $($kind)*)
+    };
+    (@tuple @kind [$([$($kind:tt)*])*] @current [] @rest) => {
+        (
+            $($crate::read_value!(@kind [$($kind)*]),)*
+        )
+    };
+    (@tuple @kind [$([$($kind:tt)*])*] @current [$($current:tt)*] @rest) => {
+        $crate::read_value!(@tuple @kind [$([$($kind)*])* [$($current)*]] @current [] @rest)
+    };
+    (@tuple @kind [$([$($kind:tt)*])*] @current [$($current:tt)*] @rest , $($rest:tt)*) => {
+        $crate::read_value!(@tuple @kind [$([$($kind)*])* [$($current)*]] @current [] @rest $($rest)*)
+    };
+    (@tuple @kind [$([$($kind:tt)*])*] @current [$($current:tt)*] @rest $t:tt $($rest:tt)*) => {
+        $crate::read_value!(@tuple @kind [$([$($kind)*])*] @current [$($current)* $t] @rest $($rest)*)
+    };
+
+    (@kind [$t:tt]) => {
+        $crate::get_stdin_source().read::<$t>()
+    };
+}
+
+#[macro_export]
 macro_rules! scan {
-    // Terminator
-    ( $(, )? ) => {};
-    // Vec<Vec<....>>, ......
-    ( $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] $(, $( $rest:tt )* )? ) => { let $v = (0..$len).map(|_| { $crate::scan!(w: [ $( $inner )+ ]); w }).collect::<Vec<_>>(); $( $crate::scan!($( $rest )*); )? };
-    // Vec<$t>, .....
-    ( $v:ident : [ $t:tt ; $len:expr ] $(, $( $rest:tt )* )? ) => { let $v = (0..$len).map(|_| { $crate::scan!($v : $t); $v }).collect::<Vec<_>>(); $( $crate::scan!($( $rest )*); )? };
-    // Expand tuple
-    ( @expandtuple, ( $t:tt )) => { { $crate::scan!(w: $t); w } };
-    // Expand tuple
-    ( @expandtuple, ( $t:tt $(, $rest:tt )* ) ) => { ( $crate::scan!(@expandtuple, ( $t )) $(, $crate::scan!(@expandtuple, ( $rest )) )* ) };
-    // let $v: ($t, $u, ....) = (.......)
-    ( $v:ident : ( $( $rest:tt )* ) ) => { let $v = $crate::scan!(@expandtuple, ( $( $rest )* )); };
-    // let $v: $t = ......, .......
-    ( $v:ident : $t:tt $(, $( $rest:tt )* )? ) => { let $v: $t = $crate::get_stdin_source().read::<$t>(); $( $crate::scan!($( $rest )*); )? };
-    // ......
-    ( $( $rest:tt )* ) => { $crate::scan!($( $rest )*); };
+    ( @rest ) => {};
+
+    ( @rest mut $($rest:tt)* ) => {
+        $crate::scan!([mut] @rest $($rest)*)
+    };
+    ( @rest $($rest:tt)* ) => {
+        $crate::scan!([] @rest $($rest)*)
+    };
+
+    ( [$($mut:tt)?] @rest $var:tt : $($rest:tt)* ) => {
+        $crate::scan!(
+            [$($mut)*]
+            @var $var
+            @kind []
+            @rest $($rest)*
+        );
+    };
+
+    ( [$($mut:tt)?] @var $var:tt @kind [$($kind:tt)*] @rest ) => {
+        let $($mut)* $var = $crate::read_value!(@kind [$($kind)*]);
+    };
+    ( [$($mut:tt)?] @var $var:tt @kind [$($kind:tt)*] @rest , $($rest:tt)* ) => {
+        $crate::scan!([$($mut)*] @var $var @kind [$($kind)*] @rest);
+        $crate::scan!(@rest $($rest)*);
+    };
+    ( [$($mut:tt)?] @var $var:tt @kind [$($kind:tt)*] @rest $t:tt $($rest:tt)* ) => {
+        $crate::scan!([$($mut)*] @var $var @kind [$($kind)* $t] @rest $($rest)*);
+    };
+
+    ($($rest:tt)*) => {
+        $crate::scan!(@rest $($rest)*);
+    };
 }
 
 #[macro_export]
@@ -43,7 +100,7 @@ macro_rules! putln {
 #[macro_export]
 macro_rules! putv {
     ( $t:expr ) => {
-        $crate::get_output_source().store_vec(&$t, '\n');        
+        $crate::get_output_source().store_vec(&$t, '\n');
     };
 }
 
@@ -66,21 +123,6 @@ macro_rules! putvs {
 macro_rules! putvsln {
     ( $t:expr ) => {
         $crate::putvs!($t);
-        $crate::putln!();
-    };
-}
-
-#[macro_export]
-macro_rules! putvec_with_space {
-    ( $t:expr ) => {
-        $crate::get_output_source().store_vec(&$t, ' ');
-    };
-}
-
-#[macro_export]
-macro_rules! putvec_with_spaceln {
-    ( $t:expr ) => {
-        $crate::putvec_with_space!($t);
         $crate::putln!();
     };
 }

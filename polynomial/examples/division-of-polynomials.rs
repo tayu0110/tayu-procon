@@ -1,5 +1,5 @@
 // https://judge.yosupo.jp/problem/division_of_polynomials
-use iolib::{put, putln, putvec_with_spaceln, scan};
+use iolib::{put, putln, putvsln, scan};
 use montgomery_modint::Mod998244353;
 use polynomial::Polynomial;
 
@@ -16,10 +16,10 @@ fn main() {
     put!(" ");
     putln!(r.len());
     if !q.is_empty() {
-        putvec_with_spaceln!(q);
+        putvsln!(q);
     }
 
     if !r.is_empty() {
-        putvec_with_spaceln!(r);
+        putvsln!(r);
     }
 }

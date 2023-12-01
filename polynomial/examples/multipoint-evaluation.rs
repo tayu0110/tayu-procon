@@ -1,5 +1,5 @@
 // https://judge.yosupo.jp/problem/multipoint_evaluation
-use iolib::{putvec_with_spaceln, scan};
+use iolib::{putvsln, scan};
 use montgomery_modint::{Mod998244353, MontgomeryModint};
 use polynomial::Polynomial;
 
@@ -12,5 +12,5 @@ fn main() {
     let res: Polynomial<Mod998244353> = f.multipoint_evaluation(p).into();
     let res: Vec<u32> = res.into();
 
-    putvec_with_spaceln!(res);
+    putvsln!(res);
 }
