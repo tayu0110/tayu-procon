@@ -159,6 +159,18 @@ impl<'a> FastOutput<'a> {
     }
     #[inline]
     pub fn store(&mut self, bytes: &[u8]) {
+        if bytes.len() >= BUF_SIZE {
+            self.flush();
+            unsafe {
+                self.dest
+                    .as_mut()
+                    .unwrap_unchecked()
+                    .write_all(bytes)
+                    .unwrap_unchecked()
+            }
+            self.tail = 0;
+            return;
+        }
         if bytes.len() < BUF_SIZE - self.tail {
             unsafe {
                 copy_nonoverlapping(
@@ -168,25 +180,17 @@ impl<'a> FastOutput<'a> {
                 )
             }
             self.tail += bytes.len();
-            return;
-        }
-        let head = BUF_SIZE - self.tail;
-        unsafe {
-            copy_nonoverlapping(
-                bytes[..head].as_ptr(),
-                self.buf[self.tail..].as_mut_ptr(),
-                head,
-            )
-        }
-        self.tail = BUF_SIZE;
-        self.flush();
-        bytes[head..].chunks(BUF_SIZE).for_each(|v| {
-            self.tail = if v.len() < BUF_SIZE { v.len() } else { BUF_SIZE };
-            unsafe { copy_nonoverlapping(v.as_ptr(), self.buf[0..].as_mut_ptr(), v.len()) }
-            if v.len() == BUF_SIZE {
-                self.flush()
+        } else {
+            self.flush();
+            unsafe {
+                copy_nonoverlapping(
+                    bytes[..].as_ptr(),
+                    self.buf[..bytes.len()].as_mut_ptr(),
+                    bytes.len(),
+                )
             }
-        });
+            self.tail = bytes.len();
+        }
     }
     #[inline]
     pub fn store_byte(&mut self, b: u8) {

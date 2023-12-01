@@ -1,7 +1,5 @@
-use crate::parse_number::{parse4c, parse4lec};
-
 use super::ext::{mmap, MAP_PRIVATE, PROT_READ};
-use super::parse_number::{parse16c, parse8c, parse8lec};
+use super::parse_number::{parse16c, parse4c, parse4lec, parse8c, parse8lec};
 use std::arch::x86_64::{__m128i, _mm_cmpgt_epi8, _mm_loadu_si128, _mm_storeu_si128};
 use std::fs::File;
 use std::io::Read;
@@ -26,7 +24,7 @@ impl Readable for String {
 }
 
 macro_rules! impl_readable_integer {
-    ( $( { $t:ty, $ut:ty } )* ) => {
+    ( $( { $t:ty, $ut:ty } ),* ) => {
         $(impl Readable for $ut {
             #[inline]
             fn read(src: &mut FastInput) -> $ut {
@@ -47,7 +45,7 @@ macro_rules! impl_readable_integer {
     };
 }
 
-impl_readable_integer!({i8, u8} {i16, u16} {i32, u32} {i64, u64} {i128, u128} {isize, usize});
+impl_readable_integer!({i8, u8}, {i16, u16}, {i32, u32}, {i64, u64}, {i128, u128}, {isize, usize});
 
 macro_rules! impl_readable_float {
     ( $( $t:ty )* ) => {
@@ -135,81 +133,67 @@ impl FastInput {
         let tail = self.next_separator(self.head);
 
         let offset = tail - self.head;
-        let res = if offset < 8 {
-            unsafe {
+        let res = unsafe {
+            if offset < 8 {
                 parse8lec(
                     self.buf[self.head..self.head + 8]
                         .try_into()
                         .unwrap_unchecked(),
                     offset as u8,
                 )
-            }
-        } else if offset == 8 {
-            unsafe {
+            } else if offset == 8 {
                 parse8c(
                     self.buf[self.head..self.head + 8]
                         .try_into()
                         .unwrap_unchecked(),
                 )
-            }
-        } else if offset == 12 {
-            let upper = unsafe {
-                parse4c(
+            } else if offset == 12 {
+                let upper = parse4c(
                     self.buf[self.head..self.head + 4]
                         .try_into()
                         .unwrap_unchecked(),
-                )
-            };
-            let lower = unsafe {
-                parse8c(
+                );
+                let lower = parse8c(
                     self.buf[self.head + 4..self.head + 12]
                         .try_into()
                         .unwrap_unchecked(),
-                )
-            };
-            upper * 100_000_000 + lower
-        } else if offset < 16 {
-            let rem = offset - 8;
-            let upper = unsafe {
-                parse8lec(
+                );
+                upper * 100_000_000 + lower
+            } else if offset < 16 {
+                let rem = offset - 8;
+                let upper = parse8lec(
                     self.buf[self.head..self.head + 8]
                         .try_into()
                         .unwrap_unchecked(),
                     rem as u8,
-                )
-            };
-            let lower = unsafe {
-                parse8c(
+                );
+                let lower = parse8c(
                     self.buf[self.head + rem..self.head + offset]
                         .try_into()
                         .unwrap_unchecked(),
-                )
-            };
-            upper * 100_000_000 + lower
-        } else if offset == 16 {
-            unsafe { parse16c(&self.buf[self.head..self.head + 16]) }
-        } else if offset == 20 {
-            let upper = unsafe {
-                parse4c(
+                );
+                upper * 100_000_000 + lower
+            } else if offset == 16 {
+                parse16c(&self.buf[self.head..self.head + 16])
+            } else if offset == 20 {
+                let upper = parse4c(
                     self.buf[self.head..self.head + 4]
                         .try_into()
                         .unwrap_unchecked(),
-                )
-            };
-            let lower = unsafe { parse16c(&self.buf[self.head + 4..self.head + 20]) };
-            upper * 10_000_000_000_000_000 + lower
-        } else {
-            let rem = offset - 16;
-            let upper = unsafe {
-                parse4lec(
+                );
+                let lower = parse16c(&self.buf[self.head + 4..self.head + 20]);
+                upper * 10_000_000_000_000_000 + lower
+            } else {
+                let rem = offset - 16;
+                let upper = parse4lec(
                     self.buf[self.head..self.head + 4]
                         .try_into()
                         .unwrap_unchecked(),
                     rem as u8,
-                )
-            };
-            let lower = unsafe { parse16c(&self.buf[self.head + rem..self.head + offset]) };
-            upper * 10_000_000_000_000_000 + lower
+                );
+                let lower = parse16c(&self.buf[self.head + rem..self.head + offset]);
+                upper * 10_000_000_000_000_000 + lower
+            }
         };
         self.head = tail + 1;
         while self.head < self.buf.len() && self.buf[self.head].is_ascii_whitespace() {
