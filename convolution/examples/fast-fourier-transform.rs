@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/atc001/tasks/fft_c
 use convolution::convolution;
-use iolib::{putln, scan};
+use iolib::{putln, putvln, scan};
 use montgomery_modint::Mod998244353;
 
 fn main() {
@@ -10,7 +10,5 @@ fn main() {
 
     let c = convolution::<Mod998244353>(a, b);
     putln!(0);
-    for c in c {
-        putln!(c);
-    }
+    putvln!(c);
 }
