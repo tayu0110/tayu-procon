@@ -212,6 +212,9 @@ impl FastInput {
             upper * 10_000_000_000_000_000 + lower
         };
         self.head = tail + 1;
+        while self.head < self.buf.len() && self.buf[self.head].is_ascii_whitespace() {
+            self.head += 1;
+        }
         res
     }
 

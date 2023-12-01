@@ -7,11 +7,6 @@ fn main() {
 
     let mut nt = IntervalHeap::from_vec(s);
 
-    // for bug of scan! ...
-    if n == 0 {
-        scan!(_dum: u32);
-    }
-
     for _ in 0..q {
         scan!(ty: u8);
         if ty == 0 {
