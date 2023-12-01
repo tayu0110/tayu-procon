@@ -14,11 +14,15 @@ pub trait Readable {
 }
 
 impl Readable for char {
-    fn read(src: &mut FastInput) -> Self { src.read_char() }
+    fn read(src: &mut FastInput) -> Self {
+        src.read_char()
+    }
 }
 
 impl Readable for String {
-    fn read(src: &mut FastInput) -> Self { src.read_string() }
+    fn read(src: &mut FastInput) -> Self {
+        src.read_string()
+    }
 }
 
 macro_rules! impl_readable_integer {
@@ -62,10 +66,14 @@ pub struct FastInput {
 }
 
 impl FastInput {
-    fn new(file: File, buf: Box<[u8]>) -> Self { Self { head: 0, _file: file, buf } }
+    fn new(file: File, buf: Box<[u8]>) -> Self {
+        Self { head: 0, _file: file, buf }
+    }
 
     #[inline]
-    fn peek(&self) -> u8 { self.buf[self.head] }
+    fn peek(&self) -> u8 {
+        self.buf[self.head]
+    }
 
     #[inline]
     fn next(&mut self) -> Option<u8> {
@@ -78,7 +86,9 @@ impl FastInput {
     }
 
     #[inline]
-    pub fn read<R: Readable>(&mut self) -> R { R::read(self) }
+    pub fn read<R: Readable>(&mut self) -> R {
+        R::read(self)
+    }
 
     #[inline]
     pub fn read_char(&mut self) -> char {
@@ -157,7 +167,7 @@ impl FastInput {
                         .unwrap_unchecked(),
                 )
             };
-            upper * 10000_0000 + lower
+            upper * 100_000_000 + lower
         } else if offset < 16 {
             let rem = offset - 8;
             let upper = unsafe {
@@ -175,7 +185,7 @@ impl FastInput {
                         .unwrap_unchecked(),
                 )
             };
-            upper * 10000_0000 + lower
+            upper * 100_000_000 + lower
         } else if offset == 16 {
             unsafe { parse16c(&self.buf[self.head..self.head + 16]) }
         } else if offset == 20 {
@@ -187,7 +197,7 @@ impl FastInput {
                 )
             };
             let lower = unsafe { parse16c(&self.buf[self.head + 4..self.head + 20]) };
-            upper * 10000_0000_0000_0000 + lower
+            upper * 10_000_000_000_000_000 + lower
         } else {
             let rem = offset - 16;
             let upper = unsafe {
@@ -199,7 +209,7 @@ impl FastInput {
                 )
             };
             let lower = unsafe { parse16c(&self.buf[self.head + rem..self.head + offset]) };
-            upper * 10000_0000_0000_0000 + lower
+            upper * 10_000_000_000_000_000 + lower
         };
         self.head = tail + 1;
         res
@@ -243,7 +253,11 @@ fn init() -> &'static mut FastInput {
 }
 
 #[inline]
-fn get_input() -> &'static mut FastInput { unsafe { INPUT.as_mut().unwrap_unchecked() } }
+fn get_input() -> &'static mut FastInput {
+    unsafe { INPUT.as_mut().unwrap_unchecked() }
+}
 
 #[inline]
-pub fn get_stdin_source() -> &'static mut FastInput { unsafe { STDINT_SOURCE() } }
+pub fn get_stdin_source() -> &'static mut FastInput {
+    unsafe { STDINT_SOURCE() }
+}

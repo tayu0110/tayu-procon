@@ -100,12 +100,17 @@ pub(crate) unsafe fn parse16lec(buf: &[u8], digits: u8) -> u64 {
 }
 
 #[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::{__m128i, _mm_lddqu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_packus_epi32, _mm_storeu_si128, _mm_sub_epi8};
+use std::arch::x86_64::{
+    __m128i, _mm_lddqu_si128, _mm_madd_epi16, _mm_maddubs_epi16, _mm_packus_epi32,
+    _mm_storeu_si128, _mm_sub_epi8,
+};
 use std::mem::transmute;
 
 const ZEROS: __m128i = unsafe { transmute([b'0'; 16]) };
-const TEN: __m128i = unsafe { transmute([10u8, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1]) };
-const HUN: __m128i = unsafe { transmute([100u8, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0]) };
+const TEN: __m128i =
+    unsafe { transmute([10u8, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1]) };
+const HUN: __m128i =
+    unsafe { transmute([100u8, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0]) };
 const THO: __m128i = unsafe { transmute([16u8, 39, 1, 0, 16, 39, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) };
 
 #[cfg(target_arch = "x86_64")]
@@ -123,7 +128,7 @@ pub(crate) unsafe fn parse16c(buf: &[u8]) -> u64 {
     let mut buf = [0u8; 16];
     _mm_storeu_si128(buf.as_mut_ptr() as _, chunk);
     let res = u64::from_le_bytes(buf[..8].try_into().unwrap());
-    ((res & 0xffffffff) * 10000_0000) + (res >> 32)
+    ((res & 0xffffffff) * 100_000_000) + (res >> 32)
 }
 
 #[cfg(test)]

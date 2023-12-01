@@ -10,19 +10,27 @@ pub trait Writable {
 }
 
 impl Writable for char {
-    fn write(&self, dest: &mut FastOutput) { dest.store_byte(*self as u8) }
+    fn write(&self, dest: &mut FastOutput) {
+        dest.store_byte(*self as u8)
+    }
 }
 
 impl Writable for String {
-    fn write(&self, dest: &mut FastOutput) { dest.store_string(self) }
+    fn write(&self, dest: &mut FastOutput) {
+        dest.store_string(self)
+    }
 }
 
 impl Writable for str {
-    fn write(&self, dest: &mut FastOutput) { dest.store_string(self) }
+    fn write(&self, dest: &mut FastOutput) {
+        dest.store_string(self)
+    }
 }
 
 impl Writable for &str {
-    fn write(&self, dest: &mut FastOutput) { dest.store_string(self) }
+    fn write(&self, dest: &mut FastOutput) {
+        dest.store_string(self)
+    }
 }
 
 const LUT: [u8; 40000] = {
@@ -111,7 +119,9 @@ macro_rules! impl_writable_float {
 
 impl_writable_float!(f32 f64);
 impl<T: Clone + Writable> Writable for Vec<T> {
-    fn write(&self, dest: &mut FastOutput) { dest.store_vec(self, '\n') }
+    fn write(&self, dest: &mut FastOutput) {
+        dest.store_vec(self, '\n')
+    }
 }
 
 pub struct FastOutput<'a> {
@@ -192,16 +202,30 @@ impl<'a> FastOutput<'a> {
         self.store(bytes);
     }
     #[inline]
-    pub fn write<T: Writable>(&mut self, data: T) { data.write(self) }
+    pub fn write<T: Writable>(&mut self, data: T) {
+        data.write(self)
+    }
     #[inline]
     pub fn store_vec<T: Clone + Writable>(&mut self, v: &Vec<T>, delim: char) {
         if v.is_empty() {
             return;
         }
         v[0].clone().write(self);
-        for v in v.into_iter().skip(1) {
+        for v in v.iter().skip(1) {
             delim.write(self);
             v.clone().write(self);
+        }
+    }
+
+    #[inline]
+    pub fn store_iter<I: Iterator<Item = T>, T: Writable>(&mut self, mut iter: I, delim: char) {
+        if let Some(n) = iter.next() {
+            n.write(self);
+        }
+
+        for n in iter {
+            delim.write(self);
+            n.write(self);
         }
     }
 }
@@ -227,5 +251,9 @@ fn init() -> &'static mut FastOutput<'static> {
     res.init();
     res
 }
-fn get_output() -> &'static mut FastOutput<'static> { unsafe { &mut OUTPUT } }
-pub fn get_output_source() -> &'static mut FastOutput<'static> { unsafe { STDOUTSOURCE() } }
+fn get_output() -> &'static mut FastOutput<'static> {
+    unsafe { &mut OUTPUT }
+}
+pub fn get_output_source() -> &'static mut FastOutput<'static> {
+    unsafe { STDOUTSOURCE() }
+}

@@ -8,7 +8,7 @@ fn main() {
     );
 
     let mut t = vec![vec![]; n];
-    for (u, v, w) in p.into_iter().flatten().into_iter().flatten() {
+    for (u, v, w) in p.into_iter().flatten().flatten() {
         t[u].push((v, w));
     }
 

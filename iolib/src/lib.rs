@@ -41,6 +41,36 @@ macro_rules! putln {
 }
 
 #[macro_export]
+macro_rules! putv {
+    ( $t:expr ) => {
+        $crate::get_output_source().store_vec(&$t, '\n');        
+    };
+}
+
+#[macro_export]
+macro_rules! putvln {
+    ( $t: expr ) => {
+        $crate::putv!($t);
+        $crate::putln!();
+    };
+}
+
+#[macro_export]
+macro_rules! putvs {
+    ( $t:expr ) => {
+        $crate::get_output_source().store_vec(&$t, ' ');
+    };
+}
+
+#[macro_export]
+macro_rules! putvsln {
+    ( $t:expr ) => {
+        $crate::putvs!($t);
+        $crate::putln!();
+    };
+}
+
+#[macro_export]
 macro_rules! putvec_with_space {
     ( $t:expr ) => {
         $crate::get_output_source().store_vec(&$t, ' ');
