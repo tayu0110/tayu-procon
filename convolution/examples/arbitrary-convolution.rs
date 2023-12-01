@@ -1,5 +1,5 @@
 use convolution::arbitrary_convolution;
-use iolib::{putln, putvsln, scan};
+use iolib::{putln, putvln, scan};
 
 const MOD: u64 = 258280327;
 
@@ -27,5 +27,5 @@ fn main() {
     let fg = arbitrary_convolution::<MOD>(f, g);
 
     putln!(fg.len() - 1);
-    putvsln!(fg);
+    putvln!(fg, sep = ' ');
 }

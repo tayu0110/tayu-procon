@@ -99,30 +99,21 @@ macro_rules! putln {
 
 #[macro_export]
 macro_rules! putv {
+    ( $t:expr, sep=$delim:expr) => {
+        $crate::get_output_source().store_vec(&$t, $delim);
+    };
     ( $t:expr ) => {
-        $crate::get_output_source().store_vec(&$t, '\n');
+        $crate::putv!($t, sep='\n');
     };
 }
 
 #[macro_export]
 macro_rules! putvln {
+    ( $t:expr, sep=$delim:expr) => {
+        $crate::putv!($t, sep=$delim);
+        $crate::putln!();
+    };
     ( $t: expr ) => {
-        $crate::putv!($t);
-        $crate::putln!();
-    };
-}
-
-#[macro_export]
-macro_rules! putvs {
-    ( $t:expr ) => {
-        $crate::get_output_source().store_vec(&$t, ' ');
-    };
-}
-
-#[macro_export]
-macro_rules! putvsln {
-    ( $t:expr ) => {
-        $crate::putvs!($t);
-        $crate::putln!();
+        $crate::putvln!($t, sep='\n');
     };
 }
