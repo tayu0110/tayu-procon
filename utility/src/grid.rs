@@ -6,16 +6,23 @@ pub struct BinaryGrid<const FILL: char = '#', const EMPTY: char = '.'> {
 }
 
 impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
-    pub fn new(r: usize, c: usize) -> Self { Self { inner: vec![vec![false; c]; r] } }
+    pub fn new(r: usize, c: usize) -> Self {
+        Self { inner: vec![vec![false; c]; r] }
+    }
 
     pub fn from_vec(from: Vec<Vec<char>>) -> Result<Self, String> {
         from.iter()
             .flatten()
             .all(|&c| c == FILL || c == EMPTY)
             .then(|| Self {
-                inner: from.into_iter().map(|v| v.into_iter().map(|c| c == FILL).collect()).collect(),
+                inner: from
+                    .into_iter()
+                    .map(|v| v.into_iter().map(|c| c == FILL).collect())
+                    .collect(),
             })
-            .ok_or_else(|| format!("There are the elements which are different from FILL or EMPTY"))
+            .ok_or_else(|| {
+                "There are the elements which are different from FILL or EMPTY".to_string()
+            })
     }
 
     /// Return the shape of grid as (rows, columns).
@@ -33,7 +40,9 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
     /// let grid: BinaryGrid = Vec::<Vec<bool>>::try_into(vec![vec![]; 4]).unwrap();
     /// assert_eq!(grid.shape(), (4, 0));
     /// ```
-    pub fn shape(&self) -> (usize, usize) { (self.inner.len(), self.inner.get(0).map_or(0, |v| v.len())) }
+    pub fn shape(&self) -> (usize, usize) {
+        (self.inner.len(), self.inner.get(0).map_or(0, |v| v.len()))
+    }
 
     /// When self is as the following,
     ///
@@ -107,7 +116,9 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
         }
         let len = self.inner.len();
         for _ in 0..2 {
-            while !self.inner[0].is_empty() && (0..len).map(|i| *self.inner[i].last().unwrap()).all(|f| !f) {
+            while !self.inner[0].is_empty()
+                && (0..len).map(|i| *self.inner[i].last().unwrap()).all(|f| !f)
+            {
                 self.inner.iter_mut().for_each(|v| {
                     v.pop();
                 })
@@ -142,12 +153,17 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
     /// neighbor.sort();
     /// assert_eq!(neighbor, vec![(0, 1), (1, 2)]);
     /// ```
-    pub fn neighbors<'a>(&self, r: usize, c: usize, d: &'a [(usize, usize)]) -> impl Iterator<Item = (usize, usize)> + 'a {
+    pub fn neighbors<'a>(
+        &self,
+        r: usize,
+        c: usize,
+        d: &'a [(usize, usize)],
+    ) -> impl Iterator<Item = (usize, usize)> + 'a {
         let (h, w) = (self.inner.len(), self.inner.get(0).map_or(0, |v| v.len()));
-        d.into_iter().cloned().filter_map(move |(dr, dc)| {
+        d.iter().cloned().filter_map(move |(dr, dc)| {
             let nr = r.wrapping_add(dr);
             let nc = c.wrapping_add(dc);
-            (nr < h && nc < w).then(|| (nr, nc))
+            (nr < h && nc < w).then_some((nr, nc))
         })
     }
 
@@ -183,7 +199,9 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
     /// ```
     pub fn merge(&mut self, r: usize, c: usize, src: &Self) -> Result<(), String> {
         if self.is_overflow(r, c, src) {
-            return Err(format!("The grid of the merge source extends beyond the merge destination."));
+            return Err(
+                "The grid of the merge source extends beyond the merge destination.".to_string(),
+            );
         }
 
         let (rh, rw) = src.shape();
@@ -224,7 +242,9 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
     /// ```
     pub fn is_overlap(&self, r: usize, c: usize, rhs: &Self) -> Result<bool, String> {
         if self.is_overflow(r, c, rhs) {
-            return Err(format!("The grid of the merge source extends beyond the merge destination."));
+            return Err(
+                "The grid of the merge source extends beyond the merge destination.".to_string(),
+            );
         }
 
         let (rh, rw) = rhs.shape();
@@ -239,19 +259,34 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
         Ok(false)
     }
 
-    pub fn restore(self) -> Vec<Vec<char>> { self.inner.into_iter().map(|v| v.into_iter().map(|f| if f { FILL } else { EMPTY }).collect()).collect() }
+    pub fn restore(self) -> Vec<Vec<char>> {
+        self.inner
+            .into_iter()
+            .map(|v| {
+                v.into_iter()
+                    .map(|f| if f { FILL } else { EMPTY })
+                    .collect()
+            })
+            .collect()
+    }
 }
 
 impl<const FILL: char, const EMPTY: char> AsRef<Vec<Vec<bool>>> for BinaryGrid<FILL, EMPTY> {
-    fn as_ref(&self) -> &Vec<Vec<bool>> { &self.inner }
+    fn as_ref(&self) -> &Vec<Vec<bool>> {
+        &self.inner
+    }
 }
 
 impl<const FILL: char, const EMPTY: char> TryFrom<Vec<Vec<char>>> for BinaryGrid<FILL, EMPTY> {
     type Error = String;
-    fn try_from(value: Vec<Vec<char>>) -> Result<Self, Self::Error> { Self::from_vec(value) }
+    fn try_from(value: Vec<Vec<char>>) -> Result<Self, Self::Error> {
+        Self::from_vec(value)
+    }
 }
 
 impl<const FILL: char, const EMPTY: char> TryFrom<Vec<Vec<bool>>> for BinaryGrid<FILL, EMPTY> {
     type Error = Infallible;
-    fn try_from(value: Vec<Vec<bool>>) -> Result<Self, Self::Error> { Ok(Self { inner: value }) }
+    fn try_from(value: Vec<Vec<bool>>) -> Result<Self, Self::Error> {
+        Ok(Self { inner: value })
+    }
 }
