@@ -214,10 +214,10 @@ impl<'a> FastOutput<'a> {
         if v.is_empty() {
             return;
         }
-        v[0].clone().write(self);
+        v[0].write(self);
         for v in v.iter().skip(1) {
             delim.write(self);
-            v.clone().write(self);
+            v.write(self);
         }
     }
 

@@ -117,3 +117,24 @@ macro_rules! putvln {
         $crate::putvln!($t, sep='\n');
     };
 }
+
+#[macro_export]
+macro_rules! putit {
+    ( $t:expr, sep=$delim:expr) => {
+        $crate::get_output_source().store_iter($t, $delim);
+    };
+    ( $t:expr ) => {
+        $crate::putit!($t, sep='\n');
+    };
+}
+
+#[macro_export]
+macro_rules! putitln {
+    ( $t:expr, sep=$delim:expr) => {
+        $crate::putit!($t, sep=$delim);
+        $crate::putln!();
+    };
+    ( $t: expr ) => {
+        $crate::putitln!($t, sep='\n');
+    };
+}

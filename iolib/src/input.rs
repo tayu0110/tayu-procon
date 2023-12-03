@@ -78,8 +78,12 @@ impl FastInput {
         if self.head == self.buf.len() {
             None
         } else {
+            let head = self.head;
             self.head += 1;
-            Some(self.buf[self.head - 1])
+            while self.head < self.buf.len() && self.buf[self.head].is_ascii_whitespace() {
+                self.head += 1;
+            }
+            Some(self.buf[head])
         }
     }
 
@@ -102,13 +106,15 @@ impl FastInput {
         )
     }
 
-    const SEPARATORS: __m128i = unsafe { transmute([0x22i8; 16]) };
+    // Since Ascii Code use up to 0x20 as control codes, characters smaller than 0x21 are identified as control codes.
+    const SEPARATORS: __m128i = unsafe { transmute([0x21i8; 16]) };
 
     fn next_separator(&self, mut now: usize) -> usize {
         let mut buf = [0u64; 2];
         unsafe {
             while now + 16 <= self.buf.len() {
                 let bytes = _mm_loadu_si128(self.buf[now..now + 16].as_ptr() as _);
+                // The byte determined to be a control code is 0xFF.
                 let gt = _mm_cmpgt_epi8(Self::SEPARATORS, bytes);
                 _mm_storeu_si128(buf.as_mut_ptr() as _, gt);
 
