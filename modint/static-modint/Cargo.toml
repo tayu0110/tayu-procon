@@ -8,4 +8,4 @@ license = "CC0-1.0"
 
 [dependencies]
 modint-common = { version = "0.1.0", path = "../modint-common" }
-numeric = { version = "0.1.0", path = "../../numeric" }
+zero-one = { version = "0.1.0", path = "../../numeric/zero-one" }

@@ -1,8 +1,7 @@
 pub use modint_common::*;
-
-use numeric::{One, Zero};
 use std::marker::{self, PhantomData};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use zero_one::{One, Zero};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct StaticModint<M: Modulo> {
@@ -12,19 +11,27 @@ pub struct StaticModint<M: Modulo> {
 
 impl<M: Modulo> One for StaticModint<M> {
     #[inline]
-    fn one() -> Self { Self::one() }
+    fn one() -> Self {
+        Self::one()
+    }
 }
 
 impl<M: Modulo> Zero for StaticModint<M> {
     #[inline]
-    fn zero() -> Self { Self::zero() }
+    fn zero() -> Self {
+        Self::zero()
+    }
 }
 
 impl<M: Modulo> StaticModint<M> {
     #[inline]
-    pub const fn new(val: u64) -> Self { StaticModint { val: (val % M::N as u64) as u32, _p: PhantomData } }
+    pub const fn new(val: u64) -> Self {
+        StaticModint { val: (val % M::N as u64) as u32, _p: PhantomData }
+    }
 
-    pub const fn new_signed(val: i64) -> Self { StaticModint { val: val.rem_euclid(M::N as i64) as u32, _p: PhantomData } }
+    pub const fn new_signed(val: i64) -> Self {
+        StaticModint { val: val.rem_euclid(M::N as i64) as u32, _p: PhantomData }
+    }
 
     #[inline]
     pub const fn raw(val: u32) -> Self {
@@ -33,18 +40,26 @@ impl<M: Modulo> StaticModint<M> {
     }
 
     #[inline]
-    pub const fn zero() -> Self { StaticModint { val: 0, _p: marker::PhantomData } }
+    pub const fn zero() -> Self {
+        StaticModint { val: 0, _p: marker::PhantomData }
+    }
 
     #[inline]
-    pub const fn one() -> Self { StaticModint { val: 1, _p: marker::PhantomData } }
+    pub const fn one() -> Self {
+        StaticModint { val: 1, _p: marker::PhantomData }
+    }
 
     #[inline]
-    pub const fn modulo() -> u32 { M::N }
+    pub const fn modulo() -> u32 {
+        M::N
+    }
 
     #[inline]
-    pub const fn val(&self) -> u32 { self.val }
+    pub const fn val(&self) -> u32 {
+        self.val
+    }
 
-    pub const fn pow(&self, mut exp: u32) -> Self {
+    pub const fn pow(&self, mut exp: u64) -> Self {
         let (mut val, mut res) = (self.val as u64, 1);
         while exp > 0 {
             if exp & 1 == 1 {
@@ -57,12 +72,14 @@ impl<M: Modulo> StaticModint<M> {
     }
 
     #[inline]
-    pub const fn inv(&self) -> Self { self.pow(M::N - 2) }
+    pub const fn inv(&self) -> Self {
+        self.pow(M::N as u64 - 2)
+    }
 
     #[inline]
     pub const fn nth_root(n: u32) -> Self {
         debug_assert!(n == 1 << n.trailing_zeros());
-        StaticModint::raw(M::PRIM_ROOT).pow((M::N - 1) / n)
+        StaticModint::raw(M::PRIM_ROOT).pow((M::N as u64 - 1) / n as u64)
     }
 
     #[inline]
@@ -93,42 +110,60 @@ impl<M: Modulo> StaticModint<M> {
 }
 
 impl<M: Modulo> Default for StaticModint<M> {
-    fn default() -> Self { StaticModint::zero() }
+    fn default() -> Self {
+        StaticModint::zero()
+    }
 }
 
 impl<M: Modulo> std::fmt::Debug for StaticModint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val)
+    }
 }
 
 impl<M: Modulo> std::fmt::Display for StaticModint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val)
+    }
 }
 
 impl<M: Modulo> Add for StaticModint<M> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { self.add_raw(rhs.val) }
+    fn add(self, rhs: Self) -> Self::Output {
+        self.add_raw(rhs.val)
+    }
 }
 
 impl<M: Modulo> AddAssign for StaticModint<M> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl<M: Modulo> Sub for StaticModint<M> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { self.sub_raw(rhs.val) }
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.sub_raw(rhs.val)
+    }
 }
 
 impl<M: Modulo> SubAssign for StaticModint<M> {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
 }
 
 impl<M: Modulo> Mul for StaticModint<M> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output { self.mul_raw(rhs.val) }
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.mul_raw(rhs.val)
+    }
 }
 
 impl<M: Modulo> MulAssign for StaticModint<M> {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
 }
 
 impl<M: Modulo> Div for StaticModint<M> {
@@ -147,19 +182,27 @@ impl<M: Modulo> DivAssign for StaticModint<M> {
 }
 
 impl<M: Modulo> From<u32> for StaticModint<M> {
-    fn from(value: u32) -> Self { Self::new(value as u64) }
+    fn from(value: u32) -> Self {
+        Self::new(value as u64)
+    }
 }
 
 impl<M: Modulo> From<u64> for StaticModint<M> {
-    fn from(value: u64) -> Self { Self::new(value) }
+    fn from(value: u64) -> Self {
+        Self::new(value)
+    }
 }
 
 impl<M: Modulo> From<i32> for StaticModint<M> {
-    fn from(value: i32) -> Self { Self::new_signed(value as i64) }
+    fn from(value: i32) -> Self {
+        Self::new_signed(value as i64)
+    }
 }
 
 impl<M: Modulo> From<i64> for StaticModint<M> {
-    fn from(value: i64) -> Self { Self::new_signed(value) }
+    fn from(value: i64) -> Self {
+        Self::new_signed(value)
+    }
 }
 
 pub fn combination<M: Modulo>(size: u32) -> impl Fn(u32, u32) -> StaticModint<M> {

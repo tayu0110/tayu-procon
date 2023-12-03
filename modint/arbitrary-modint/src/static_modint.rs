@@ -15,22 +15,34 @@ impl<const MOD: u64> ArbitraryStaticModint<MOD> {
     };
 
     #[inline]
-    pub const fn new(val: u64) -> Self { Self::raw(val % Self::MOD) }
+    pub const fn new(val: u64) -> Self {
+        Self::raw(val % Self::MOD)
+    }
 
     #[inline]
-    pub const fn raw(val: u64) -> Self { Self { val } }
+    pub const fn raw(val: u64) -> Self {
+        Self { val }
+    }
 
     #[inline]
-    pub const fn one() -> Self { Self::new(1) }
+    pub const fn one() -> Self {
+        Self::new(1)
+    }
 
     #[inline]
-    pub const fn zero() -> Self { Self::raw(0) }
+    pub const fn zero() -> Self {
+        Self::raw(0)
+    }
 
     #[inline]
-    pub const fn val(self) -> u64 { self.val }
+    pub const fn val(self) -> u64 {
+        self.val
+    }
 
     #[inline]
-    pub const fn modulo() -> u64 { Self::MOD }
+    pub const fn modulo() -> u64 {
+        Self::MOD
+    }
 
     #[inline]
     pub const fn add_raw(&self, rhs: u64) -> Self {
@@ -82,7 +94,11 @@ impl<const MOD: u64> ArbitraryStaticModint<MOD> {
             let u = s - t * tmp;
 
             let (v, f) = yt.overflowing_mul(tmp);
-            let yu = if f || v >= Self::MOD { ys.wrapping_add(yt.wrapping_neg() * tmp) } else { ys.wrapping_sub(v) };
+            let yu = if f || v >= Self::MOD {
+                ys.wrapping_add(yt.wrapping_neg() * tmp)
+            } else {
+                ys.wrapping_sub(v)
+            };
 
             s = t;
             ys = yt;
@@ -102,38 +118,54 @@ impl<const MOD: u64> ArbitraryStaticModint<MOD> {
 }
 
 impl<const MOD: u64> std::fmt::Debug for ArbitraryStaticModint<MOD> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val)
+    }
 }
 
 impl<const MOD: u64> std::fmt::Display for ArbitraryStaticModint<MOD> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val)
+    }
 }
 
 impl<const MOD: u64> Add for ArbitraryStaticModint<MOD> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { self.add_raw(rhs.val) }
+    fn add(self, rhs: Self) -> Self::Output {
+        self.add_raw(rhs.val)
+    }
 }
 
 impl<const MOD: u64> AddAssign for ArbitraryStaticModint<MOD> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl<const MOD: u64> Sub for ArbitraryStaticModint<MOD> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { self.sub_raw(rhs.val) }
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.sub_raw(rhs.val)
+    }
 }
 
 impl<const MOD: u64> SubAssign for ArbitraryStaticModint<MOD> {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
 }
 
 impl<const MOD: u64> Mul for ArbitraryStaticModint<MOD> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output { self.mul_raw(rhs.val) }
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.mul_raw(rhs.val)
+    }
 }
 
 impl<const MOD: u64> MulAssign for ArbitraryStaticModint<MOD> {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
 }
 
 impl<const MOD: u64> Div for ArbitraryStaticModint<MOD> {
@@ -198,10 +230,16 @@ mod tests {
         assert_eq!((MA + MB).val, (A + B) % MOD);
         assert_eq!((MA - MB).val, (A + MOD - B) % MOD);
         assert_eq!((MA * MB).val, (A as u128 * B as u128 % MOD as u128) as u64);
-        assert_eq!((MA / MB).val, (A as u128 * mb_inv.val as u128 % MOD as u128) as u64);
+        assert_eq!(
+            (MA / MB).val,
+            (A as u128 * mb_inv.val as u128 % MOD as u128) as u64
+        );
         assert_eq!(MA.add_raw(B).val, (A + B) % MOD);
         assert_eq!(MA.sub_raw(B).val, (A + MOD - B) % MOD);
-        assert_eq!(MA.mul_raw(B).val, (A as u128 * B as u128 % MOD as u128) as u64);
+        assert_eq!(
+            MA.mul_raw(B).val,
+            (A as u128 * B as u128 % MOD as u128) as u64
+        );
         assert_eq!(MA.pow(B).val, 2247504130363815882);
     }
 }

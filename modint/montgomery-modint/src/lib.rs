@@ -1,14 +1,15 @@
 mod simd;
 
+#[cfg(feature = "iolib")]
 use iolib::{FastInput, Readable};
 pub use modint_common::*;
-use numeric::{One, Zero};
 pub use simd::*;
 use std::convert::From;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::str::FromStr;
+use zero_one::{One, Zero};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// MontgomeryModint
@@ -22,25 +23,39 @@ pub struct MontgomeryModint<M: Modulo> {
 
 impl<M: Modulo> MontgomeryModint<M> {
     #[inline(always)]
-    pub const fn new(val: u32) -> Self { Self::raw(val.rem_euclid(M::N)) }
+    pub const fn new(val: u32) -> Self {
+        Self::raw(val.rem_euclid(M::N))
+    }
 
     #[inline]
-    pub const fn raw(val: u32) -> Self { Self { val: mmul::<M>(val, M::R2), _phantom: PhantomData } }
+    pub const fn raw(val: u32) -> Self {
+        Self { val: mmul::<M>(val, M::R2), _phantom: PhantomData }
+    }
 
     #[inline(always)]
-    pub const fn from_rawval(val: u32) -> Self { Self { val, _phantom: PhantomData } }
+    pub const fn from_rawval(val: u32) -> Self {
+        Self { val, _phantom: PhantomData }
+    }
 
     #[inline]
-    pub const fn val(&self) -> u32 { mrestore::<M>(mreduce::<M>(self.val)) }
+    pub const fn val(&self) -> u32 {
+        mrestore::<M>(mreduce::<M>(self.val))
+    }
 
     #[inline(always)]
-    pub const fn rawval(&self) -> u32 { self.val }
+    pub const fn rawval(&self) -> u32 {
+        self.val
+    }
 
     #[inline(always)]
-    pub const fn one() -> Self { Self { val: M::R, _phantom: PhantomData } }
+    pub const fn one() -> Self {
+        Self { val: M::R, _phantom: PhantomData }
+    }
 
     #[inline(always)]
-    pub const fn zero() -> Self { Self { val: 0, _phantom: PhantomData } }
+    pub const fn zero() -> Self {
+        Self { val: 0, _phantom: PhantomData }
+    }
 
     pub const fn pow(&self, mut n: u64) -> Self {
         let mut val = self.val;
@@ -62,53 +77,75 @@ impl<M: Modulo> MontgomeryModint<M> {
     }
 
     #[inline(always)]
-    pub const fn inv(&self) -> Self { self.pow(M::N as u64 - 2) }
+    pub const fn inv(&self) -> Self {
+        self.pow(M::N as u64 - 2)
+    }
 
     #[inline]
-    pub const fn add_const(self, rhs: Self) -> Self { MontgomeryModint { val: madd::<M>(self.val, rhs.val), _phantom: PhantomData } }
+    pub const fn add_const(self, rhs: Self) -> Self {
+        MontgomeryModint { val: madd::<M>(self.val, rhs.val), _phantom: PhantomData }
+    }
 
     #[inline]
-    pub const fn sub_const(self, rhs: Self) -> Self { MontgomeryModint { val: msub::<M>(self.val, rhs.val), _phantom: PhantomData } }
+    pub const fn sub_const(self, rhs: Self) -> Self {
+        MontgomeryModint { val: msub::<M>(self.val, rhs.val), _phantom: PhantomData }
+    }
 
     #[inline]
-    pub const fn mul_const(self, rhs: Self) -> Self { MontgomeryModint { val: mmul::<M>(self.val, rhs.val), _phantom: PhantomData } }
+    pub const fn mul_const(self, rhs: Self) -> Self {
+        MontgomeryModint { val: mmul::<M>(self.val, rhs.val), _phantom: PhantomData }
+    }
 
     #[inline]
-    pub const fn div_const(self, rhs: Self) -> Self { MontgomeryModint { val: self.mul_const(rhs.inv()).val, _phantom: PhantomData } }
+    pub const fn div_const(self, rhs: Self) -> Self {
+        MontgomeryModint { val: self.mul_const(rhs.inv()).val, _phantom: PhantomData }
+    }
 }
 
 impl<M: Modulo> One for MontgomeryModint<M> {
     #[inline]
-    fn one() -> Self { Self::one() }
+    fn one() -> Self {
+        Self::one()
+    }
 }
 
 impl<M: Modulo> Zero for MontgomeryModint<M> {
     #[inline]
-    fn zero() -> Self { Self::zero() }
+    fn zero() -> Self {
+        Self::zero()
+    }
 }
 
 impl<M: Modulo> Add for MontgomeryModint<M> {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: Self) -> Self::Output { self.add_const(rhs) }
+    fn add(self, rhs: Self) -> Self::Output {
+        self.add_const(rhs)
+    }
 }
 
 impl<M: Modulo> Sub for MontgomeryModint<M> {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: Self) -> Self::Output { self.sub_const(rhs) }
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.sub_const(rhs)
+    }
 }
 
 impl<M: Modulo> Mul for MontgomeryModint<M> {
     type Output = Self;
     #[inline(always)]
-    fn mul(self, rhs: Self) -> Self::Output { self.mul_const(rhs) }
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.mul_const(rhs)
+    }
 }
 
 impl<M: Modulo> Div for MontgomeryModint<M> {
     type Output = Self;
     #[inline(always)]
-    fn div(self, rhs: Self) -> Self::Output { self.div_const(rhs) }
+    fn div(self, rhs: Self) -> Self::Output {
+        self.div_const(rhs)
+    }
 }
 
 impl<M: Modulo> Neg for MontgomeryModint<M> {
@@ -123,48 +160,72 @@ impl<M: Modulo> Neg for MontgomeryModint<M> {
 }
 
 impl<M: Modulo> PartialEq for MontgomeryModint<M> {
-    fn eq(&self, other: &Self) -> bool { mrestore::<M>(self.val) == mrestore::<M>(other.val) }
-    fn ne(&self, other: &Self) -> bool { !(self == other) }
+    fn eq(&self, other: &Self) -> bool {
+        mrestore::<M>(self.val) == mrestore::<M>(other.val)
+    }
+    fn ne(&self, other: &Self) -> bool {
+        !(self == other)
+    }
 }
 
 impl<M: Modulo> AddAssign for MontgomeryModint<M> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl<M: Modulo> SubAssign for MontgomeryModint<M> {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
 }
 
 impl<M: Modulo> MulAssign for MontgomeryModint<M> {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
 }
 
 impl<M: Modulo> DivAssign for MontgomeryModint<M> {
-    fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
 }
 
 impl<M: Modulo> std::fmt::Debug for MontgomeryModint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val())
+    }
 }
 
 impl<M: Modulo> std::fmt::Display for MontgomeryModint<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val())
+    }
 }
 
 impl<M: Modulo> From<u32> for MontgomeryModint<M> {
-    fn from(value: u32) -> Self { Self::new(value) }
+    fn from(value: u32) -> Self {
+        Self::new(value)
+    }
 }
 
 impl<M: Modulo> From<u64> for MontgomeryModint<M> {
-    fn from(value: u64) -> Self { Self::raw(value.rem_euclid(M::N as u64) as u32) }
+    fn from(value: u64) -> Self {
+        Self::raw(value.rem_euclid(M::N as u64) as u32)
+    }
 }
 
 impl<M: Modulo> From<i32> for MontgomeryModint<M> {
-    fn from(value: i32) -> Self { Self::raw(value.rem_euclid(M::N as i32) as u32) }
+    fn from(value: i32) -> Self {
+        Self::raw(value.rem_euclid(M::N as i32) as u32)
+    }
 }
 
 impl<M: Modulo> From<i64> for MontgomeryModint<M> {
-    fn from(value: i64) -> Self { Self::raw(value.rem_euclid(M::N as i64) as u32) }
+    fn from(value: i64) -> Self {
+        Self::raw(value.rem_euclid(M::N as i64) as u32)
+    }
 }
 
 impl<M: Modulo> FromStr for MontgomeryModint<M> {
@@ -188,8 +249,11 @@ impl<M: Modulo> FromStr for MontgomeryModint<M> {
     }
 }
 
+#[cfg(feature = "iolib")]
 impl<M: Modulo> Readable for MontgomeryModint<M> {
-    fn read(src: &mut FastInput) -> Self { MontgomeryModint::from(u32::read(src)) }
+    fn read(src: &mut FastInput) -> Self {
+        MontgomeryModint::from(u32::read(src))
+    }
 }
 
 #[cfg(test)]
@@ -222,13 +286,19 @@ mod tests {
         let b = Modint::new(B);
         assert_eq!((a + b).val(), 196503548);
         assert_eq!((a - b).val(), 498266358);
-        assert_eq!((a * b).val(), (A as u64 * B as u64 % Mod998244353::N as u64) as u32);
+        assert_eq!(
+            (a * b).val(),
+            (A as u64 * B as u64 % Mod998244353::N as u64) as u32
+        );
         assert_eq!(a.pow(B as u64).val(), 860108694);
         assert_eq!((a / b).val(), 748159151);
         assert_eq!((-a).val(), (Modint::zero() - a).val());
 
         assert_eq!("347384953".parse::<Modint>(), Ok(Modint::new(347384953)));
-        assert_eq!("-347384953".parse::<Modint>(), Ok(Modint::from(-347384953i64)));
+        assert_eq!(
+            "-347384953".parse::<Modint>(),
+            Ok(Modint::from(-347384953i64))
+        );
     }
 
     #[test]
@@ -245,7 +315,10 @@ mod tests {
         let b = Modint::new(B);
         assert_eq!((a + b).val(), 1194747901u32);
         assert_eq!((a - b).val(), 3694326006u32);
-        assert_eq!((a * b).val(), (A as u64 * B as u64 % Mod4194304001::N as u64) as u32);
+        assert_eq!(
+            (a * b).val(),
+            (A as u64 * B as u64 % Mod4194304001::N as u64) as u32
+        );
         assert_eq!(a.pow(B as u64).val(), 101451096u32);
         assert_eq!((a / b).val(), 3072607503);
     }

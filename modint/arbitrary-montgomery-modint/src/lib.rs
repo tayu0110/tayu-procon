@@ -10,13 +10,17 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 //      N':= MOD_INV    NN' = 1 (mod R)
 //      R := R
 const fn montgomery_reduction(val: u64, modulo: u64, modulo_inv: u64) -> u64 {
-    let (t, f) = (((val.wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64) as u64).overflowing_neg();
+    let (t, f) = (((val.wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64)
+        as u64)
+        .overflowing_neg();
     t.wrapping_add(modulo * f as u64)
 }
 
 const fn montgomery_multiplication(lhs: u64, rhs: u64, modulo: u64, modulo_inv: u64) -> u64 {
     let a = lhs as u128 * rhs as u128;
-    let (t, f) = ((a >> 64) as u64).overflowing_sub((((a as u64).wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64) as u64);
+    let (t, f) = ((a >> 64) as u64).overflowing_sub(
+        (((a as u64).wrapping_mul(modulo_inv) as u128).wrapping_mul(modulo as u128) >> 64) as u64,
+    );
     t.wrapping_add(modulo * f as u64)
 }
 
@@ -31,7 +35,9 @@ pub struct ArbitraryMontgomeryModint {
 
 impl ArbitraryMontgomeryModint {
     #[inline]
-    pub const fn new(val: u64, modulo: u64) -> Self { Self::raw(val % modulo, modulo) }
+    pub const fn new(val: u64, modulo: u64) -> Self {
+        Self::raw(val % modulo, modulo)
+    }
 
     pub const fn raw(val: u64, modulo: u64) -> Self {
         if modulo == 998244353 {
@@ -58,10 +64,20 @@ impl ArbitraryMontgomeryModint {
     }
 
     #[inline]
-    const fn from_raw_parts_unchecked(val: u64, modulo: u64, modulo_inv: u64, r: u64, r2: u64) -> Self { Self { val, modulo, modulo_inv, r, r2 } }
+    const fn from_raw_parts_unchecked(
+        val: u64,
+        modulo: u64,
+        modulo_inv: u64,
+        r: u64,
+        r2: u64,
+    ) -> Self {
+        Self { val, modulo, modulo_inv, r, r2 }
+    }
 
     #[inline]
-    pub const fn from_same_mod(val: u64, from: Self) -> Self { Self::from_same_mod_unchecked(val % from.modulo, from) }
+    pub const fn from_same_mod(val: u64, from: Self) -> Self {
+        Self::from_same_mod_unchecked(val % from.modulo, from)
+    }
 
     #[inline]
     pub const fn from_same_mod_unchecked(val: u64, from: Self) -> Self {
@@ -70,10 +86,14 @@ impl ArbitraryMontgomeryModint {
     }
 
     #[inline]
-    pub const fn val(&self) -> u64 { montgomery_reduction(self.val, self.modulo, self.modulo_inv) }
+    pub const fn val(&self) -> u64 {
+        montgomery_reduction(self.val, self.modulo, self.modulo_inv)
+    }
 
     #[inline]
-    pub const fn rawval(&self) -> u64 { self.val }
+    pub const fn rawval(&self) -> u64 {
+        self.val
+    }
 
     #[inline]
     pub const fn one(&self) -> Self {
@@ -117,7 +137,9 @@ impl ArbitraryMontgomeryModint {
     }
 
     #[inline]
-    pub fn inv(&self) -> Self { self.pow(self.modulo - 2) }
+    pub fn inv(&self) -> Self {
+        self.pow(self.modulo - 2)
+    }
 }
 
 impl Add for ArbitraryMontgomeryModint {
@@ -164,31 +186,45 @@ impl Mul for ArbitraryMontgomeryModint {
 
 impl Div for ArbitraryMontgomeryModint {
     type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output { self * rhs.inv() }
+    fn div(self, rhs: Self) -> Self::Output {
+        self * rhs.inv()
+    }
 }
 
 impl AddAssign for ArbitraryMontgomeryModint {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl SubAssign for ArbitraryMontgomeryModint {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
 }
 
 impl MulAssign for ArbitraryMontgomeryModint {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
 }
 
 impl DivAssign for ArbitraryMontgomeryModint {
-    fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
 }
 
 impl std::fmt::Debug for ArbitraryMontgomeryModint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val())
+    }
 }
 
 impl std::fmt::Display for ArbitraryMontgomeryModint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.val()) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.val())
+    }
 }
 
 #[cfg(test)]
@@ -213,7 +249,10 @@ mod tests {
 
         assert_eq!((MA + MB).val(), 196503548);
         assert_eq!((MA - MB).val(), 498266358);
-        assert_eq!((MA * MB).val(), (A as u128 * B as u128 % MOD as u128) as u64);
+        assert_eq!(
+            (MA * MB).val(),
+            (A as u128 * B as u128 % MOD as u128) as u64
+        );
         assert_eq!(MA.pow(B).val(), 860108694);
         assert_eq!((MA / MB).val(), 748159151);
     }
