@@ -1,14 +1,11 @@
 pub mod float;
 pub mod integer;
-pub mod one;
 pub mod signed;
-pub mod zero;
 
 pub use float::Float;
 pub use integer::Integer;
-pub use one::One;
 pub use signed::Signed;
-pub use zero::Zero;
+pub use zero_one::{One, Zero};
 
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
