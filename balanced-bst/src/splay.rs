@@ -18,7 +18,9 @@ impl<K, V> SplayNode<K, V> {
 }
 
 impl<K: Ord, V> PartialEq for SplayNode<K, V> {
-    fn eq(&self, other: &Self) -> bool { self.key == other.key }
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
 }
 
 impl<K: Ord, V> PartialOrd for SplayNode<K, V> {
@@ -29,14 +31,12 @@ impl<K: Ord, V> PartialOrd for SplayNode<K, V> {
 
 impl<K: Debug, V: Debug> Debug for SplayNode<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "SplayNode {{ left: {:?}, right: {:?}, key: {:?} val: {:?} }}",
-            self.left.map(|n| unsafe { n.0.as_ref() }),
-            self.right.map(|n| unsafe { n.0.as_ref() }),
-            self.key,
-            self.val
-        )
+        f.debug_struct("SplayNode")
+            .field("key", &self.key)
+            .field("val", &self.val)
+            .field("left", &self.left.map(|n| unsafe { n.0.as_ref() }))
+            .field("right", &self.right.map(|n| unsafe { n.0.as_ref() }))
+            .finish()
     }
 }
 
@@ -319,13 +319,17 @@ impl<K: Ord + Debug, V: Debug> SplayNodeRef<K, V> {
 }
 
 impl<K, V> Clone for SplayNodeRef<K, V> {
-    fn clone(&self) -> Self { Self(self.0) }
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
 }
 
 impl<K, V> Copy for SplayNodeRef<K, V> {}
 
 impl<K: Ord, V> PartialEq for SplayNodeRef<K, V> {
-    fn eq(&self, other: &Self) -> bool { unsafe { self.0.as_ref() == other.0.as_ref() } }
+    fn eq(&self, other: &Self) -> bool {
+        unsafe { self.0.as_ref() == other.0.as_ref() }
+    }
 }
 
 impl<K: Ord, V> PartialOrd for SplayNodeRef<K, V> {
@@ -336,23 +340,25 @@ impl<K: Ord, V> PartialOrd for SplayNodeRef<K, V> {
 
 impl<K, V> Deref for SplayNodeRef<K, V> {
     type Target = SplayNode<K, V>;
-    fn deref(&self) -> &Self::Target { unsafe { self.0.as_ref() } }
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref() }
+    }
 }
 
 impl<K, V> DerefMut for SplayNodeRef<K, V> {
-    fn deref_mut(&mut self) -> &mut Self::Target { unsafe { self.0.as_mut() } }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut() }
+    }
 }
 
 impl<K: Debug, V: Debug> Debug for SplayNodeRef<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "SplayNodeRef {{ key: {:?}, val: {:?}, left: {:?}, right: {:?} }}",
-            self.key,
-            self.val,
-            self.left.map(|n| unsafe { n.0.as_ref() }),
-            self.right.map(|n| unsafe { n.0.as_ref() }),
-        )
+        f.debug_struct("SplayNodeRef")
+            .field("key", &self.key)
+            .field("val", &self.val)
+            .field("left", &self.left.map(|n| unsafe { n.0.as_ref() }))
+            .field("right", &self.right.map(|n| unsafe { n.0.as_ref() }))
+            .finish()
     }
 }
 
@@ -363,13 +369,21 @@ pub struct SplayTreeMap<K, V> {
 }
 
 impl<K: Ord + Debug, V: Debug> SplayTreeMap<K, V> {
-    pub const fn new() -> Self { Self { len: 0, root: None } }
+    pub const fn new() -> Self {
+        Self { len: 0, root: None }
+    }
 
-    pub const fn len(&self) -> usize { self.len }
+    pub const fn len(&self) -> usize {
+        self.len
+    }
 
-    pub const fn is_empty(&self) -> bool { self.len() == 0 }
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
-    pub fn contains_key(&self, key: &K) -> bool { self.get(key).is_some() }
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.get(key).is_some()
+    }
 
     pub fn get(&self, key: &K) -> Option<&V> {
         let root = self.root.as_ref()?;
@@ -668,11 +682,15 @@ pub struct Range<'a, K, V> {
 impl<'a, K: Ord + Debug, V: Debug> Iterator for Range<'a, K, V> {
     type Item = <Iter<'a, K, V> as Iterator>::Item;
 
-    fn next(&mut self) -> Option<Self::Item> { self.iter.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
 }
 
 impl<'a, K: Ord + Debug, V: Debug> DoubleEndedIterator for Range<'a, K, V> {
-    fn next_back(&mut self) -> Option<Self::Item> { self.iter.next_back() }
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.iter.next_back()
+    }
 }
 
 #[cfg(test)]
