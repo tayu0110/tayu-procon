@@ -1,0 +1,836 @@
+use super::{mul, MOD, POW_CACHE};
+use std::cell::Cell;
+use std::fmt::Debug;
+use std::ops::{Deref, DerefMut, Range};
+use std::ptr::NonNull;
+
+fn update(l: (u64, u64), r: (u64, u64)) -> (u64, u64) {
+    let base = POW_CACHE.lock().unwrap().base();
+    let b = mul(r.1, base);
+    let mut val = mul(l.0, b) + r.0;
+    if val >= MOD {
+        val -= MOD;
+    }
+    (val, mul(b, l.1))
+}
+
+struct Node {
+    parent: Option<NodeRef>,
+    left: Option<NodeRef>,
+    right: Option<NodeRef>,
+    val: (u64, u64),
+    sum: ((u64, u64), (u64, u64)),
+    subsum: usize,
+    rev: bool,
+}
+
+impl Node {
+    pub const fn is_reversed(&self) -> bool {
+        self.rev
+    }
+
+    pub fn toggle(&mut self) {
+        self.rev ^= true;
+        self.sum = (self.sum.1, self.sum.0);
+        (self.left, self.right) = (self.right, self.left);
+    }
+
+    fn propagate(&mut self) {
+        if let Some(mut left) = self.left {
+            if self.is_reversed() {
+                left.toggle();
+            }
+        }
+        if let Some(mut right) = self.right {
+            if self.is_reversed() {
+                right.toggle();
+            }
+        }
+
+        self.rev = false;
+    }
+
+    fn update(&mut self) {
+        self.subsum = 1;
+        match (self.left, self.right) {
+            (Some(l), Some(r)) => {
+                self.sum = (
+                    update(update(l.sum.0, self.val), r.sum.0),
+                    update(update(r.sum.1, self.val), l.sum.1),
+                );
+                self.subsum += l.subsum + r.subsum;
+            }
+            (Some(l), _) => {
+                self.sum = (update(l.sum.0, self.val), update(self.val, l.sum.1));
+                self.subsum += l.subsum
+            }
+            (_, Some(r)) => {
+                self.sum = (update(self.val, r.sum.0), update(r.sum.1, self.val));
+                self.subsum += r.subsum;
+            }
+            _ => {
+                self.sum = (self.val, self.val);
+            }
+        }
+    }
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("val", &self.val.0)
+            .field("subsum", &self.subsum)
+            .field("rev", &self.rev)
+            .field("left", &self.left.map(|p| unsafe { p.0.as_ref() }))
+            .field("right", &self.right.map(|p| unsafe { p.0.as_ref() }))
+            .finish()
+    }
+}
+
+struct NodeRef(NonNull<Node>);
+
+impl Clone for NodeRef {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl Copy for NodeRef {}
+
+impl NodeRef {
+    fn new(val: char) -> Self {
+        let ptr = Box::leak(Box::new(Node {
+            parent: None,
+            left: None,
+            right: None,
+            val: (val as u64, 1),
+            sum: ((val as u64, 1), (val as u64, 1)),
+            subsum: 1,
+            rev: false,
+        }));
+        Self(NonNull::new(ptr).unwrap())
+    }
+
+    unsafe fn into_raw(self) -> Node {
+        let raw = unsafe { Box::from_raw(self.0.as_ptr()) };
+        *raw
+    }
+
+    fn connect_left(mut self, mut child: Self) {
+        child.parent = Some(self);
+        self.left = Some(child);
+    }
+
+    fn disconnect_left(mut self) -> Option<Self> {
+        let mut left = self.left?;
+        left.parent = None;
+        self.left = None;
+        Some(left)
+    }
+
+    fn is_left_child(self) -> bool {
+        self.parent
+            .map_or(false, |p| p.left.map(|p| p.0) == Some(self.0))
+    }
+
+    fn connect_right(mut self, mut child: Self) {
+        child.parent = Some(self);
+        self.right = Some(child);
+    }
+
+    fn disconnect_right(mut self) -> Option<Self> {
+        let mut right = self.right?;
+        right.parent = None;
+        self.right = None;
+        Some(right)
+    }
+
+    fn is_right_child(self) -> bool {
+        self.parent
+            .map_or(false, |p| p.right.map(|p| p.0) == Some(self.0))
+    }
+
+    fn disconnect_parent(self) -> Option<Self> {
+        let par = self.parent?;
+
+        if self.is_left_child() {
+            par.disconnect_left();
+            Some(par)
+        } else if self.is_right_child() {
+            par.disconnect_right();
+            Some(par)
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn rotate_left(mut self) -> Self {
+        let Some(mut right) = self.disconnect_right() else { return self };
+
+        if let Some(right_left) = right.disconnect_left() {
+            self.connect_right(right_left);
+        }
+
+        self.update();
+
+        let self_is_left = self.is_left_child();
+        let par = self.disconnect_parent();
+        right.connect_left(self);
+        right.update();
+
+        if let Some(mut par) = par {
+            if self_is_left {
+                par.connect_left(right);
+            } else {
+                par.connect_right(right);
+            }
+            par.update();
+        }
+
+        // return new root of the original subtree.
+        right
+    }
+
+    fn rotate_right(mut self) -> Self {
+        let Some(mut left) = self.disconnect_left() else { return self };
+
+        if let Some(left_right) = left.disconnect_right() {
+            self.connect_left(left_right);
+        }
+
+        self.update();
+
+        let self_is_left = self.is_left_child();
+        let par = self.disconnect_parent();
+        left.connect_right(self);
+        left.update();
+
+        if let Some(mut par) = par {
+            if self_is_left {
+                par.connect_left(left);
+            } else {
+                par.connect_right(left);
+            }
+            par.update();
+        }
+
+        // return new root of the original subtree
+        left
+    }
+
+    fn splay(mut self) {
+        self.propagate();
+        while !self.is_root() {
+            let &parent = self.parent.as_ref().unwrap();
+
+            if parent.is_root() {
+                // zig step
+                if self.is_left_child() {
+                    parent.rotate_right();
+                } else {
+                    parent.rotate_left();
+                }
+                return;
+            }
+
+            let &grand_parent = parent.parent.as_ref().unwrap();
+            if self.is_left_child() ^ parent.is_left_child() {
+                // zig-zag step
+                if self.is_left_child() {
+                    parent.rotate_right();
+                    grand_parent.rotate_left();
+                } else if self.is_right_child() {
+                    parent.rotate_left();
+                    grand_parent.rotate_right();
+                } else {
+                    unreachable!()
+                }
+            } else {
+                // zig-zig step
+                if self.is_left_child() {
+                    grand_parent.rotate_right();
+                    parent.rotate_right();
+                } else if self.is_right_child() {
+                    grand_parent.rotate_left();
+                    parent.rotate_left();
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
+    fn is_root(self) -> bool {
+        self.parent.map_or(true, |p| {
+            p.left.map_or(true, |s| s.0 != self.0) && p.right.map_or(true, |d| d.0 != self.0)
+        })
+    }
+}
+
+impl Deref for NodeRef {
+    type Target = Node;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl DerefMut for NodeRef {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut() }
+    }
+}
+
+impl Debug for NodeRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeRef")
+            .field("ptr", unsafe { self.0.as_ref() })
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct SplayTree {
+    len: usize,
+    root: Option<Cell<NodeRef>>,
+}
+
+impl SplayTree {
+    pub(super) const fn new() -> Self {
+        Self { len: 0, root: None }
+    }
+
+    pub(super) const fn len(&self) -> usize {
+        self.len
+    }
+
+    fn nth_node(&self, mut index: usize) -> Option<NodeRef> {
+        if index >= self.len {
+            return None;
+        }
+
+        index += 1;
+        let mut node = self.root.as_ref()?.get();
+        let mut seen = 0;
+        while seen < index {
+            node.propagate();
+            if let Some(left) = node.left {
+                if seen + left.subsum >= index {
+                    node = left;
+                    continue;
+                }
+
+                seen += left.subsum;
+            }
+
+            seen += 1;
+            if seen == index {
+                break;
+            }
+
+            let Some(right) = node.right else { break };
+            node = right;
+        }
+        node.propagate();
+        node.splay();
+        self.root.as_ref().unwrap().set(node);
+
+        Some(node)
+    }
+
+    #[cfg(test)]
+    pub(super) fn get(&mut self, index: usize) -> Option<char> {
+        let nth = self.nth_node(index)?;
+        char::from_u32(nth.val.0 as u32)
+    }
+
+    pub(super) fn insert(&mut self, index: usize, val: char) -> Result<(), &'static str> {
+        if index == self.len {
+            let new = NodeRef::new(val);
+            self.len += 1;
+            if let Some(mut node) = self.root.as_ref().map(|c| c.get()) {
+                while let Some(right) = node.right {
+                    node.propagate();
+                    node = right;
+                }
+                node.connect_right(new);
+                node.update();
+            } else {
+                self.root = Some(Cell::new(new));
+            }
+
+            new.splay();
+            self.root.as_mut().unwrap().set(new);
+            return Ok(());
+        }
+
+        let mut node = self
+            .nth_node(index)
+            .ok_or("index out of range in SplayTree::insert")?;
+
+        let new = NodeRef::new(val);
+        if let Some(mut node) = node.left {
+            while let Some(right) = node.right {
+                node.propagate();
+                node = right;
+            }
+
+            node.propagate();
+            node.connect_right(new);
+            node.update();
+        } else {
+            node.connect_left(new);
+            node.update();
+        }
+        self.len += 1;
+
+        new.splay();
+        self.root.as_mut().unwrap().set(new);
+
+        Ok(())
+    }
+
+    pub(super) fn remove(&mut self, index: usize) -> Option<char> {
+        let node = self.nth_node(index)?;
+
+        match (node.disconnect_left(), node.disconnect_right()) {
+            (Some(l), Some(mut node)) => {
+                while let Some(left) = node.left {
+                    node.propagate();
+                    node = left;
+                }
+                node.propagate();
+                node.connect_left(l);
+                node.update();
+                node.splay();
+                self.root.as_mut().unwrap().set(node);
+            }
+            (Some(l), _) => {
+                self.root.as_mut().unwrap().set(l);
+            }
+            (_, Some(r)) => {
+                self.root.as_mut().unwrap().set(r);
+            }
+            _ => {
+                self.root = None;
+            }
+        }
+
+        self.len -= 1;
+        Some(unsafe { char::from_u32(node.into_raw().val.0 as u32)? })
+    }
+
+    pub(super) fn split_off(&mut self, at: usize) -> Result<Self, &'static str> {
+        if at == 0 {
+            let mut res = Self::new();
+            std::mem::swap(self, &mut res);
+            return Ok(res);
+        } else if at == self.len {
+            return Ok(Self::new());
+        }
+
+        let mut split_point = self
+            .nth_node(at)
+            .ok_or("index out of range in SplayTree::split_off")?;
+        split_point.propagate();
+        let left = split_point.disconnect_left().unwrap();
+        split_point.update();
+
+        let res = Self { len: self.len - at, root: Some(Cell::new(split_point)) };
+
+        self.len = at;
+        self.root.as_mut().unwrap().set(left);
+        Ok(res)
+    }
+
+    pub(super) fn extend(&mut self, other: Self) {
+        if other.root.is_none() {
+            return;
+        } else if self.root.is_none() {
+            self.len += other.len;
+            self.root = other.root;
+            return;
+        }
+
+        let mut node = self.nth_node(self.len() - 1).unwrap();
+
+        self.len += other.len;
+        node.connect_right(other.root.unwrap().get());
+        node.update();
+        self.root.as_mut().unwrap().set(node);
+    }
+
+    pub(super) fn reverse(&mut self, range: Range<usize>) -> Result<(), &'static str> {
+        if range.is_empty() {
+            return Ok(());
+        }
+
+        let Range { start, end } = range;
+        let back = self.split_off(end)?;
+        let mut mid = self.split_off(start)?;
+
+        let mut mid_root = mid.root.as_mut().unwrap().get();
+        mid_root.toggle();
+        mid_root.propagate();
+
+        self.extend(mid);
+        self.extend(back);
+
+        Ok(())
+    }
+
+    pub(super) fn fold(&mut self, range: Range<usize>) -> Result<u64, &'static str> {
+        Ok(self.fold_both(range)?.0)
+    }
+
+    pub(super) fn fold_reverse(&mut self, range: Range<usize>) -> Result<u64, &'static str> {
+        Ok(self.fold_both(range)?.1)
+    }
+
+    pub(super) fn fold_both(&mut self, range: Range<usize>) -> Result<(u64, u64), &'static str> {
+        let Range { start, end } = range;
+
+        let back = self.split_off(end)?;
+        let mid = self.split_off(start)?;
+
+        let node = mid.nth_node(mid.len - 1).unwrap();
+        node.splay();
+
+        let res = (node.sum.0 .0, node.sum.1 .0);
+
+        self.extend(mid);
+        self.extend(back);
+
+        Ok(res)
+    }
+
+    pub(super) fn set(&mut self, index: usize, val: char) -> Result<(), &'static str> {
+        let mut node = self
+            .nth_node(index)
+            .ok_or("index out of range in SplayTree::set")?;
+        node.val = (val as u64, 1);
+        node.update();
+        self.root.as_mut().unwrap().set(node);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check_eq(l: Option<NodeRef>, r: Option<NodeRef>) -> bool {
+        l.map(|p| p.0) == r.map(|p| p.0)
+    }
+
+    #[test]
+    fn add_child_test() {
+        let a = NodeRef::new('a');
+        let b = NodeRef::new('b');
+        let c = NodeRef::new('c');
+
+        // make tree as the following
+        //      a
+        //     / \
+        //    b   c
+        a.connect_left(b);
+        a.connect_right(c);
+
+        assert!(check_eq(a.left, Some(b)));
+        assert!(check_eq(a.right, Some(c)));
+        assert!(check_eq(b.parent, Some(a)));
+        assert!(check_eq(c.parent, Some(a)));
+    }
+
+    #[test]
+    fn rotate_left_test() {
+        let a = NodeRef::new('a');
+        let b = NodeRef::new('b');
+        let c = NodeRef::new('c');
+        let d = NodeRef::new('d');
+        let e = NodeRef::new('e');
+
+        // make tree as the following
+        //      a
+        //     / \
+        //    b   c
+        //       / \
+        //      d   e
+        a.connect_left(b);
+        a.connect_right(c);
+        c.connect_left(d);
+        c.connect_right(e);
+
+        // rotate left at node 'a'
+        //      c
+        //     / \
+        //    a   e
+        //   / \
+        //  b   d
+        a.rotate_left();
+        assert!(check_eq(a.parent, Some(c)));
+        assert!(check_eq(a.left, Some(b)));
+        assert!(check_eq(a.right, Some(d)));
+        assert!(check_eq(b.parent, Some(a)));
+        assert!(check_eq(b.left, None));
+        assert!(check_eq(b.right, None));
+        assert!(check_eq(c.parent, None));
+        assert!(check_eq(c.left, Some(a)));
+        assert!(check_eq(c.right, Some(e)));
+        assert!(check_eq(d.parent, Some(a)));
+        assert!(check_eq(d.left, None));
+        assert!(check_eq(d.right, None));
+        assert!(check_eq(e.parent, Some(c)));
+        assert!(check_eq(e.left, None));
+        assert!(check_eq(e.right, None));
+
+        // rotate left at node 'a' again
+        //       c
+        //      / \
+        //     d   e
+        //    /
+        //   a
+        //  /
+        // b
+        a.rotate_left();
+        assert!(check_eq(a.parent, Some(d)));
+        assert!(check_eq(a.left, Some(b)));
+        assert!(check_eq(a.right, None));
+        assert!(check_eq(b.parent, Some(a)));
+        assert!(check_eq(b.left, None));
+        assert!(check_eq(b.right, None));
+        assert!(check_eq(c.parent, None));
+        assert!(check_eq(c.left, Some(d)));
+        assert!(check_eq(c.right, Some(e)));
+        assert!(check_eq(d.parent, Some(c)));
+        assert!(check_eq(d.left, Some(a)));
+        assert!(check_eq(d.right, None));
+        assert!(check_eq(e.parent, Some(c)));
+        assert!(check_eq(e.left, None));
+        assert!(check_eq(e.right, None));
+    }
+
+    #[test]
+    fn rotate_right_test() {
+        let a = NodeRef::new('a');
+        let b = NodeRef::new('b');
+        let c = NodeRef::new('c');
+        let d = NodeRef::new('d');
+        let e = NodeRef::new('e');
+
+        // make tree as the following
+        //      a
+        //     / \
+        //    b   c
+        //   / \
+        //  d   e
+        a.connect_left(b);
+        a.connect_right(c);
+        b.connect_left(d);
+        b.connect_right(e);
+
+        // rotate right at node 'a'
+        //      b
+        //     / \
+        //    d   a
+        //       / \
+        //      e   c
+        a.rotate_right();
+        assert!(check_eq(a.parent, Some(b)));
+        assert!(check_eq(a.left, Some(e)));
+        assert!(check_eq(a.right, Some(c)));
+        assert!(check_eq(b.parent, None));
+        assert!(check_eq(b.left, Some(d)));
+        assert!(check_eq(b.right, Some(a)));
+        assert!(check_eq(c.parent, Some(a)));
+        assert!(check_eq(c.left, None));
+        assert!(check_eq(c.right, None));
+        assert!(check_eq(d.parent, Some(b)));
+        assert!(check_eq(d.left, None));
+        assert!(check_eq(d.right, None));
+        assert!(check_eq(e.parent, Some(a)));
+        assert!(check_eq(e.left, None));
+        assert!(check_eq(e.right, None));
+
+        // rotate right at node 'a' again
+        //     b
+        //    / \
+        //   d   e
+        //        \
+        //         a
+        //          \
+        //           c
+        a.rotate_right();
+        assert!(check_eq(a.parent, Some(e)));
+        assert!(check_eq(a.left, None));
+        assert!(check_eq(a.right, Some(c)));
+        assert!(check_eq(b.parent, None));
+        assert!(check_eq(b.left, Some(d)));
+        assert!(check_eq(b.right, Some(e)));
+        assert!(check_eq(c.parent, Some(a)));
+        assert!(check_eq(c.left, None));
+        assert!(check_eq(c.right, None));
+        assert!(check_eq(d.parent, Some(b)));
+        assert!(check_eq(d.left, None));
+        assert!(check_eq(d.right, None));
+        assert!(check_eq(e.parent, Some(b)));
+        assert!(check_eq(e.left, None));
+        assert!(check_eq(e.right, Some(a)));
+    }
+
+    fn is_left_connected(par: NodeRef, child: NodeRef) -> bool {
+        par.left.map(|p| p.0) == Some(child.0) && child.parent.map(|p| p.0) == Some(par.0)
+    }
+
+    fn is_right_connected(par: NodeRef, child: NodeRef) -> bool {
+        par.right.map(|p| p.0) == Some(child.0) && child.parent.map(|p| p.0) == Some(par.0)
+    }
+
+    #[test]
+    fn splay_test() {
+        let a = NodeRef::new('a');
+        let b = NodeRef::new('b');
+        let c = NodeRef::new('c');
+        let d = NodeRef::new('d');
+        let e = NodeRef::new('e');
+
+        //       a
+        //      / \
+        //     b   c
+        //    / \
+        //   d   e
+        a.connect_left(b);
+        a.connect_right(c);
+        b.connect_left(d);
+        b.connect_right(e);
+
+        //       a
+        //      / \
+        //     b   c
+        //    / \
+        //   d   e
+        a.splay();
+        assert!(check_eq(a.parent, None));
+        assert!(is_left_connected(a, b));
+        assert!(is_right_connected(a, c));
+        assert!(is_left_connected(b, d));
+        assert!(is_right_connected(b, e));
+
+        // zig step
+        //      b
+        //     / \
+        //    d   a
+        //       / \
+        //      e   c
+        b.splay();
+        assert!(check_eq(b.parent, None));
+        assert!(is_left_connected(b, d));
+        assert!(is_right_connected(b, a));
+        assert!(is_left_connected(a, e));
+        assert!(is_right_connected(a, c));
+
+        // zig-zig step
+        //        c
+        //       /
+        //      a
+        //     /
+        //    b
+        //   / \
+        //  d   e
+        c.splay();
+        assert!(check_eq(c.parent, None));
+        assert!(is_left_connected(c, a));
+        assert!(check_eq(c.right, None));
+        assert!(is_left_connected(a, b));
+        assert!(check_eq(a.right, None));
+        assert!(is_left_connected(b, d));
+        assert!(is_right_connected(b, e));
+
+        // zig-zag step
+        //         e
+        //        / \
+        //       b   c
+        //      /   /
+        //     d   a
+        e.splay();
+        assert!(check_eq(e.parent, None));
+        assert!(is_left_connected(e, b));
+        assert!(is_right_connected(e, c));
+        assert!(is_left_connected(b, d));
+        assert!(is_left_connected(c, a));
+    }
+
+    #[test]
+    fn insert_test() {
+        let mut t = SplayTree::new();
+        t.insert(0, 'a').unwrap();
+
+        assert_eq!(t.get(0), Some('a'));
+
+        for i in 1..26 {
+            t.insert(i, (b'a' + i as u8) as char).unwrap();
+        }
+
+        assert_eq!(t.get(1), Some('b'));
+        assert_eq!(t.get(2), Some('c'));
+        assert_eq!(t.get(25), Some('z'));
+        assert_eq!(t.get(0), Some('a'));
+    }
+
+    #[test]
+    fn remove_test() {
+        let mut t = SplayTree::new();
+
+        for i in 0..26 {
+            t.insert(i, (b'a' + i as u8) as char).unwrap();
+        }
+
+        assert_eq!(t.remove(0), Some('a'));
+        assert_eq!(t.len(), 25);
+        assert_eq!(t.remove(0), Some('b'));
+        assert_eq!(t.remove(1), Some('d'));
+        assert_eq!(t.remove(15), Some('s'));
+        assert_eq!(t.remove(15), Some('t'));
+        assert_eq!(t.len(), 21);
+    }
+
+    #[test]
+    fn split_test() {
+        let mut t = SplayTree::new();
+        for i in 0..26 {
+            t.insert(i, (b'a' + i as u8) as char).unwrap();
+        }
+
+        assert_eq!(t.len(), 26);
+
+        let mut u = t.split_off(10).unwrap();
+        assert_eq!(t.len(), 10);
+        assert_eq!(u.len(), 16);
+        assert_eq!(u.get(0), Some('k'));
+        assert_eq!(t.get(10), None);
+        assert_eq!(u.get(1), Some('l'));
+        assert_eq!(u.get(15), Some('z'))
+    }
+
+    #[test]
+    fn split_extend_test() {
+        let mut t = SplayTree::new();
+        for i in 0..26 {
+            t.insert(i, (b'a' + i as u8) as char).unwrap();
+        }
+
+        let mut u = t.split_off(10).unwrap();
+        assert_eq!(t.len(), 10);
+        assert_eq!(u.len(), 16);
+
+        assert_eq!(t.remove(9), Some('j'));
+        assert_eq!(t.remove(8), Some('i'));
+        assert_eq!(u.remove(0), Some('k'));
+        assert_eq!(u.remove(0), Some('l'));
+
+        t.extend(u);
+
+        assert_eq!(t.len(), 22);
+        assert_eq!(t.get(7), Some('h'));
+        assert_eq!(t.get(8), Some('m'));
+    }
+}

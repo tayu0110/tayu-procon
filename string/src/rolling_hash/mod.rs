@@ -1,8 +1,12 @@
 mod dynamic;
 mod fixed;
+mod pointset;
+mod splay;
 
 pub use dynamic::*;
 pub use fixed::*;
+pub use pointset::*;
+use splay::*;
 
 use simple_rand::{gen_seed, xor_shift};
 use std::ops::{Add, Index};

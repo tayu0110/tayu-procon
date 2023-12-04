@@ -1,10 +1,8 @@
-use super::{mul, HashValue, MOD, POW_CACHE};
-use segtree::SegmentTree;
+use super::{HashValue, SplayTree, POW_CACHE};
 use std::ops::{Bound, Range, RangeBounds};
 
 pub struct DynamicRollingHash {
-    len: usize,
-    hash: SegmentTree<(u64, u64)>,
+    hash: SplayTree,
 }
 
 impl DynamicRollingHash {
@@ -16,26 +14,12 @@ impl DynamicRollingHash {
             cache.grow(s.len());
         }
 
-        let hash = SegmentTree::from_vec(
-            &s.chars().map(|c| (c as u64, 1u64)).collect(),
-            (0, 0),
-            |l, r| {
-                if r.1 == 0 {
-                    return *l;
-                } else if l.1 == 0 {
-                    return *r;
-                }
-                let base = POW_CACHE.lock().unwrap().base();
-                let b = mul(r.1, base);
-                let mut val = mul(l.0, b) + r.0;
-                if val >= MOD {
-                    val -= MOD;
-                }
-                (val, mul(b, l.1))
-            },
-        );
+        let mut hash = SplayTree::new();
+        for (i, c) in s.chars().enumerate() {
+            hash.insert(i, c).unwrap();
+        }
 
-        Self { len: s.len(), hash }
+        Self { hash }
     }
 
     fn convert_range(&self, range: impl RangeBounds<usize>) -> Range<usize> {
@@ -47,7 +31,7 @@ impl DynamicRollingHash {
         let r = match range.end_bound() {
             Bound::Included(r) => r + 1,
             Bound::Excluded(r) => *r,
-            Bound::Unbounded => self.len,
+            Bound::Unbounded => self.hash.len(),
         };
         Range { start: l, end: r }
     }
@@ -56,10 +40,10 @@ impl DynamicRollingHash {
     ///
     /// # Example
     /// ```rust
-    /// use string::RollingHash;
+    /// use string::DynamicRollingHash;
     ///
     /// let s = "abdabfgdabfgda";
-    /// let hash = RollingHash::new(s);
+    /// let mut hash = DynamicRollingHash::new(s);
     ///
     /// // you can use RangeTo, Range,
     /// assert_eq!(hash.get(..2), hash.get(3..5));
@@ -69,7 +53,7 @@ impl DynamicRollingHash {
     /// assert_ne!(hash.get(..), hash.get(..=5));
     /// ```
     #[inline]
-    pub fn get(&self, range: impl RangeBounds<usize>) -> HashValue {
+    pub fn get(&mut self, range: impl RangeBounds<usize>) -> HashValue {
         let range = self.convert_range(range);
 
         if range.is_empty() {
@@ -81,33 +65,60 @@ impl DynamicRollingHash {
 
     /// return the hash of s[l..r)
     #[inline]
-    fn get_hash(&self, l: usize, r: usize) -> HashValue {
-        let (res, _) = self.hash.foldr(l, r);
+    fn get_hash(&mut self, l: usize, r: usize) -> HashValue {
+        let res = self.hash.fold(l..r).unwrap();
         HashValue::new(r - l, res)
+    }
+
+    #[inline]
+    pub fn get_reverse(&mut self, range: impl RangeBounds<usize>) -> HashValue {
+        let range = self.convert_range(range);
+
+        if range.is_empty() {
+            return HashValue::new(0, 0);
+        }
+
+        self.get_hash_reverse(range.start, range.end)
+    }
+
+    fn get_hash_reverse(&mut self, l: usize, r: usize) -> HashValue {
+        let res = self.hash.fold_reverse(l..r).unwrap();
+        HashValue::new(r - l, res)
+    }
+
+    pub fn is_palindrome(&mut self, range: impl RangeBounds<usize>) -> bool {
+        let range = self.convert_range(range);
+
+        if range.is_empty() {
+            return true;
+        }
+
+        let (f, r) = self.hash.fold_both(range).unwrap();
+        f == r
     }
 
     /// Return the length of Longest Common Prefix between `self` and `other`.
     ///
     /// # Example
     /// ```rust
-    /// use string::RollingHash;
+    /// use string::DynamicRollingHash;
     ///
-    /// let s = RollingHash::new("abcdefg");
-    /// let t = RollingHash::new("abcdfg");
+    /// let mut s = DynamicRollingHash::new("abcdefg");
+    /// let mut t = DynamicRollingHash::new("abcdfg");
     ///
     /// // "abcdefg" and "abcdfg"
-    /// assert_eq!(s.lcp(.., &t, ..), 4);
+    /// assert_eq!(s.lcp(.., &mut t, ..), 4);
     /// // "bcdefg" and "bcdfg"
-    /// assert_eq!(s.lcp(1.., &t, 1..), 3);
+    /// assert_eq!(s.lcp(1.., &mut t, 1..), 3);
     /// // "abcdefg" and "bcdfg"
-    /// assert_eq!(s.lcp(.., &t, 1..), 0);
+    /// assert_eq!(s.lcp(.., &mut t, 1..), 0);
     /// // "fg" and "fg"
-    /// assert_eq!(s.lcp(5.., &t, 4..), 2);
+    /// assert_eq!(s.lcp(5.., &mut t, 4..), 2);
     /// ```
     pub fn lcp(
-        &self,
+        &mut self,
         range: impl RangeBounds<usize>,
-        other: &Self,
+        other: &mut Self,
         range_other: impl RangeBounds<usize>,
     ) -> usize {
         let range = self.convert_range(range);
@@ -135,6 +146,78 @@ impl DynamicRollingHash {
     /// Change n-th character of the string managed `self` to `val`
     #[inline]
     pub fn set(&mut self, index: usize, val: char) {
-        self.hash.set(index, (val as u64, 1));
+        self.hash.set(index, val).unwrap();
+    }
+
+    pub fn reverse(&mut self, range: impl RangeBounds<usize>) {
+        let range = self.convert_range(range);
+        self.hash.reverse(range).unwrap();
+    }
+
+    /// this is still not vefified...
+    pub fn insert(&mut self, index: usize, val: char) {
+        self.hash.insert(index, val).unwrap();
+    }
+
+    /// this is still not vefified...
+    pub fn remove(&mut self, index: usize) {
+        self.hash.remove(index).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::RollingHash;
+    use rand::{
+        distributions::{Alphanumeric, DistString},
+        thread_rng, Rng,
+    };
+
+    #[test]
+    fn updatable_rolling_hash_test() {
+        let mut hash = DynamicRollingHash::new("abcdefghij");
+
+        assert_eq!(hash.get(..), RollingHash::new("abcdefghij").get(..));
+        assert_eq!(hash.get(..5), RollingHash::new("abcdefghij").get(..5));
+        assert_eq!(hash.get(5..), RollingHash::new("abcdefghij").get(5..));
+        assert_eq!(hash.get(3..6), RollingHash::new("abcdefghij").get(3..6));
+
+        hash.set(0, 'z');
+        assert_eq!(hash.get(..), RollingHash::new("zbcdefghij").get(..));
+        hash.set(3, 'w');
+        assert_eq!(hash.get(..), RollingHash::new("zbcwefghij").get(..));
+
+        hash.reverse(..);
+        assert_eq!(hash.get(..), RollingHash::new("jihgfewcbz").get(..));
+        hash.reverse(1..5);
+        assert_eq!(hash.get(..), RollingHash::new("jfghiewcbz").get(..));
+        hash.reverse(3..8);
+        assert_eq!(hash.get(..), RollingHash::new("jfgcweihbz").get(..));
+    }
+
+    #[test]
+    fn updatable_rolling_hash_random_test() {
+        let mut rng = thread_rng();
+        const LEN: usize = 10;
+
+        for _ in 0..100 {
+            let s = Alphanumeric.sample_string(&mut rng, LEN);
+
+            let mut hash = DynamicRollingHash::new(&s);
+
+            let start = rng.gen_range(0..LEN);
+            let end = rng.gen_range(start..LEN + 1);
+            eprint!("s: {s}, start: {start}, end: {end} ");
+            hash.reverse(start..end);
+
+            let mut s = s.chars().collect::<Vec<char>>();
+            s[start..end].reverse();
+            let s = s.into_iter().collect::<String>();
+            eprintln!("revs: {s}");
+            let verify = RollingHash::new(&s);
+
+            assert_eq!(hash.get(..), verify.get(..));
+        }
     }
 }

@@ -12,3 +12,4 @@ simple-rand = { path = "../simple-rand" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
+rand = "0.8.5"

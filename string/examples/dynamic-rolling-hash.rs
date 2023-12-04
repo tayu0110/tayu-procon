@@ -3,10 +3,9 @@ use iolib::{putln, scan};
 use string::DynamicRollingHash;
 
 fn main() {
-    scan!(n: usize, q: usize, s: String);
+    scan!(_: usize, q: usize, s: String);
 
     let mut hash = DynamicRollingHash::new(&s);
-    let mut rev = DynamicRollingHash::new(&s.chars().rev().collect::<String>());
 
     for _ in 0..q {
         scan!(ty: u8);
@@ -14,12 +13,11 @@ fn main() {
         if ty == 1 {
             scan!(x: usize, c: char);
             hash.set(x - 1, c);
-            rev.set(n - x, c);
         } else {
             scan!(l: usize, r: usize);
             let l = l - 1;
 
-            if hash.get(l..r) == rev.get(n - r..n - l) {
+            if hash.is_palindrome(l..r) {
                 putln!("Yes");
             } else {
                 putln!("No");
