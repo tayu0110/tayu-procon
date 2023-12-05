@@ -1,13 +1,12 @@
 // https://atcoder.jp/contests/abc284/tasks/abc284_f
 use iolib::{putln, scan};
-use string::RollingHash;
+use string::{DynamicRollingHash, RollingHash};
 
-fn main() {
-    scan!(n: usize, t: String);
-
+#[allow(unused)]
+fn solve_by_fixed_rolling_hash(n: usize, t: &str) {
     let rev_t = t.chars().rev().collect::<String>();
 
-    let rh = RollingHash::new(&t);
+    let rh = RollingHash::new(t);
     let rev_rh = RollingHash::new(&rev_t);
 
     for i in 0..=n {
@@ -25,4 +24,26 @@ fn main() {
     }
 
     putln!(-1);
+}
+
+#[allow(unused)]
+fn solve_by_dynamic_rolling_hash(n: usize, t: &str) {
+    let mut hash = DynamicRollingHash::new(t);
+
+    for i in 0..=n {
+        if hash.get(..i) + hash.get(i + n..) == hash.get_reverse(i..i + n) {
+            putln!(t[i..i + n].chars().rev().collect::<String>());
+            putln!(i);
+            return;
+        }
+    }
+
+    putln!(-1);
+}
+
+fn main() {
+    scan!(n: usize, t: String);
+
+    // solve_by_fixed_rolling_hash(n, &t);
+    solve_by_dynamic_rolling_hash(n, &t);
 }

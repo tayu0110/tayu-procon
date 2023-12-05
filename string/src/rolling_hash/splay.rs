@@ -4,23 +4,15 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Range};
 use std::ptr::NonNull;
 
-fn update(l: (u64, u64), r: (u64, u64)) -> (u64, u64) {
-    let base = POW_CACHE.lock().unwrap().base();
-    let b = mul(r.1, base);
-    let mut val = mul(l.0, b) + r.0;
-    if val >= MOD {
-        val -= MOD;
-    }
-    (val, mul(b, l.1))
-}
-
+#[derive(Clone, Copy)]
 struct Node {
     parent: Option<NodeRef>,
     left: Option<NodeRef>,
     right: Option<NodeRef>,
-    val: (u64, u64),
-    sum: ((u64, u64), (u64, u64)),
-    subsum: usize,
+    // forward, reverse, base
+    sum: (u64, u64, u64),
+    val: u64,
+    subsum: u32,
     rev: bool,
 }
 
@@ -31,18 +23,16 @@ impl Node {
 
     pub fn toggle(&mut self) {
         self.rev ^= true;
-        self.sum = (self.sum.1, self.sum.0);
+        self.sum = (self.sum.1, self.sum.0, self.sum.2);
         (self.left, self.right) = (self.right, self.left);
     }
 
     fn propagate(&mut self) {
-        if let Some(mut left) = self.left {
-            if self.is_reversed() {
+        if self.is_reversed() {
+            if let Some(mut left) = self.left {
                 left.toggle();
             }
-        }
-        if let Some(mut right) = self.right {
-            if self.is_reversed() {
+            if let Some(mut right) = self.right {
                 right.toggle();
             }
         }
@@ -51,26 +41,33 @@ impl Node {
     }
 
     fn update(&mut self) {
+        let base = POW_CACHE.lock().unwrap().base();
+        self.sum = (self.val, self.val, 1);
         self.subsum = 1;
-        match (self.left, self.right) {
-            (Some(l), Some(r)) => {
-                self.sum = (
-                    update(update(l.sum.0, self.val), r.sum.0),
-                    update(update(r.sum.1, self.val), l.sum.1),
-                );
-                self.subsum += l.subsum + r.subsum;
+        if let Some(l) = self.left {
+            self.sum.0 += mul(l.sum.0, base);
+            self.sum.0 -= MOD & ((self.sum.0 >= MOD) as u64).wrapping_neg();
+            self.sum.2 = mul(l.sum.2, base);
+            self.sum.1 = mul(self.val, self.sum.2) + l.sum.1;
+            self.sum.1 -= MOD & ((self.sum.1 >= MOD) as u64).wrapping_neg();
+            self.subsum += l.subsum;
+        }
+        if let Some(r) = self.right {
+            if self.sum.2 == 1 {
+                self.sum.2 = mul(r.sum.2, base);
+                self.sum.0 = mul(self.val, self.sum.2) + r.sum.0;
+                self.sum.0 -= MOD & ((self.sum.0 >= MOD) as u64).wrapping_neg();
+                self.sum.1 += mul(r.sum.1, base);
+                self.sum.1 -= MOD & ((self.sum.1 >= MOD) as u64).wrapping_neg();
+            } else {
+                self.sum.0 = mul(self.sum.0, mul(r.sum.2, base)) + r.sum.0;
+                self.sum.0 -= MOD & ((self.sum.0 >= MOD) as u64).wrapping_neg();
+                self.sum.2 = mul(self.sum.2, base);
+                self.sum.1 += mul(r.sum.1, self.sum.2);
+                self.sum.1 -= MOD & ((self.sum.1 >= MOD) as u64).wrapping_neg();
+                self.sum.2 = mul(self.sum.2, r.sum.2);
             }
-            (Some(l), _) => {
-                self.sum = (update(l.sum.0, self.val), update(self.val, l.sum.1));
-                self.subsum += l.subsum
-            }
-            (_, Some(r)) => {
-                self.sum = (update(self.val, r.sum.0), update(r.sum.1, self.val));
-                self.subsum += r.subsum;
-            }
-            _ => {
-                self.sum = (self.val, self.val);
-            }
+            self.subsum += r.subsum;
         }
     }
 }
@@ -78,7 +75,7 @@ impl Node {
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Node")
-            .field("val", &self.val.0)
+            .field("val", &self.val)
             .field("subsum", &self.subsum)
             .field("rev", &self.rev)
             .field("left", &self.left.map(|p| unsafe { p.0.as_ref() }))
@@ -103,8 +100,8 @@ impl NodeRef {
             parent: None,
             left: None,
             right: None,
-            val: (val as u64, 1),
-            sum: ((val as u64, 1), (val as u64, 1)),
+            val: val as u64,
+            sum: (val as u64, val as u64, 1),
             subsum: 1,
             rev: false,
         }));
@@ -178,13 +175,12 @@ impl NodeRef {
         right.connect_left(self);
         right.update();
 
-        if let Some(mut par) = par {
+        if let Some(par) = par {
             if self_is_left {
                 par.connect_left(right);
             } else {
                 par.connect_right(right);
             }
-            par.update();
         }
 
         // return new root of the original subtree.
@@ -205,13 +201,12 @@ impl NodeRef {
         left.connect_right(self);
         left.update();
 
-        if let Some(mut par) = par {
+        if let Some(par) = par {
             if self_is_left {
                 par.connect_left(left);
             } else {
                 par.connect_right(left);
             }
-            par.update();
         }
 
         // return new root of the original subtree
@@ -290,21 +285,20 @@ impl Debug for NodeRef {
 
 #[derive(Debug)]
 pub(super) struct SplayTree {
-    len: usize,
     root: Option<Cell<NodeRef>>,
 }
 
 impl SplayTree {
     pub(super) const fn new() -> Self {
-        Self { len: 0, root: None }
+        Self { root: None }
     }
 
-    pub(super) const fn len(&self) -> usize {
-        self.len
+    pub(super) fn len(&self) -> usize {
+        self.root.as_ref().map_or(0, |c| c.get().subsum as usize)
     }
 
     fn nth_node(&self, mut index: usize) -> Option<NodeRef> {
-        if index >= self.len {
+        if index >= self.len() {
             return None;
         }
 
@@ -314,12 +308,12 @@ impl SplayTree {
         while seen < index {
             node.propagate();
             if let Some(left) = node.left {
-                if seen + left.subsum >= index {
+                if left.subsum as usize + seen >= index {
                     node = left;
                     continue;
                 }
 
-                seen += left.subsum;
+                seen += left.subsum as usize;
             }
 
             seen += 1;
@@ -338,15 +332,14 @@ impl SplayTree {
     }
 
     #[cfg(test)]
-    pub(super) fn get(&mut self, index: usize) -> Option<char> {
+    pub(super) fn get(&self, index: usize) -> Option<char> {
         let nth = self.nth_node(index)?;
-        char::from_u32(nth.val.0 as u32)
+        char::from_u32(nth.val as u32)
     }
 
     pub(super) fn insert(&mut self, index: usize, val: char) -> Result<(), &'static str> {
-        if index == self.len {
+        if index == self.len() {
             let new = NodeRef::new(val);
-            self.len += 1;
             if let Some(mut node) = self.root.as_ref().map(|c| c.get()) {
                 while let Some(right) = node.right {
                     node.propagate();
@@ -381,7 +374,6 @@ impl SplayTree {
             node.connect_left(new);
             node.update();
         }
-        self.len += 1;
 
         new.splay();
         self.root.as_mut().unwrap().set(new);
@@ -415,8 +407,7 @@ impl SplayTree {
             }
         }
 
-        self.len -= 1;
-        Some(unsafe { char::from_u32(node.into_raw().val.0 as u32)? })
+        Some(unsafe { char::from_u32(node.into_raw().val as u32)? })
     }
 
     pub(super) fn split_off(&mut self, at: usize) -> Result<Self, &'static str> {
@@ -424,7 +415,7 @@ impl SplayTree {
             let mut res = Self::new();
             std::mem::swap(self, &mut res);
             return Ok(res);
-        } else if at == self.len {
+        } else if at == self.len() {
             return Ok(Self::new());
         }
 
@@ -435,9 +426,8 @@ impl SplayTree {
         let left = split_point.disconnect_left().unwrap();
         split_point.update();
 
-        let res = Self { len: self.len - at, root: Some(Cell::new(split_point)) };
+        let res = Self { root: Some(Cell::new(split_point)) };
 
-        self.len = at;
         self.root.as_mut().unwrap().set(left);
         Ok(res)
     }
@@ -446,14 +436,12 @@ impl SplayTree {
         if other.root.is_none() {
             return;
         } else if self.root.is_none() {
-            self.len += other.len;
             self.root = other.root;
             return;
         }
 
         let mut node = self.nth_node(self.len() - 1).unwrap();
 
-        self.len += other.len;
         node.connect_right(other.root.unwrap().get());
         node.update();
         self.root.as_mut().unwrap().set(node);
@@ -487,15 +475,17 @@ impl SplayTree {
     }
 
     pub(super) fn fold_both(&mut self, range: Range<usize>) -> Result<(u64, u64), &'static str> {
+        if range.is_empty() {
+            return Ok((0, 0));
+        }
+
         let Range { start, end } = range;
 
         let back = self.split_off(end)?;
         let mid = self.split_off(start)?;
 
-        let node = mid.nth_node(mid.len - 1).unwrap();
-        node.splay();
-
-        let res = (node.sum.0 .0, node.sum.1 .0);
+        let node = mid.root.as_ref().unwrap().get();
+        let res = (node.sum.0, node.sum.1);
 
         self.extend(mid);
         self.extend(back);
@@ -507,7 +497,7 @@ impl SplayTree {
         let mut node = self
             .nth_node(index)
             .ok_or("index out of range in SplayTree::set")?;
-        node.val = (val as u64, 1);
+        node.val = val as u64;
         node.update();
         self.root.as_mut().unwrap().set(node);
         Ok(())
@@ -802,7 +792,7 @@ mod tests {
 
         assert_eq!(t.len(), 26);
 
-        let mut u = t.split_off(10).unwrap();
+        let u = t.split_off(10).unwrap();
         assert_eq!(t.len(), 10);
         assert_eq!(u.len(), 16);
         assert_eq!(u.get(0), Some('k'));
