@@ -75,7 +75,7 @@ impl Node {
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Node")
-            .field("val", &self.val)
+            .field("val", &char::from_u32(self.val as u32).unwrap())
             .field("subsum", &self.subsum)
             .field("rev", &self.rev)
             .field("left", &self.left.map(|p| unsafe { p.0.as_ref() }))
@@ -163,6 +163,8 @@ impl NodeRef {
 
     fn rotate_left(mut self) -> Self {
         let Some(mut right) = self.disconnect_right() else { return self };
+        right.sum = self.sum;
+        right.subsum = self.subsum;
 
         if let Some(right_left) = right.disconnect_left() {
             self.connect_right(right_left);
@@ -173,7 +175,6 @@ impl NodeRef {
         let self_is_left = self.is_left_child();
         let par = self.disconnect_parent();
         right.connect_left(self);
-        right.update();
 
         if let Some(par) = par {
             if self_is_left {
@@ -189,6 +190,8 @@ impl NodeRef {
 
     fn rotate_right(mut self) -> Self {
         let Some(mut left) = self.disconnect_left() else { return self };
+        left.sum = self.sum;
+        left.subsum = self.subsum;
 
         if let Some(left_right) = left.disconnect_right() {
             self.connect_left(left_right);
@@ -199,7 +202,6 @@ impl NodeRef {
         let self_is_left = self.is_left_child();
         let par = self.disconnect_parent();
         left.connect_right(self);
-        left.update();
 
         if let Some(par) = par {
             if self_is_left {
@@ -338,74 +340,43 @@ impl SplayTree {
     }
 
     pub(super) fn insert(&mut self, index: usize, val: char) -> Result<(), &'static str> {
+        if self.len() == 0 {
+            let new = NodeRef::new(val);
+            self.root = Some(Cell::new(new));
+            return Ok(());
+        }
         if index == self.len() {
             let new = NodeRef::new(val);
-            if let Some(mut node) = self.root.as_ref().map(|c| c.get()) {
-                while let Some(right) = node.right {
-                    node.propagate();
-                    node = right;
-                }
-                node.connect_right(new);
-                node.update();
-            } else {
-                self.root = Some(Cell::new(new));
-            }
+            let mut node = self.nth_node(self.len() - 1).unwrap();
+            node.splay();
+            node.connect_right(new);
+            node.update();
 
-            new.splay();
-            self.root.as_mut().unwrap().set(new);
+            self.root.as_mut().unwrap().set(node);
             return Ok(());
         }
 
-        let mut node = self
-            .nth_node(index)
-            .ok_or("index out of range in SplayTree::insert")?;
-
-        let new = NodeRef::new(val);
-        if let Some(mut node) = node.left {
-            while let Some(right) = node.right {
-                node.propagate();
-                node = right;
-            }
-
-            node.propagate();
-            node.connect_right(new);
-            node.update();
-        } else {
-            node.connect_left(new);
-            node.update();
-        }
-
-        new.splay();
-        self.root.as_mut().unwrap().set(new);
+        let back = self.split_off(index)?;
+        let mut new = NodeRef::new(val);
+        new.connect_left(self.root.as_ref().unwrap().get());
+        self.root.as_ref().unwrap().set(new);
+        new.update();
+        self.extend(back);
 
         Ok(())
     }
 
     pub(super) fn remove(&mut self, index: usize) -> Option<char> {
-        let node = self.nth_node(index)?;
+        let mut back = self.split_off(index).ok()?;
 
-        match (node.disconnect_left(), node.disconnect_right()) {
-            (Some(l), Some(mut node)) => {
-                while let Some(left) = node.left {
-                    node.propagate();
-                    node = left;
-                }
-                node.propagate();
-                node.connect_left(l);
-                node.update();
-                node.splay();
-                self.root.as_mut().unwrap().set(node);
-            }
-            (Some(l), _) => {
-                self.root.as_mut().unwrap().set(l);
-            }
-            (_, Some(r)) => {
-                self.root.as_mut().unwrap().set(r);
-            }
-            _ => {
-                self.root = None;
-            }
+        let node = back.nth_node(0)?;
+        if let Some(right) = node.disconnect_right() {
+            back.root.as_ref().unwrap().set(right);
+        } else {
+            back.root = None;
         }
+
+        self.extend(back);
 
         Some(unsafe { char::from_u32(node.into_raw().val as u32)? })
     }
@@ -501,6 +472,26 @@ impl SplayTree {
         node.update();
         self.root.as_mut().unwrap().set(node);
         Ok(())
+    }
+}
+
+impl FromIterator<char> for SplayTree {
+    fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
+        let mut iter = iter.into_iter();
+        let Some(mut node) = iter.next().map(NodeRef::new) else { return SplayTree::new() };
+
+        for c in iter {
+            let new = NodeRef::new(c);
+            node.connect_right(new);
+            node = new;
+        }
+
+        while let Some(mut par) = node.parent {
+            par.update();
+            node = par;
+        }
+
+        SplayTree { root: Some(Cell::new(node)) }
     }
 }
 
@@ -779,6 +770,7 @@ mod tests {
         assert_eq!(t.remove(0), Some('b'));
         assert_eq!(t.remove(1), Some('d'));
         assert_eq!(t.remove(15), Some('s'));
+        eprintln!("t: {t:#?}");
         assert_eq!(t.remove(15), Some('t'));
         assert_eq!(t.len(), 21);
     }

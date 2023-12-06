@@ -14,12 +14,12 @@ impl DynamicRollingHash {
             cache.grow(s.len());
         }
 
-        let mut hash = SplayTree::new();
-        for (i, c) in s.chars().enumerate() {
-            hash.insert(i, c).unwrap();
-        }
+        // let mut hash = SplayTree::new();
+        // for (i, c) in s.chars().enumerate() {
+        //     hash.insert(i, c).unwrap();
+        // }
 
-        Self { hash }
+        Self { hash: s.chars().collect() }
     }
 
     fn convert_range(&self, range: impl RangeBounds<usize>) -> Range<usize> {
