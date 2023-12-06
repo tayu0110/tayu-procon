@@ -1,5 +1,6 @@
 #![allow(clippy::comparison_chain, clippy::upper_case_acronyms)]
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
@@ -174,7 +175,7 @@ fn sa_naive<T: Ord>(s: &[T], sa: &mut [u32]) {
         .take(s.len())
         .enumerate()
         .for_each(|(i, v)| *v = i as u32);
-    sa[0..s.len()].sort_by_key(|i| &s[*i as usize..]);
+    sa[0..s.len()].sort_unstable_by_key(|i| &s[*i as usize..]);
 }
 
 fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
@@ -183,25 +184,34 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
         return;
     }
 
-    let mut lms_prev = s.len() as u32 - 1;
-    let mut lms_next = vec![u32::MAX; s.len()];
+    let mut char_num = vec![0; map.kinds()];
+    for c in s {
+        char_num[map.to_usize(c)] += 1;
+    }
+
+    // If If only one character of each exists at most, bucket sorting is sufficient.
+    if char_num.iter().max().unwrap() <= &1 {
+        Cell::from_mut(&mut char_num[..])
+            .as_slice_of_cells()
+            .windows(2)
+            .for_each(|v| v[1].set(v[0].get() + v[1].get()));
+
+        for (i, c) in s.iter().enumerate() {
+            sa[char_num[map.to_usize(c)] as usize - 1] = i as u32;
+        }
+
+        return;
+    }
 
     let mut types = vec![Type::S; s.len()];
     types[s.len() - 1] = Type::L;
 
-    let mut char_num = vec![0; map.kinds()];
-    char_num[map.to_usize(s.last().unwrap())] = 1;
-
     for (i, c) in s.windows(2).enumerate().rev() {
-        char_num[map.to_usize(&c[0])] += 1;
-
         types[i] = if c[0] < c[1] {
             Type::S
         } else if c[0] > c[1] {
             if types[i + 1] == Type::S {
                 types[i + 1] = Type::LMS;
-                lms_next[i + 1] = lms_prev;
-                lms_prev = i as u32 + 1;
             }
             Type::L
         } else {
@@ -212,8 +222,7 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
     let mut lms_indices = types
         .iter()
         .enumerate()
-        .filter(|&(_, &t)| t == Type::LMS)
-        .map(|(i, _)| i as u32)
+        .filter_map(|(i, &t)| (t == Type::LMS).then_some(i as u32))
         .collect::<Vec<_>>();
 
     let mut buckets = Buckets::new(char_num, sa);
@@ -232,17 +241,23 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
         return;
     }
 
+    let mut lms_prev = s.len() as u32 - 1;
+    let mut lms_next = vec![u32::MAX; s.len()];
+    for &i in lms_indices.iter().rev() {
+        lms_next[i as usize] = lms_prev;
+        lms_prev = i;
+    }
+
     let mut rank = 0;
     let mut lms_prev = (usize::MAX, usize::MAX);
     let mut lms_ranks = lms_next;
-    for (i, index) in sa
+    for (index, lms_index) in sa
         .iter()
         .take(s.len())
-        .filter(|&&index| types[index as usize] == Type::LMS)
-        .map(|index| *index as usize)
-        .enumerate()
+        .filter_map(|&index| (types[index as usize] == Type::LMS).then_some(index as usize))
+        .zip(lms_indices.iter_mut())
     {
-        lms_indices[i] = index as u32;
+        *lms_index = index as u32;
         let (l, r) = (index, lms_ranks[index] as usize);
         let (pl, pr) = lms_prev;
         if pr - pl != r - l || s[pl..pr + 1] != s[l..r + 1] {
@@ -257,8 +272,7 @@ fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
             .into_iter()
             .take(s.len())
             .enumerate()
-            .filter(|(_, c)| c != &u32::MAX)
-            .map(|(i, c)| (i as u32, c))
+            .filter_map(|(i, c)| (c != u32::MAX).then_some((i as u32, c)))
             .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
         sa_is(&new_s, sa, &IdentityMap(rank + 1, PhantomData));
         lms_indices
@@ -289,12 +303,12 @@ fn induced_sort<T: Ord>(
             buckets.push_back(c as usize, lms);
         });
 
-    let mut max_lms_num = 0;
     {
         let nc = map.to_usize(&s[s.len() - 1]);
         buckets.push_front(nc, s.len() as u32 - 1);
     }
 
+    let mut max_lms_num = 0;
     for bucket_index in 0..kinds {
         let filled_lms = buckets[bucket_index].back;
         let mut checked = 0;

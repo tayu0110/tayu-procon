@@ -1,5 +1,5 @@
 // https://judge.yosupo.jp/problem/suffixarray
-use iolib::{put, putln, scan};
+use iolib::{putitln, scan};
 use suffix_array::SuffixArray;
 
 fn main() {
@@ -7,10 +7,5 @@ fn main() {
 
     let sa = SuffixArray::new(&s);
 
-    put!(sa[0]);
-    for sa in sa.into_iter().skip(1) {
-        put!(" ");
-        put!(sa);
-    }
-    putln!();
+    putitln!(sa.into_iter(), sep = ' ');
 }
