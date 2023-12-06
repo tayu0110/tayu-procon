@@ -8,18 +8,24 @@ fn main() {
     let mut op = vec![AffineTransformation::<i64>::new()];
     for _ in 0..m {
         input! {t: usize}
-        let last = (*op.last().unwrap()).clone();
+        let last = *op.last().unwrap();
         if t == 1 {
             op.push(last.rotate_clockwise());
         } else if t == 2 {
             op.push(last.rotate_counterclockwise());
         } else if t == 3 {
             input! {p: i64}
-            let nop = last.translation(-p, 0).reflection(true, false).translation(p, 0);
+            let nop = last
+                .translation(-p, 0)
+                .reflection(true, false)
+                .translation(p, 0);
             op.push(nop);
         } else {
             input! {p: i64}
-            let nop = last.translation(0, -p).reflection(false, true).translation(0, p);
+            let nop = last
+                .translation(0, -p)
+                .reflection(false, true)
+                .translation(0, p);
             op.push(nop);
         }
     }

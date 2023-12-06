@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/matrix_det
 use iolib::scan;
-use matrix::Matrix;
+use matrix::{Determinant, Matrix};
 use montgomery_modint::{Mod998244353, MontgomeryModint};
 
 fn main() {

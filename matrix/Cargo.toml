@@ -9,10 +9,15 @@ license = "CC0-1.0"
 [dependencies]
 modint-common = { version = "0.1.0", path = "../modint/modint-common" }
 montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
+arbitrary-modint = { version = "0.1.0", path = "../modint/arbitrary-modint" }
 numeric = { package = "numeric", path = "../numeric" }
 static-modint = { version = "0.1.0", path = "../modint/static-modint" }
+zero-one = { version = "0.1.0", path = "../numeric/zero-one" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
-proconio = { version = "0.3.8" }
+proconio = { version = "0.4.5" }
 simple-rand = { path = "../simple-rand" }
+
+[profile.release]
+# debug = 1

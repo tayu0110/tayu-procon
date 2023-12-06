@@ -1,12 +1,18 @@
-use crate::MatrixElement;
-use std::ops::{Div, Neg};
+use std::ops::{Add, Div, Mul, Neg};
+use zero_one::{One, Zero};
 
-#[derive(Debug, Clone)]
-pub struct AffineTransformation<T: MatrixElement + Neg> {
+#[derive(Debug, Clone, Copy)]
+pub struct AffineTransformation<T>
+where
+    T: Clone + Copy,
+{
     matrix: [T; 9],
 }
 
-impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
+impl<T> AffineTransformation<T>
+where
+    T: Clone + Copy + Add<Output = T> + Mul<Output = T> + Div + Neg<Output = T> + Zero + One,
+{
     #[inline]
     pub fn new() -> Self {
         let mut matrix = [T::zero(); 9];
@@ -21,7 +27,7 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     // | 0 1 y | | d e f | = | d+gy e+hy f+iy |
     // | 0 0 1 | | g h i |   |   g    h    i  |
     pub fn translation(&self, dx: T, dy: T) -> Self {
-        let mut matrix = self.matrix.clone();
+        let mut matrix = self.matrix;
         (0..3).for_each(|i| matrix[i] = matrix[i] + matrix[i + 6] * dx);
         (3..6).for_each(|i| matrix[i] = matrix[i] + matrix[i + 3] * dy);
         Self { matrix }
@@ -34,7 +40,7 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     // | 0 y 0 | | d e f | = | dy ey fy |
     // | 0 0 1 | | g h i |   | g  h  i  |
     pub fn reflection(&self, x: bool, y: bool) -> Self {
-        let mut matrix = self.matrix.clone();
+        let mut matrix = self.matrix;
         if x {
             (0..3).for_each(|i| matrix[i] = -matrix[i]);
         }
@@ -49,7 +55,7 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     // | 0 y 0 | | d e f | = | dy ey fy |
     // | 0 0 1 | | g h i |   | g  h  i  |
     pub fn scale(&self, x: T, y: T) -> Self {
-        let mut matrix = self.matrix.clone();
+        let mut matrix = self.matrix;
         (0..3).for_each(|i| {
             matrix[i] = matrix[i] * x;
             matrix[i + 3] = matrix[i + 3] * y;
@@ -62,7 +68,7 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     // | sin(-PI/2)  cos(-PI/2) 0 | | d e f | = | -1 0 0 | | d e f | = | -a -b -c |
     // | 0           0          1 | | g h i |   |  0 0 1 | | g h i |   |  g  h  i |
     pub fn rotate_clockwise(&self) -> Self {
-        let mut matrix = self.matrix.clone();
+        let mut matrix = self.matrix;
         (0..3).for_each(|i| {
             matrix.swap(i, i + 3);
             matrix[i + 3] = -matrix[i + 3];
@@ -75,7 +81,7 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     // | sin(PI/2)  cos(PI/2) 0 | | d e f | = | 1  0 0 | | d e f | = |  a  b  c |
     // | 0          0         1 | | g h i |   | 0  0 1 | | g h i |   |  g  h  i |
     pub fn rotate_counterclockwise(&self) -> Self {
-        let mut matrix = self.matrix.clone();
+        let mut matrix = self.matrix;
         (0..3).for_each(|i| {
             matrix.swap(i, i + 3);
             matrix[i] = -matrix[i];
@@ -84,5 +90,19 @@ impl<T: MatrixElement + Div + Neg<Output = T>> AffineTransformation<T> {
     }
 
     #[inline]
-    pub fn transform(&self, x: T, y: T) -> (T, T) { (self.matrix[0] * x + self.matrix[1] * y + self.matrix[2], self.matrix[3] * x + self.matrix[4] * y + self.matrix[5]) }
+    pub fn transform(&self, x: T, y: T) -> (T, T) {
+        (
+            self.matrix[0] * x + self.matrix[1] * y + self.matrix[2],
+            self.matrix[3] * x + self.matrix[4] * y + self.matrix[5],
+        )
+    }
+}
+
+impl<T> Default for AffineTransformation<T>
+where
+    T: Clone + Copy + Add<Output = T> + Mul<Output = T> + Div + Neg<Output = T> + Zero + One,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }

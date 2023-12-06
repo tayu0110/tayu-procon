@@ -1,6 +1,6 @@
 // https://onlinejudge.u-aizu.ac.jp/problems/2983
 use iolib::scan;
-use matrix::Matrix;
+use matrix::{Matrix, Rank};
 use montgomery_modint::{Mod1000000007, MontgomeryModint};
 use simple_rand::{gen_seed, xor_shift};
 
@@ -20,7 +20,7 @@ fn main() {
     let mut res = 0;
     let mut set = std::collections::HashSet::new();
     let mut xs = xor_shift(gen_seed());
-    let mut mat = Matrix::new(m, m);
+    let mut mat = Matrix::zeros(m, m);
     let mut t = vec![];
     for v in v {
         if v.is_empty() {
