@@ -8,7 +8,8 @@ fn main() {
     let mut out = BufWriter::new(out.lock());
 
     scan!(n: usize, q: usize, a: [u32; n]);
-    let mut st = RangeAffineRangeSum::<Mod998244353>::new(a.into_iter().map(StaticModint::raw).collect());
+    let mut st =
+        RangeAffineRangeSum::<Mod998244353>::new(a.into_iter().map(StaticModint::raw).collect());
 
     for _ in 0..q {
         scan!(t: usize);

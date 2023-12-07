@@ -30,7 +30,7 @@ impl<M: Clone> SegmentTree<M> {
         for i in (0..(size << 1) - 1)
             .rev()
             .step_by(2)
-            .take_while(|i| i >> 1 > 0 as usize)
+            .take_while(|i| i >> 1 > 0)
         {
             tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
@@ -77,19 +77,23 @@ impl<M: Clone> SegmentTree<M> {
     /// Fold the operation in a leftward direction.
     /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
     #[inline]
-    pub fn foldl(&self, left: usize, right: usize) -> M { self.fold(left, right, false) }
+    pub fn foldl(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, false)
+    }
 
     /// Fold the operation in a rightward direction.
     /// That is, you obtain op(op(op(...op(t_{l}, t_{l+1}), t_{l+2}), ..., t_{r-2}), t_{r_1}) as a result.
     #[inline]
-    pub fn foldr(&self, left: usize, right: usize) -> M { self.fold(left, right, true) }
+    pub fn foldr(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, true)
+    }
 
     #[inline]
     fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M {
         if !fold_right {
-            (self.op)(&lhs, &rhs)
+            (self.op)(lhs, rhs)
         } else {
-            (self.op)(&rhs, &lhs)
+            (self.op)(rhs, lhs)
         }
     }
 }

@@ -27,7 +27,9 @@ pub struct LazySegtree<M: MapMonoid> {
 }
 
 impl<M: MapMonoid> LazySegtree<M> {
-    pub fn new(size: usize) -> Self { LazySegtree::from_vec(&vec![M::e(); size]) }
+    pub fn new(size: usize) -> Self {
+        LazySegtree::from_vec(&vec![M::e(); size])
+    }
 
     pub fn from_vec(v: &Vec<M::E>) -> Self {
         let n = v.len();
@@ -94,7 +96,9 @@ impl<M: MapMonoid> LazySegtree<M> {
         }
         M::op(sml, smr)
     }
-    pub fn all_prod(&self) -> M::E { self.tree[1].clone() }
+    pub fn all_prod(&self) -> M::E {
+        self.tree[1].clone()
+    }
     // Apply val to a point whose index is idx.
     pub fn apply(&mut self, idx: usize, val: M::Act) {
         assert!(idx < self.n);
@@ -200,45 +204,79 @@ where
     type E = (T, T);
     type Act = T;
 
-    fn e() -> Self::E { (T::zero(), T::zero()) }
-    fn op(l: Self::E, r: Self::E) -> Self::E { (l.0 + r.0, l.1 + r.1) }
-    fn id() -> Self::Act { T::zero() }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act { l + r }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E { (elem.0 + act * elem.1.clone(), elem.1) }
+    fn e() -> Self::E {
+        (T::zero(), T::zero())
+    }
+    fn op(l: Self::E, r: Self::E) -> Self::E {
+        (l.0 + r.0, l.1 + r.1)
+    }
+    fn id() -> Self::Act {
+        T::zero()
+    }
+    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+        l + r
+    }
+    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+        (elem.0 + act * elem.1.clone(), elem.1)
+    }
 }
 
 pub struct RangeAddRangeMaximumQuery;
 
 impl RangeAddRangeMaximumQuery {
-    pub fn new(size: usize) -> LazySegtree<Self> { LazySegtree::from_vec(&vec![0; size]) }
+    pub fn new(size: usize) -> LazySegtree<Self> {
+        LazySegtree::from_vec(&vec![0; size])
+    }
 }
 
 impl MapMonoid for RangeAddRangeMaximumQuery {
     type E = i64;
     type Act = i64;
 
-    fn e() -> Self::E { i64::MIN }
-    fn op(l: Self::E, r: Self::E) -> Self::E { l.max(r) }
-    fn id() -> Self::Act { 0 }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act { l + r }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E { act + elem }
+    fn e() -> Self::E {
+        i64::MIN
+    }
+    fn op(l: Self::E, r: Self::E) -> Self::E {
+        l.max(r)
+    }
+    fn id() -> Self::Act {
+        0
+    }
+    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+        l + r
+    }
+    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+        act + elem
+    }
 }
 
 pub struct RangeAddRangeMinimumQuery;
 
 impl RangeAddRangeMinimumQuery {
-    pub fn new(size: usize) -> LazySegtree<Self> { LazySegtree::from_vec(&vec![0; size]) }
+    pub fn new(size: usize) -> LazySegtree<Self> {
+        LazySegtree::from_vec(&vec![0; size])
+    }
 }
 
 impl MapMonoid for RangeAddRangeMinimumQuery {
     type E = i64;
     type Act = i64;
 
-    fn e() -> Self::E { i64::MAX }
-    fn op(l: Self::E, r: Self::E) -> Self::E { l.min(r) }
-    fn id() -> Self::Act { 0 }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act { l + r }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E { act + elem }
+    fn e() -> Self::E {
+        i64::MAX
+    }
+    fn op(l: Self::E, r: Self::E) -> Self::E {
+        l.min(r)
+    }
+    fn id() -> Self::Act {
+        0
+    }
+    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+        l + r
+    }
+    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+        act + elem
+    }
 }
 
 pub struct RangeAffineRangeSum<M: Modulo>(PhantomData<fn() -> M>);
@@ -254,11 +292,21 @@ impl<M: Modulo> MapMonoid for RangeAffineRangeSum<M> {
     type E = (StaticModint<M>, StaticModint<M>);
     type Act = (StaticModint<M>, StaticModint<M>);
 
-    fn e() -> Self::E { (StaticModint::zero(), StaticModint::zero()) }
-    fn op(l: Self::E, r: Self::E) -> Self::E { (l.0 + r.0, l.1 + r.1) }
-    fn id() -> Self::Act { (StaticModint::one(), StaticModint::zero()) }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act { (l.0 * r.0, l.0 * r.1 + l.1) }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E { (act.0 * elem.0 + act.1 * elem.1, elem.1) }
+    fn e() -> Self::E {
+        (StaticModint::zero(), StaticModint::zero())
+    }
+    fn op(l: Self::E, r: Self::E) -> Self::E {
+        (l.0 + r.0, l.1 + r.1)
+    }
+    fn id() -> Self::Act {
+        (StaticModint::one(), StaticModint::zero())
+    }
+    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+        (l.0 * r.0, l.0 * r.1 + l.1)
+    }
+    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+        (act.0 * elem.0 + act.1 * elem.1, elem.1)
+    }
 }
 
 pub struct RangeFlipRangeLongestTerm;
@@ -266,7 +314,7 @@ pub struct RangeFlipRangeLongestTerm;
 impl RangeFlipRangeLongestTerm {
     pub fn new(v: &[bool]) -> LazySegtree<Self> {
         LazySegtree::from_vec(
-            &v.into_iter()
+            &v.iter()
                 .map(|&f| {
                     let f = f as u32;
                     (f, f, f, 1, 1 - f, 1 - f, 1 - f)
@@ -280,7 +328,9 @@ impl MapMonoid for RangeFlipRangeLongestTerm {
     type E = (u32, u32, u32, u32, u32, u32, u32);
     type Act = bool;
 
-    fn e() -> Self::E { (0, 0, 0, 0, 1, 1, 1) }
+    fn e() -> Self::E {
+        (0, 0, 0, 0, 1, 1, 1)
+    }
     fn op(l: Self::E, r: Self::E) -> Self::E {
         let (rm, rl, rr, rt, rm0, rl0, rr0) = r;
         let (m, l, r, t, m0, l0, r0) = l;
@@ -294,8 +344,12 @@ impl MapMonoid for RangeFlipRangeLongestTerm {
             if rr0 == rt { rr0 + r0 } else { rr0 },
         )
     }
-    fn id() -> Self::Act { false }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act { l ^ r }
+    fn id() -> Self::Act {
+        false
+    }
+    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+        l ^ r
+    }
     fn map(act: Self::Act, elem: Self::E) -> Self::E {
         if !act {
             return elem;

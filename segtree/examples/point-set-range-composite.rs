@@ -46,12 +46,12 @@ mod iolib {
 
     #[macro_export]
     macro_rules! scan {
-    // Terminator
-    ( @interactive : $interactive:literal ) => {};
-    // Terminator
-    ( @interactive : $interactive:literal, ) => {};
-    // Vec<Vec<....>>
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ]) => {
+        // Terminator
+        ( @interactive : $interactive:literal ) => {};
+        // Terminator
+        ( @interactive : $interactive:literal, ) => {};
+        // Vec<Vec<....>>
+        ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ]) => {
         let $v = {
             let len = $len;
             (0..len).fold(vec![], |mut v, _| {
@@ -61,62 +61,62 @@ mod iolib {
             })
         };
     };
-    // Vec<Vec<....>>, ......
-    ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] , $( $rest:tt )* ) => {
+        // Vec<Vec<....>>, ......
+        ( @interactive : $interactive:literal, $v: ident : [ [ $( $inner:tt )+ ] ; $len:expr ] , $( $rest:tt )* ) => {
         $crate::scan!(@interactive: $interactive, [ [ $( $inner )+ ] ; $len ]);
         $crate::scan!(@interactive: $interactive, $( $rest )*);
     };
-    // Vec<$t>
-    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ]) => {
+        // Vec<$t>
+        ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ]) => {
         let $v = {
             let len = $len;
             (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
         };
     };
-    // Vec<$t>, .....
-    ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ] , $( $rest:tt )* ) => {
+        // Vec<$t>, .....
+        ( @interactive : $interactive:literal, $v:ident : [ $t:tt ; $len:expr ] , $( $rest:tt )* ) => {
         let $v = {
             let len = $len;
             (0..len).map(|_| { $crate::scan!(@interactive: $interactive, $v : $t); $v }).collect::<Vec<_>>()
         };
         $crate::scan!(@interactive: $interactive, $( $rest )*);
     };
-    // Expand tuple
-    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt )) => {
+        // Expand tuple
+        ( @interactive : $interactive:literal, @expandtuple, ( $t:tt )) => {
         { let tmp = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap(); tmp }
     };
-    // Expand tuple
-    ( @interactive : $interactive:literal, @expandtuple, ( $t:tt $( , $rest:tt )* ) ) => {
+        // Expand tuple
+        ( @interactive : $interactive:literal, @expandtuple, ( $t:tt $( , $rest:tt )* ) ) => {
         (
             $crate::scan!(@interactive: $interactive, @expandtuple, ( $t )),
             $( $crate::scan!(@interactive: $interactive, @expandtuple, ( $rest )), )*
         )
     };
-    // let $v: ($t, $u, ....) = (.......)
-    ( @interactive : $interactive:literal, $v:ident : ( $( $rest:tt )* ) ) => {
+        // let $v: ($t, $u, ....) = (.......)
+        ( @interactive : $interactive:literal, $v:ident : ( $( $rest:tt )* ) ) => {
         let $v = $crate::scan!(@interactive: $interactive, @expandtuple, ( $( $rest )* ));
     };
-    // let $v: $t = ......
-    ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {
+        // let $v: $t = ......
+        ( @interactive : $interactive:literal, $v:ident : $t:ty ) => {
         let $v = $crate::iolib::scan_string($interactive).parse::<$t>().unwrap();
     };
-    // let $v: $t = ......, .......
-    ( @interactive : $interactive:literal, $v:ident : $t:ty, $( $rest:tt )+ ) => {
+        // let $v: $t = ......, .......
+        ( @interactive : $interactive:literal, $v:ident : $t:ty, $( $rest:tt )+ ) => {
         $crate::scan!(@interactive: $interactive, $v : $t);
         $crate::scan!(@interactive: $interactive, $( $rest )+);
     };
-    // ......
-    ( $( $rest:tt )* ) => {
+        // ......
+        ( $( $rest:tt )* ) => {
         $crate::scan!(@interactive: false, $( $rest )*);
     };
-}
+    }
 
     #[macro_export]
     macro_rules! scani {
-    ( $( $rest:tt )* ) => {
+        ( $( $rest:tt )* ) => {
         $crate::scan!(@interactive: true, $( $rest )*);
     };
-}
+    }
 }
 
 pub struct SegmentTree<M>
@@ -149,7 +149,11 @@ where
         let size = vec.len();
         let mut tree = [vec![e.clone(); size], vec.clone()].concat();
 
-        for i in (0..(size << 1) - 1).rev().step_by(2).take_while(|i| i >> 1 > 0) {
+        for i in (0..(size << 1) - 1)
+            .rev()
+            .step_by(2)
+            .take_while(|i| i >> 1 > 0)
+        {
             tree[i >> 1] = op(&tree[i], &tree[i | 1]);
         }
 
@@ -157,7 +161,9 @@ where
     }
 
     #[inline]
-    pub fn set(&mut self, index: usize, val: M) { self.update_by(index, val, |_, act| act.clone()); }
+    pub fn set(&mut self, index: usize, val: M) {
+        self.update_by(index, val, |_, act| act.clone());
+    }
 
     pub fn update_by(&mut self, mut index: usize, val: M, f: fn(old: &M, act: &M) -> M) {
         index += self.size;
@@ -193,19 +199,23 @@ where
     /// Fold the operation in a leftward direction.
     /// That is, you obtain op(t_{l}, op(t_{l+1}, op(t_{l+2}, ...op(t_{r-2}, t_{r-1})...))) as a result.
     #[inline]
-    pub fn foldl(&self, left: usize, right: usize) -> M { self.fold(left, right, false) }
+    pub fn foldl(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, false)
+    }
 
     /// Fold the operation in a rightward direction.
     /// That is, you obtain op(op(op(...op(t_{l}, t_{l+1}), t_{l+2}), ..., t_{r-2}), t_{r_1}) as a result.
     #[inline]
-    pub fn foldr(&self, left: usize, right: usize) -> M { self.fold(left, right, true) }
+    pub fn foldr(&self, left: usize, right: usize) -> M {
+        self.fold(left, right, true)
+    }
 
     #[inline]
     fn op(&self, lhs: &M, rhs: &M, fold_right: bool) -> M {
         if !fold_right {
-            (self.op)(&lhs, &rhs)
+            (self.op)(lhs, rhs)
         } else {
-            (self.op)(&rhs, &lhs)
+            (self.op)(rhs, lhs)
         }
     }
 }
@@ -216,9 +226,16 @@ fn main() {
     let mut out = std::io::BufWriter::new(out.lock());
 
     const MOD: usize = 998244353;
-    scan!(n: usize, q: usize, p: [(usize, usize); n], q: [(usize, usize, usize, usize); q]);
+    scan!(
+        n: usize,
+        q: usize,
+        p: [(usize, usize); n],
+        q: [(usize, usize, usize, usize); q]
+    );
 
-    let mut st = SegmentTree::from_vec(&p, (1, 0), |&(a1, b1), &(a2, b2)| (a1 * a2 % MOD, (a2 * b1 + b2) % MOD));
+    let mut st = SegmentTree::from_vec(&p, (1, 0), |&(a1, b1), &(a2, b2)| {
+        (a1 * a2 % MOD, (a2 * b1 + b2) % MOD)
+    });
 
     for (t, l, r, x) in q {
         if t == 0 {
