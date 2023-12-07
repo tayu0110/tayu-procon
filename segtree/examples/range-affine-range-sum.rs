@@ -1,12 +1,9 @@
-use iolib::scan;
+// https://judge.yosupo.jp/problem/range_affine_range_sum
+use iolib::{putln, scan};
 use segtree::RangeAffineRangeSum;
 use static_modint::{Mod998244353, StaticModint};
 
 fn main() {
-    use std::io::*;
-    let out = stdout();
-    let mut out = BufWriter::new(out.lock());
-
     scan!(n: usize, q: usize, a: [u32; n]);
     let mut st =
         RangeAffineRangeSum::<Mod998244353>::new(a.into_iter().map(StaticModint::raw).collect());
@@ -20,7 +17,7 @@ fn main() {
         } else {
             scan!(l: usize, r: usize);
             let (res, _) = st.prod(l, r);
-            writeln!(out, "{}", res).unwrap();
+            putln!(res.val());
         }
     }
 }
