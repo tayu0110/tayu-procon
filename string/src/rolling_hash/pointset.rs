@@ -2,9 +2,31 @@ use super::{mul, HashValue, MOD, POW_CACHE};
 use segtree::SegmentTree;
 use std::ops::{Bound, Range, RangeBounds};
 
+struct HashComposite;
+impl segtree::Monoid for HashComposite {
+    type M = (u64, u64);
+    fn id() -> Self::M {
+        (0, 0)
+    }
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        if r.1 == 0 {
+            return *l;
+        } else if l.1 == 0 {
+            return *r;
+        }
+        let base = POW_CACHE.lock().unwrap().base();
+        let b = mul(r.1, base);
+        let mut val = mul(l.0, b) + r.0;
+        if val >= MOD {
+            val -= MOD;
+        }
+        (val, mul(b, l.1))
+    }
+}
+
 pub struct PointSetableRollingHash {
     len: usize,
-    hash: SegmentTree<(u64, u64)>,
+    hash: SegmentTree<HashComposite>,
 }
 
 impl PointSetableRollingHash {
@@ -16,24 +38,7 @@ impl PointSetableRollingHash {
             cache.grow(s.len());
         }
 
-        let hash = SegmentTree::from_vec(
-            &s.chars().map(|c| (c as u64, 1u64)).collect(),
-            (0, 0),
-            |l, r| {
-                if r.1 == 0 {
-                    return *l;
-                } else if l.1 == 0 {
-                    return *r;
-                }
-                let base = POW_CACHE.lock().unwrap().base();
-                let b = mul(r.1, base);
-                let mut val = mul(l.0, b) + r.0;
-                if val >= MOD {
-                    val -= MOD;
-                }
-                (val, mul(b, l.1))
-            },
-        );
+        let hash = SegmentTree::from_vec(s.chars().map(|c| (c as u64, 1u64)).collect());
 
         Self { len: s.len(), hash }
     }
@@ -82,7 +87,7 @@ impl PointSetableRollingHash {
     /// return the hash of s[l..r)
     #[inline]
     fn get_hash(&self, l: usize, r: usize) -> HashValue {
-        let (res, _) = self.hash.foldr(l, r);
+        let (res, _) = self.hash.fold(l..r);
         HashValue::new(r - l, res)
     }
 
