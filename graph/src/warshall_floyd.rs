@@ -3,10 +3,10 @@ use super::GraphLike;
 pub fn warshall_floyd(graph: &impl GraphLike) -> Vec<Vec<i64>> {
     let mut res = vec![vec![i64::MAX; graph.size()]; graph.size()];
 
-    for from in 0..graph.size() {
-        res[from][from] = 0;
+    for (from, res) in res.iter_mut().enumerate() {
+        res[from] = 0;
         for (to, weight) in graph.edges(from) {
-            res[from][*to] = *weight;
+            res[*to] = *weight;
         }
     }
 

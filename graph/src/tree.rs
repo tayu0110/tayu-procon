@@ -21,7 +21,9 @@ pub struct Tree<D: Direction> {
 
 impl<'a, D: Direction> Tree<D> {
     #[inline]
-    pub fn size(&self) -> usize { self.size }
+    pub fn size(&self) -> usize {
+        self.size
+    }
 
     fn make_parlist(&mut self) {
         let mut par = vec![std::usize::MAX; self.size];
@@ -119,10 +121,14 @@ impl<'a, D: Direction> Tree<D> {
     }
 
     #[inline]
-    pub fn root(&self) -> usize { self.root }
+    pub fn root(&self) -> usize {
+        self.root
+    }
 
     #[inline]
-    pub fn reroot(&mut self, new: usize) { self.root = new; }
+    pub fn reroot(&mut self, new: usize) {
+        self.root = new;
+    }
 
     #[inline]
     pub fn reroot_with_rebuild(&mut self, new: usize) {
@@ -130,7 +136,9 @@ impl<'a, D: Direction> Tree<D> {
         self.rebuild();
     }
 
-    pub fn rebuild(&mut self) { self.par = None; }
+    pub fn rebuild(&mut self) {
+        self.par = None;
+    }
 
     pub fn reroot_with_diameter(&mut self) {
         let mut dist = vec![-1; self.size];
@@ -158,7 +166,9 @@ impl<'a, D: Direction> Tree<D> {
 
 impl<D: Direction> TryFrom<Vec<(usize, usize)>> for Tree<D> {
     type Error = InvalidTree;
-    fn try_from(value: Vec<(usize, usize)>) -> Result<Self, Self::Error> { Self::from_edges(value) }
+    fn try_from(value: Vec<(usize, usize)>) -> Result<Self, Self::Error> {
+        Self::from_edges(value)
+    }
 }
 
 impl<D: Direction> TryFrom<Vec<(usize, usize, i64)>> for Tree<D> {
@@ -193,19 +203,17 @@ impl<D: Direction> TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
             value
                 .into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
-                .flatten()
+                .flat_map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
                 .collect()
         } else {
             value
                 .into_iter()
                 .enumerate()
-                .map(|(from, v)| {
+                .flat_map(|(from, v)| {
                     v.into_iter()
                         .filter(move |(to, _)| from <= *to)
                         .map(move |(to, weight)| (from, to, weight))
                 })
-                .flatten()
                 .collect()
         };
         Self::from_weighted_edges(edges)
@@ -213,5 +221,7 @@ impl<D: Direction> TryFrom<Vec<Vec<(usize, i64)>>> for Tree<D> {
 }
 
 impl<D: Direction> From<Tree<D>> for Graph<D> {
-    fn from(from: Tree<D>) -> Self { Graph { size: from.size, graph: from.graph, _d: from._d } }
+    fn from(from: Tree<D>) -> Self {
+        Graph { size: from.size, graph: from.graph, _d: from._d }
+    }
 }

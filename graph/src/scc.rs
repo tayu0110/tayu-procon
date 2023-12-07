@@ -9,7 +9,7 @@ pub fn scc(graph: &Graph<Directed>) -> Vec<Vec<usize>> {
     let mut order = vec![];
     for start in 0..graph.size() {
         if !used[start] {
-            dfs_for_scc(start, &mut used, &mut order, &graph);
+            dfs_for_scc(start, &mut used, &mut order, graph);
         }
     }
 

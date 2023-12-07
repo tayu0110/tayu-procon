@@ -38,12 +38,16 @@ pub trait Direction: Clone {
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnDirected {}
 impl Direction for UnDirected {
-    fn is_directed() -> bool { false }
+    fn is_directed() -> bool {
+        false
+    }
 }
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Directed {}
 impl Direction for Directed {
-    fn is_directed() -> bool { true }
+    fn is_directed() -> bool {
+        true
+    }
 }
 
 #[derive(Debug, Clone, std::marker::Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -58,7 +62,9 @@ pub struct Neighbors<'a> {
 
 impl<'a> Iterator for Neighbors<'a> {
     type Item = &'a usize;
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
 }
 
 pub struct Edges<'a> {
@@ -67,7 +73,9 @@ pub struct Edges<'a> {
 
 impl<'a> Iterator for Edges<'a> {
     type Item = (&'a usize, &'a i64);
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
 }
 
 pub struct EdgesMut<'a> {
@@ -76,7 +84,9 @@ pub struct EdgesMut<'a> {
 
 impl<'a> Iterator for EdgesMut<'a> {
     type Item = (&'a usize, &'a mut i64);
-    fn next(&mut self) -> Option<Self::Item> { self.inner.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
 }
 
 #[cfg(test)]
@@ -271,13 +281,12 @@ mod tests {
         let undir = UnDirectedGraph::from_weighted_edges(10, edges);
         let tree = spanning_tree(&undir).unwrap();
         let set = (0..tree.size())
-            .map(|i| {
+            .flat_map(|i| {
                 tree.graph[i]
                     .iter()
                     .map(|Edge { to, weight: _ }| (std::cmp::min(i, *to), std::cmp::max(i, *to)))
                     .collect::<Vec<(_, _)>>()
             })
-            .flatten()
             .collect::<std::collections::BTreeSet<(_, _)>>()
             .iter()
             .map(|(f, t)| (*f, *t))

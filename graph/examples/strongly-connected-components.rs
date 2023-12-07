@@ -17,6 +17,6 @@ fn main() {
         for v in res {
             write!(out, " {}", v).unwrap();
         }
-        writeln!(out, "").unwrap();
+        writeln!(out).unwrap();
     }
 }

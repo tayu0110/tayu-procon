@@ -21,22 +21,28 @@ impl<'a, D: Direction> Graph<D> {
     }
 
     #[inline]
-    pub fn size(&self) -> usize { self.size }
+    pub fn size(&self) -> usize {
+        self.size
+    }
 
     #[inline]
     pub fn from_weighted_edges(size: usize, edges: Vec<(usize, usize, i64)>) -> Self {
-        edges.into_iter().fold(Self::new(size), |mut g, (from, to, weight)| {
-            g.set_weighted_edge(from, to, weight);
-            g
-        })
+        edges
+            .into_iter()
+            .fold(Self::new(size), |mut g, (from, to, weight)| {
+                g.set_weighted_edge(from, to, weight);
+                g
+            })
     }
 
     #[inline]
     pub fn from_edges(size: usize, edges: Vec<(usize, usize)>) -> Self {
-        edges.into_iter().fold(Self::new(size), |mut g, (from, to)| {
-            g.set_edge(from, to);
-            g
-        })
+        edges
+            .into_iter()
+            .fold(Self::new(size), |mut g, (from, to)| {
+                g.set_edge(from, to);
+                g
+            })
     }
 
     #[inline]
@@ -48,7 +54,9 @@ impl<'a, D: Direction> Graph<D> {
     }
 
     #[inline]
-    pub fn set_edge(&mut self, from: usize, to: usize) { self.set_weighted_edge(from, to, 1) }
+    pub fn set_edge(&mut self, from: usize, to: usize) {
+        self.set_weighted_edge(from, to, 1)
+    }
 
     #[inline]
     pub fn resize(&mut self, size: usize) {
@@ -66,14 +74,22 @@ impl<'a, D: Direction> Graph<D> {
     #[inline]
     pub fn edges(&'a self, index: usize) -> Edges<'a> {
         Edges {
-            inner: Box::new(self.graph[index].iter().map(|Edge { to, weight }| (to, weight))),
+            inner: Box::new(
+                self.graph[index]
+                    .iter()
+                    .map(|Edge { to, weight }| (to, weight)),
+            ),
         }
     }
 
     #[inline]
     pub fn edges_mut(&'a mut self, index: usize) -> EdgesMut<'a> {
         EdgesMut {
-            inner: Box::new(self.graph[index].iter_mut().map(|Edge { to, weight }| (&*to, weight))),
+            inner: Box::new(
+                self.graph[index]
+                    .iter_mut()
+                    .map(|Edge { to, weight }| (&*to, weight)),
+            ),
         }
     }
 
@@ -134,12 +150,18 @@ impl<D: Direction> std::convert::From<Vec<Vec<usize>>> for Graph<D> {
     fn from(from: Vec<Vec<usize>>) -> Self {
         let size = from.len();
         let edges = if D::is_directed() {
-            from.into_iter().enumerate().map(|(from, v)| v.into_iter().map(move |to| (from, to))).flatten().collect()
+            from.into_iter()
+                .enumerate()
+                .flat_map(|(from, v)| v.into_iter().map(move |to| (from, to)))
+                .collect()
         } else {
             from.into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().filter(move |to| from <= *to).map(move |to| (from, to)))
-                .flatten()
+                .flat_map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |to| from <= *to)
+                        .map(move |to| (from, to))
+                })
                 .collect()
         };
 
@@ -153,14 +175,16 @@ impl<D: Direction> std::convert::From<Vec<Vec<(usize, i64)>>> for Graph<D> {
         let edges = if D::is_directed() {
             from.into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
-                .flatten()
+                .flat_map(|(from, v)| v.into_iter().map(move |(to, weight)| (from, to, weight)))
                 .collect()
         } else {
             from.into_iter()
                 .enumerate()
-                .map(|(from, v)| v.into_iter().filter(move |(to, _)| from <= *to).map(move |(to, weight)| (from, to, weight)))
-                .flatten()
+                .flat_map(|(from, v)| {
+                    v.into_iter()
+                        .filter(move |(to, _)| from <= *to)
+                        .map(move |(to, weight)| (from, to, weight))
+                })
                 .collect()
         };
 

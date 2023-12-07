@@ -120,16 +120,22 @@ impl HeavyLightDecomposition {
                 index[leader as usize] = cnt;
                 original_index[cnt as usize] = leader;
                 cnt += 1;
-                leader = tree[leader as usize].get(0).map_or(u32::MAX, |a| *a as u32);
+                leader = tree[leader as usize]
+                    .first()
+                    .map_or(u32::MAX, |a| *a as u32);
             }
         }
 
         Self { parent, leader, height, group, index, original_index }
     }
 
-    pub fn index(&self, index: usize) -> usize { self.index[index] as usize }
+    pub fn index(&self, index: usize) -> usize {
+        self.index[index] as usize
+    }
 
-    pub fn original_index(&self, index: usize) -> usize { self.original_index[index] as usize }
+    pub fn original_index(&self, index: usize) -> usize {
+        self.original_index[index] as usize
+    }
 
     pub fn path_iter(
         &self,

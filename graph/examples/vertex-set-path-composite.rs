@@ -3,9 +3,25 @@ use graph::HeavyLightDecomposition;
 use graph::PathVertex;
 use iolib::{putln, scan};
 use montgomery_modint::{Mod998244353, MontgomeryModint};
-use segtree::SegmentTree;
+use segtree::{Monoid, Reversible, SegmentTree};
 
 type Modint = MontgomeryModint<Mod998244353>;
+
+#[derive(Debug, Clone)]
+struct Affine {
+    a: Modint,
+    b: Modint,
+}
+
+impl Monoid for Affine {
+    type M = Self;
+    fn id() -> Self::M {
+        Affine { a: Modint::one(), b: Modint::zero() }
+    }
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        Affine { a: r.a * l.a, b: r.a * l.b + r.b }
+    }
+}
 
 fn main() {
     scan!(
@@ -16,20 +32,13 @@ fn main() {
     );
 
     let hld = HeavyLightDecomposition::from_edges(n, e);
-
-    let mut p = {
-        let mut np = vec![(Modint::zero(), Modint::zero()); n];
-        for i in 0..n {
-            np[hld.index(i)] = (p[i].0.into(), p[i].1.into());
-        }
-
-        np
-    };
-
-    let f = |&l: &(Modint, Modint), &r: &(Modint, Modint)| (r.0 * l.0, r.0 * l.1 + r.1);
-    let mut st = SegmentTree::from_vec(&p, (Modint::one(), Modint::zero()), f);
-    p.reverse();
-    let mut st_rev = SegmentTree::from_vec(&p, (Modint::one(), Modint::zero()), f);
+    let mut st = SegmentTree::<Reversible<Affine>>::from_vec(p.into_iter().enumerate().fold(
+        vec![Reversible::new(Affine::id()); n],
+        |mut s, (i, (a, b))| {
+            s[hld.index(i)] = Reversible::new(Affine { a: Modint::raw(a), b: Modint::raw(b) });
+            s
+        },
+    ));
 
     for _ in 0..q {
         scan!(t: usize);
@@ -37,8 +46,7 @@ fn main() {
         if t == 0 {
             scan!(p: usize, c: u32, d: u32);
             let idx = hld.index(p);
-            st.set(idx, (c.into(), d.into()));
-            st_rev.set(n - 1 - idx, (c.into(), d.into()));
+            st.set(idx, Reversible::new(Affine { a: c.into(), b: d.into() }));
         } else {
             scan!(u: usize, v: usize, x: u32);
 
@@ -46,13 +54,10 @@ fn main() {
             for path in hld.path_vertex_ranges(u, v) {
                 match path {
                     PathVertex::Range { from, to } => {
-                        let (na, nb) = if from <= to {
-                            f(&(a, b), &st.foldr(from, to + 1))
-                        } else {
-                            f(&(a, b), &st_rev.foldr(n - 1 - from, n - to))
-                        };
-
-                        (a, b) = (na, nb);
+                        let res = st.fold(from.min(to)..=from.max(to));
+                        let res = if from <= to { res.forward } else { res.reverse };
+                        let Affine { a: c, b: d } = Affine::op(&Affine { a, b }, &res);
+                        (a, b) = (c, d);
                     }
                     _ => unreachable!(),
                 };

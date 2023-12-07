@@ -14,8 +14,8 @@ fn main() {
     let hld = HeavyLightDecomposition::from_edges(n, e);
 
     let mut ft = FenwickTree::new(n, 0);
-    for i in 0..n {
-        ft.add(hld.index(i), a[i]);
+    for (i, a) in a.into_iter().enumerate() {
+        ft.add(hld.index(i), a);
     }
 
     for _ in 0..q {

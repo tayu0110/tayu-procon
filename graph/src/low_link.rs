@@ -18,7 +18,7 @@ pub fn low_link<D: Direction>(graph: &Graph<D>) -> Vec<(usize, usize)> {
                 &mut ord,
                 &mut low,
                 &mut res,
-                &graph,
+                graph,
             );
         }
     }

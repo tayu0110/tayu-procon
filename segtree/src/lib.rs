@@ -93,6 +93,31 @@ impl<T: Monoid> SegmentTree<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Reversible<T: Monoid + Clone> {
+    pub forward: T,
+    pub reverse: T,
+}
+
+impl<T: Monoid + Clone> Reversible<T> {
+    pub fn new(val: T) -> Self {
+        Self { forward: val.clone(), reverse: val }
+    }
+}
+
+impl<T: Monoid<M = T> + Clone> Monoid for Reversible<T> {
+    type M = Self;
+    fn id() -> Self::M {
+        Self { forward: T::id(), reverse: T::id() }
+    }
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        Self {
+            forward: T::op(&l.forward, &r.forward),
+            reverse: T::op(&r.reverse, &l.reverse),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::Monoid;

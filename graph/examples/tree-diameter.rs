@@ -14,7 +14,12 @@ fn main() {
     let root = tree.root();
     let dist = dijkstra_heap(root, &tree);
     let max = dist.iter().max().unwrap();
-    let (mut now, _) = dist.iter().enumerate().filter(|(_, v)| v == &max).last().unwrap();
+    let (mut now, _) = dist
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| v == &max)
+        .last()
+        .unwrap();
 
     let mut res = vec![now];
     while now != root {
@@ -35,5 +40,5 @@ fn main() {
             write!(out, "{}", v).unwrap();
         }
     }
-    writeln!(out, "").unwrap();
+    writeln!(out).unwrap();
 }

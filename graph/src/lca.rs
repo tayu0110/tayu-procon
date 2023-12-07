@@ -51,7 +51,9 @@ pub fn lca<D: Direction>(tree: &mut Tree<D>) -> impl Fn(usize, usize) -> usize {
 
     // return the 0-based index of the Most Significant Bit for b.
     // almost as same as bsr instruction. when b is 0, it is UB
-    fn bit_scan_reverse(b: u32) -> usize { 31 - b.leading_zeros() as usize }
+    fn bit_scan_reverse(b: u32) -> usize {
+        31 - b.leading_zeros() as usize
+    }
 
     move |mut l: usize, mut r: usize| -> usize {
         if rank[l] > rank[r] {

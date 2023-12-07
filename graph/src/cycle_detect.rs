@@ -11,7 +11,7 @@ pub fn cycle_detect(graph: &Graph<Directed>) -> Option<Vec<usize>> {
     for i in 0..size {
         if state[i] != 2 {
             let mut res = vec![];
-            if dfs_for_cycle_detect(i, &mut state, &mut res, &graph).is_some() {
+            if dfs_for_cycle_detect(i, &mut state, &mut res, graph).is_some() {
                 res.reverse();
                 return Some(res);
             }

@@ -6,7 +6,13 @@ fn main() {
     let out = std::io::stdout();
     let mut out = std::io::BufWriter::new(out.lock());
 
-    scan!(n: usize, m: usize, s: usize, t: usize, p: [(usize, usize, i64); m]);
+    scan!(
+        n: usize,
+        m: usize,
+        s: usize,
+        t: usize,
+        p: [(usize, usize, i64); m]
+    );
 
     let graph = DirectedGraph::from_weighted_edges(n, p);
 
