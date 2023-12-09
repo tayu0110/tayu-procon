@@ -1,18 +1,5 @@
-use super::{super::convert_range_isize, Monoid, Node};
+use super::{super::convert_range_isize, Monoid, Node, Zst};
 use std::ops::{Range, RangeBounds};
-
-#[derive(Debug, Clone, Copy)]
-struct Zst;
-
-impl Monoid for Zst {
-    type M = Self;
-    fn id() -> Self::M {
-        Zst
-    }
-    fn op(_: &Self::M, _: &Self::M) -> Self::M {
-        Zst
-    }
-}
 
 type SegtreeNode<T> = Node<T, Zst>;
 

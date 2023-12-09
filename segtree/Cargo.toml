@@ -12,3 +12,7 @@ zero-one = { version = "0.1.0", path = "../numeric/zero-one" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
+rand = "0.8.5"
+
+[profile.release]
+debug = true

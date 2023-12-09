@@ -1,9 +1,27 @@
+#![allow(clippy::len_without_is_empty)]
+
+mod dynamic;
 mod lazy_segtree;
 
+pub use dynamic::*;
 pub use lazy_segtree::*;
 use std::ops::{Bound, Range, RangeBounds};
 
 fn convert_range(min: usize, max: usize, range: impl RangeBounds<usize>) -> Range<usize> {
+    let l = match range.start_bound() {
+        Bound::Included(l) => *l,
+        Bound::Unbounded => min,
+        Bound::Excluded(l) => l - 1,
+    };
+    let r = match range.end_bound() {
+        Bound::Included(r) => r + 1,
+        Bound::Excluded(r) => *r,
+        Bound::Unbounded => max,
+    };
+    Range { start: l, end: r }
+}
+
+fn convert_range_isize(min: isize, max: isize, range: impl RangeBounds<isize>) -> Range<isize> {
     let l = match range.start_bound() {
         Bound::Included(l) => *l,
         Bound::Unbounded => min,
