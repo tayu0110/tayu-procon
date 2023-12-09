@@ -1,5 +1,6 @@
 #![allow(clippy::collapsible_else_if, clippy::comparison_chain)]
 
+use super::MapMonoid;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -8,19 +9,6 @@ enum Edge<M: MapMonoid> {
     Light(NodeRef<M>),
     Heavy(NodeRef<M>),
     None,
-}
-
-pub trait MapMonoid {
-    type M;
-    type Act;
-
-    fn e() -> Self::M;
-    fn op(l: &Self::M, r: &Self::M) -> Self::M;
-    fn id() -> Self::Act;
-    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act;
-    fn map(m: &Self::M, act: &Self::Act) -> Self::M;
-    /// If the `M` operation is not commutative (i.e., `MapMonoid::op` is not commutative), implement `reverse`.
-    fn reverse(m: &mut Self::M) { let _ = m; }
 }
 
 // Left children are sallower than self, and right children are deeper than self.
@@ -49,9 +37,13 @@ impl<M: MapMonoid> Node<M> {
         }
     }
 
-    pub const fn index(&self) -> usize { (self.index & !(1 << 31)) as usize }
+    pub const fn index(&self) -> usize {
+        (self.index & !(1 << 31)) as usize
+    }
 
-    pub const fn is_reversed(&self) -> bool { self.index >= (1 << 31) }
+    pub const fn is_reversed(&self) -> bool {
+        self.index >= (1 << 31)
+    }
 
     pub fn toggle(&mut self) {
         self.index ^= 1 << 31;
@@ -110,7 +102,9 @@ impl<M: MapMonoid> NodeRef<M> {
     }
 
     /// Connect with the parent via Light Edge. The parent side does not point to self, so only the self side is updated.
-    fn weak_connect_parent(mut self, parent: Self) { self.parent = Some(parent); }
+    fn weak_connect_parent(mut self, parent: Self) {
+        self.parent = Some(parent);
+    }
 
     /// Even if `parent` has a child, it is forced to connect at Heavy Edge.
     /// The original child is disconnected from the Heavy Edge connection and is replaced by a Light Edge connection.
@@ -205,21 +199,22 @@ impl<M: MapMonoid> NodeRef<M> {
         self.update();
 
         let self_is_shallow = self.is_left_child();
+        let par = self.disconnect_parent();
+        // connect self to right as left-child
+        //      c
+        //     / \
+        //    a   e
+        //   / \
+        //  b   d
+        right.connect_left(self);
+        right.update();
+
         // If self has a parent, disconnect it
         //        a       c
         //       / \       \
         //      b   d       e
-        match self.disconnect_parent() {
+        match par {
             Edge::Heavy(mut par) => {
-                // connect self to right as left-child
-                //      c
-                //     / \
-                //    a   e
-                //   / \
-                //  b   d
-                right.connect_left(self);
-                right.update();
-
                 // and connect it to right as a parent
                 //           |
                 //    a      c
@@ -233,18 +228,10 @@ impl<M: MapMonoid> NodeRef<M> {
                 par.update();
             }
             Edge::Light(par) => {
-                // connect self to right as left-child
-                right.connect_left(self);
-                right.update();
-
                 // In the case of Light Edge, the parent does not update.
                 right.weak_connect_parent(par);
             }
-            Edge::None => {
-                // connect self to right as left-child
-                right.connect_left(self);
-                right.update();
-            }
+            Edge::None => {}
         }
 
         // return new root of the original subtree.
@@ -293,21 +280,21 @@ impl<M: MapMonoid> NodeRef<M> {
         self.update();
 
         let self_is_shallow = self.is_left_child();
+        let par = self.disconnect_parent();
+        // connect self to left as right-child
+        //      b
+        //     / \
+        //    d   a
+        //       / \
+        //      e   c
+        left.connect_right(self);
+        left.update();
         // If self has a parent, disconnect it
         //        a       b
         //       / \     /
         //      e   c   d
-        match self.disconnect_parent() {
+        match par {
             Edge::Heavy(mut par) => {
-                // connect self to left as right-child
-                //      b
-                //     / \
-                //    d   a
-                //       / \
-                //      e   c
-                left.connect_right(self);
-                left.update();
-
                 // and connect it to left as a parent
                 if self_is_shallow {
                     par.connect_left(left);
@@ -317,18 +304,10 @@ impl<M: MapMonoid> NodeRef<M> {
                 par.update();
             }
             Edge::Light(par) => {
-                // connect self to left as right-child
-                left.connect_right(self);
-                left.update();
-
                 // In the case of Light Edge, the parent does not update.
                 left.weak_connect_parent(par);
             }
-            Edge::None => {
-                // connect self to left as right-child
-                left.connect_right(self);
-                left.update();
-            }
+            Edge::None => {}
         }
 
         // return new root of the original subtree
@@ -400,22 +379,30 @@ impl<M: MapMonoid> NodeRef<M> {
 }
 
 impl<M: MapMonoid> Clone for NodeRef<M> {
-    fn clone(&self) -> Self { Self(self.0) }
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
 }
 
 impl<M: MapMonoid> Copy for NodeRef<M> {}
 
 impl<M: MapMonoid> PartialEq for NodeRef<M> {
-    fn eq(&self, other: &Self) -> bool { self.index == other.index }
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
 }
 
 impl<M: MapMonoid> Deref for NodeRef<M> {
     type Target = Node<M>;
-    fn deref(&self) -> &Self::Target { unsafe { self.0.as_ref() } }
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref() }
+    }
 }
 
 impl<M: MapMonoid> DerefMut for NodeRef<M> {
-    fn deref_mut(&mut self) -> &mut Self::Target { unsafe { self.0.as_mut() } }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut() }
+    }
 }
 
 impl<M> Debug for NodeRef<M>
@@ -723,11 +710,21 @@ impl MapMonoid for DefaultZST {
     type M = DefaultZST;
     type Act = DefaultZST;
 
-    fn e() -> Self::M { DefaultZST }
-    fn op(_: &Self::M, _: &Self::M) -> Self::M { DefaultZST }
-    fn map(_: &Self::M, _: &Self::Act) -> Self::M { DefaultZST }
-    fn id() -> Self::Act { DefaultZST }
-    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act { DefaultZST }
+    fn e() -> Self::M {
+        DefaultZST
+    }
+    fn op(_: &Self::M, _: &Self::M) -> Self::M {
+        DefaultZST
+    }
+    fn map(_: &Self::M, _: &Self::Act) -> Self::M {
+        DefaultZST
+    }
+    fn id() -> Self::Act {
+        DefaultZST
+    }
+    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {
+        DefaultZST
+    }
 }
 
 #[cfg(test)]

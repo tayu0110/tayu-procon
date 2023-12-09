@@ -12,6 +12,21 @@ pub use interval_heap::*;
 #[cfg(feature = "link-cut-tree")]
 pub use link_cut_tree::*;
 
+pub trait MapMonoid {
+    type M;
+    type Act;
+
+    fn e() -> Self::M;
+    fn op(l: &Self::M, r: &Self::M) -> Self::M;
+    fn id() -> Self::Act;
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act;
+    fn map(m: &Self::M, act: &Self::Act) -> Self::M;
+    /// If the `M` operation is not commutative (i.e., `MapMonoid::op` is not commutative), implement `reverse`.
+    fn reverse(m: &mut Self::M) {
+        let _ = m;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
