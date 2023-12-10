@@ -1,6 +1,10 @@
+#[cfg(feature = "btree-multiset")]
 mod btree_multiset;
+#[cfg(feature = "fixed-ring-queue")]
 mod fixed_ring_queue;
+#[cfg(feature = "double-ended-priority-queue")]
 mod interval_heap;
+#[cfg(feature = "link-cut-tree")]
 mod link_cut_tree;
 
 #[cfg(feature = "btree-multiset")]

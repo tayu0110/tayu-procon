@@ -23,16 +23,24 @@ impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool { self.head == self.tail }
+    pub fn is_empty(&self) -> bool {
+        self.head == self.tail
+    }
 
     #[inline]
-    pub fn is_full(&self) -> bool { self.len() == SIZE }
+    pub fn is_full(&self) -> bool {
+        self.len() == SIZE
+    }
 
     #[inline]
-    pub fn len(&self) -> usize { self.tail - self.head }
+    pub fn len(&self) -> usize {
+        self.tail - self.head
+    }
 
     #[inline]
-    pub fn capacity(&self) -> usize { SIZE }
+    pub fn capacity(&self) -> usize {
+        SIZE
+    }
 
     #[inline]
     pub fn clear(&mut self) {

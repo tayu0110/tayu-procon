@@ -12,7 +12,9 @@ pub struct BTreeMultiSet<K> {
 
 impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
     #[inline]
-    pub fn new() -> Self { Self { len: 0, inner: BTreeMap::new() } }
+    pub fn new() -> Self {
+        Self { len: 0, inner: BTreeMap::new() }
+    }
     #[inline]
     pub fn insert(&mut self, key: K) {
         *self.inner.entry(key).or_insert(0) += 1;
@@ -37,26 +39,42 @@ impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
         self.inner.remove(key);
     }
     #[inline]
-    pub fn count(&mut self, key: &K) -> usize { *self.inner.get(key).unwrap_or(&0) as usize }
+    pub fn count(&mut self, key: &K) -> usize {
+        *self.inner.get(key).unwrap_or(&0) as usize
+    }
     #[inline]
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.len
+    }
     #[inline]
     pub fn clear(&mut self) {
         self.inner.clear();
         self.len = 0;
     }
     #[inline]
-    pub fn has_duplicate(&self) -> bool { self.len() != self.inner.len() }
+    pub fn has_duplicate(&self) -> bool {
+        self.len() != self.inner.len()
+    }
     #[inline]
-    pub fn contains(&self, key: &K) -> bool { self.inner.contains_key(key) }
+    pub fn contains(&self, key: &K) -> bool {
+        self.inner.contains_key(key)
+    }
     #[inline]
-    pub fn first(&self) -> Option<&K> { self.inner.iter().next().map(|(k, _)| k) }
+    pub fn first(&self) -> Option<&K> {
+        self.inner.iter().next().map(|(k, _)| k)
+    }
     #[inline]
-    pub fn get(&self, key: &K) -> Option<&K> { self.inner.get_key_value(key).map(|(k, _)| k) }
+    pub fn get(&self, key: &K) -> Option<&K> {
+        self.inner.get_key_value(key).map(|(k, _)| k)
+    }
     #[inline]
-    pub fn is_empty(&self) -> bool { self.inner.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
     #[inline]
-    pub fn last(&self) -> Option<&K> { self.inner.iter().rev().next().map(|(k, _)| k) }
+    pub fn last(&self) -> Option<&K> {
+        self.inner.iter().rev().next().map(|(k, _)| k)
+    }
     #[inline]
     pub fn iter(&'a self) -> Iter<'a, K, btree_map::Iter<'a, K, u32>> {
         Iter::new(self.inner.iter())
@@ -71,7 +89,9 @@ impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
 }
 
 impl<K: Ord + Debug + Clone> Default for BTreeMultiSet<K> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug)]
@@ -100,7 +120,9 @@ where
         + Debug
         + Clone,
 {
-    fn new(iter: I) -> Self { Self { fvalue: None, frem: 0, bvalue: None, brem: 0, iter } }
+    fn new(iter: I) -> Self {
+        Self { fvalue: None, frem: 0, bvalue: None, brem: 0, iter }
+    }
 }
 
 impl<'a, K, I> Iterator for Iter<'a, K, I>

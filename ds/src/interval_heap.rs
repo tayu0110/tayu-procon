@@ -11,17 +11,29 @@ pub struct IntervalHeap<T> {
 }
 
 impl<T> IntervalHeap<T> {
-    pub const fn new() -> Self { Self { heap: vec![] } }
+    pub const fn new() -> Self {
+        Self { heap: vec![] }
+    }
 
-    pub fn len(&self) -> usize { self.heap.len() }
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
 
-    pub fn is_empty(&self) -> bool { self.heap.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
 
-    pub fn shrink_to_fit(&mut self) { self.heap.shrink_to_fit(); }
+    pub fn shrink_to_fit(&mut self) {
+        self.heap.shrink_to_fit();
+    }
 
-    pub fn with_capacity(capacity: usize) -> Self { Self { heap: Vec::with_capacity(capacity) } }
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { heap: Vec::with_capacity(capacity) }
+    }
 
-    pub fn clear(&mut self) { self.heap.clear(); }
+    pub fn clear(&mut self) {
+        self.heap.clear();
+    }
 }
 
 impl<T: Ord> IntervalHeap<T> {
@@ -144,7 +156,11 @@ impl<T: Ord> IntervalHeap<T> {
         }
     }
 
-    pub fn max(&self) -> Option<&T> { self.heap.get(1).or(self.heap.get(0)) }
+    pub fn max(&self) -> Option<&T> {
+        self.heap.get(1).or(self.heap.get(0))
+    }
 
-    pub fn min(&self) -> Option<&T> { self.heap.get(0) }
+    pub fn min(&self) -> Option<&T> {
+        self.heap.get(0)
+    }
 }
