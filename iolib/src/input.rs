@@ -1,11 +1,47 @@
 use super::ext::{mmap, MAP_PRIVATE, PROT_READ};
 use super::parse_number::{parse16c, parse4c, parse4lec, parse8c, parse8lec};
-use std::arch::x86_64::{__m128i, _mm_cmpgt_epi8, _mm_loadu_si128, _mm_storeu_si128};
+use ds::FixedRingQueue;
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::{__m256i, _mm256_cmpgt_epi8, _mm256_loadu_si256, _mm256_movemask_epi8};
 use std::fs::File;
 use std::io::Read;
 use std::mem::transmute;
 use std::os::unix::io::FromRawFd;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
+
+fn parse_u64(buf: &[u8]) -> u64 {
+    let offset = buf.len();
+    unsafe {
+        if offset < 8 {
+            buf.iter()
+                .fold(0u32, |s, &v| s * 10 + v as u32 - b'0' as u32) as u64
+        } else if offset == 8 {
+            parse8c(buf.try_into().unwrap_unchecked())
+        } else if offset == 12 {
+            let upper = parse4c(buf[..4].try_into().unwrap_unchecked());
+            let lower = parse8c(buf[4..].try_into().unwrap_unchecked());
+            upper * 100_000_000 + lower
+        } else if offset < 16 {
+            let rem = offset - 8;
+            let upper = parse8lec(buf[..8].try_into().unwrap_unchecked(), rem as u8);
+            let lower = parse8c(buf[rem..].try_into().unwrap_unchecked());
+            upper * 100_000_000 + lower
+        } else if offset == 16 {
+            parse16c(buf)
+        } else if offset == 20 {
+            let upper = buf[..4]
+                .iter()
+                .fold(0u32, |s, &v| s * 10 + v as u32 - b'0' as u32) as u64;
+            let lower = parse16c(&buf[4..]);
+            upper * 10_000_000_000_000_000 + lower
+        } else {
+            let rem = offset - 16;
+            let upper = parse4lec(buf[..4].try_into().unwrap_unchecked(), rem as u8);
+            let lower = parse16c(&buf[rem..]);
+            upper * 10_000_000_000_000_000 + lower
+        }
+    }
+}
 
 pub trait Readable {
     fn read(src: &mut FastInput) -> Self;
@@ -28,17 +64,18 @@ macro_rules! impl_readable_integer {
         $(impl Readable for $ut {
             #[inline]
             fn read(src: &mut FastInput) -> $ut {
-                src.read_u64() as $ut
+                let buf = src.source.next();
+                parse_u64(buf) as $ut
             }
         }
         impl Readable for $t {
             #[inline]
             fn read(src: &mut FastInput) -> $t {
-                if src.peek() == b'-' {
-                    src.next();
-                    - (<$ut>::read(src) as $t)
+                let buf = src.source.next();
+                if buf[0] == b'-' {
+                    - (parse_u64(&buf[1..]) as $t)
                 } else {
-                    <$ut>::read(src) as $t
+                    parse_u64(buf) as $t
                 }
             }
         })*
@@ -58,33 +95,12 @@ macro_rules! impl_readable_float {
 impl_readable_float!(f32 f64);
 
 pub struct FastInput {
-    head: usize,
-    _file: File,
-    buf: Box<[u8]>,
+    source: Source,
 }
 
 impl FastInput {
-    fn new(file: File, buf: Box<[u8]>) -> Self {
-        Self { head: 0, _file: file, buf }
-    }
-
-    #[inline]
-    fn peek(&self) -> u8 {
-        self.buf[self.head]
-    }
-
-    #[inline]
-    fn next(&mut self) -> Option<u8> {
-        if self.head == self.buf.len() {
-            None
-        } else {
-            let head = self.head;
-            self.head += 1;
-            while self.head < self.buf.len() && self.buf[self.head].is_ascii_whitespace() {
-                self.head += 1;
-            }
-            Some(self.buf[head])
-        }
+    pub fn new() -> Self {
+        Self { source: Source::new() }
     }
 
     #[inline]
@@ -94,153 +110,25 @@ impl FastInput {
 
     #[inline]
     pub fn read_char(&mut self) -> char {
-        while let Some(c) = self.next() {
-            if !c.is_ascii_whitespace() {
-                return c as char;
-            }
-        }
-        unreachable!(
-            "Error: buffer is empty. line: {}, file: {}",
-            line!(),
-            file!()
-        )
-    }
-
-    // Since Ascii Code use up to 0x20 as control codes, characters smaller than 0x21 are identified as control codes.
-    const SEPARATORS: __m128i = unsafe { transmute([0x21i8; 16]) };
-
-    fn next_separator(&self, mut now: usize) -> usize {
-        let mut buf = [0u64; 2];
-        unsafe {
-            while now + 16 <= self.buf.len() {
-                let bytes = _mm_loadu_si128(self.buf[now..now + 16].as_ptr() as _);
-                // The byte determined to be a control code is 0xFF.
-                let gt = _mm_cmpgt_epi8(Self::SEPARATORS, bytes);
-                _mm_storeu_si128(buf.as_mut_ptr() as _, gt);
-
-                if buf[0] > 0 {
-                    return now + (buf[0].trailing_zeros() >> 3) as usize;
-                } else if buf[1] > 0 {
-                    return now + 8 + (buf[1].trailing_zeros() >> 3) as usize;
-                }
-
-                now += 16;
-            }
-        }
-
-        while now < self.buf.len() && !self.buf[now].is_ascii_whitespace() {
-            now += 1;
-        }
-        now
-    }
-
-    #[inline]
-    pub fn read_u64(&mut self) -> u64 {
-        let tail = self.next_separator(self.head);
-
-        let offset = tail - self.head;
-        let res = unsafe {
-            if offset < 8 {
-                parse8lec(
-                    self.buf[self.head..self.head + 8]
-                        .try_into()
-                        .unwrap_unchecked(),
-                    offset as u8,
-                )
-            } else if offset == 8 {
-                parse8c(
-                    self.buf[self.head..self.head + 8]
-                        .try_into()
-                        .unwrap_unchecked(),
-                )
-            } else if offset == 12 {
-                let upper = parse4c(
-                    self.buf[self.head..self.head + 4]
-                        .try_into()
-                        .unwrap_unchecked(),
-                );
-                let lower = parse8c(
-                    self.buf[self.head + 4..self.head + 12]
-                        .try_into()
-                        .unwrap_unchecked(),
-                );
-                upper * 100_000_000 + lower
-            } else if offset < 16 {
-                let rem = offset - 8;
-                let upper = parse8lec(
-                    self.buf[self.head..self.head + 8]
-                        .try_into()
-                        .unwrap_unchecked(),
-                    rem as u8,
-                );
-                let lower = parse8c(
-                    self.buf[self.head + rem..self.head + offset]
-                        .try_into()
-                        .unwrap_unchecked(),
-                );
-                upper * 100_000_000 + lower
-            } else if offset == 16 {
-                parse16c(&self.buf[self.head..self.head + 16])
-            } else if offset == 20 {
-                let upper = parse4c(
-                    self.buf[self.head..self.head + 4]
-                        .try_into()
-                        .unwrap_unchecked(),
-                );
-                let lower = parse16c(&self.buf[self.head + 4..self.head + 20]);
-                upper * 10_000_000_000_000_000 + lower
-            } else {
-                let rem = offset - 16;
-                let upper = parse4lec(
-                    self.buf[self.head..self.head + 4]
-                        .try_into()
-                        .unwrap_unchecked(),
-                    rem as u8,
-                );
-                let lower = parse16c(&self.buf[self.head + rem..self.head + offset]);
-                upper * 10_000_000_000_000_000 + lower
-            }
-        };
-        self.head = tail + 1;
-        while self.head < self.buf.len() && self.buf[self.head].is_ascii_whitespace() {
-            self.head += 1;
-        }
-        res
+        let c = self.source.next();
+        assert_eq!(c.len(), 1);
+        char::from_u32(c[0] as u32).unwrap()
     }
 
     #[inline]
     pub fn read_string(&mut self) -> String {
-        let tail = self.next_separator(self.head);
-
-        let res = String::from_utf8_lossy(&self.buf[self.head..tail]).into_owned();
-        self.head = tail + 1;
-        res
+        unsafe { String::from_utf8_unchecked(self.source.next().to_vec()) }
     }
 }
 
 static mut INPUT: *mut FastInput = 0 as *mut FastInput;
-static mut STDINT_SOURCE: fn() -> &'static mut FastInput = init;
+static mut STDIN_SOURCE: fn() -> &'static mut FastInput = init;
 
 #[inline]
 fn init() -> &'static mut FastInput {
-    let mut stdin = unsafe { File::from_raw_fd(0) };
-    let meta = stdin.metadata().unwrap();
-    let buf = if meta.is_file() {
-        let len = meta.len() as usize + 32;
-        let mapping = unsafe { mmap(null_mut() as _, len, PROT_READ, MAP_PRIVATE, 0, 0) };
-        let res = slice_from_raw_parts_mut(mapping as *mut u8, len);
-        unsafe { Box::from_raw(res) }
-    } else {
-        let mut buf = Vec::with_capacity(1 << 18);
-        stdin.read_to_end(&mut buf).unwrap();
-        buf.resize(buf.len() + 32, b' ');
-        buf.into_boxed_slice()
-    };
-
-    let input = FastInput::new(stdin, buf);
     unsafe {
-        INPUT = Box::leak(Box::new(input));
-        STDINT_SOURCE = get_input;
+        INPUT = Box::leak(Box::new(FastInput::new()));
+        STDIN_SOURCE = get_input;
     }
     get_input()
 }
@@ -249,8 +137,116 @@ fn init() -> &'static mut FastInput {
 fn get_input() -> &'static mut FastInput {
     unsafe { INPUT.as_mut().unwrap_unchecked() }
 }
-
 #[inline]
 pub fn get_stdin_source() -> &'static mut FastInput {
-    unsafe { STDINT_SOURCE() }
+    unsafe { STDIN_SOURCE() }
+}
+
+struct Source {
+    head: usize,
+    next: Option<usize>,
+    _file: File,
+    len: usize,
+    buf: Box<[u8]>,
+    queue: FixedRingQueue<(usize, usize), { 1 << 4 }>,
+}
+
+impl Source {
+    // Since Ascii Code use up to 0x20 as control codes, characters smaller than 0x21 are identified as control codes.
+    const SEPARATORS: __m256i = unsafe { transmute([0x21i8; 32]) };
+
+    fn new() -> Self {
+        let mut stdin = unsafe { File::from_raw_fd(0) };
+        let meta = stdin.metadata().unwrap();
+        let (buf, len) = if meta.is_file() {
+            let len = meta.len() as usize + 32;
+            let mapping = unsafe { mmap(null_mut() as _, len, PROT_READ, MAP_PRIVATE, 0, 0) };
+            let res = slice_from_raw_parts_mut(mapping as *mut u8, len);
+            (unsafe { Box::from_raw(res) }, meta.len() as usize)
+        } else {
+            let mut buf = Vec::with_capacity(1 << 18);
+            stdin.read_to_end(&mut buf).unwrap();
+            let len = buf.len();
+            buf.resize(buf.len() + 32, b' ');
+            (buf.into_boxed_slice(), len)
+        };
+
+        Self {
+            head: 0,
+            next: None,
+            _file: stdin,
+            len,
+            buf,
+            queue: FixedRingQueue::<(usize, usize), { 1 << 4 }>::new(),
+        }
+    }
+
+    fn next(&mut self) -> &[u8] {
+        if let Some((head, tail)) = self.queue.pop() {
+            return &self.buf[head..tail];
+        }
+
+        let (head, tail) = unsafe { self.fill() };
+        &self.buf[head..tail]
+    }
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn fill(&mut self) -> (usize, usize) {
+        let mut head = usize::MAX;
+        if let Some(next) = self.next {
+            head = next;
+            self.next = None;
+        }
+
+        while self.queue.is_empty() && self.head + 32 <= self.len {
+            let bytes = _mm256_loadu_si256(self.buf[self.head..].as_ptr() as _);
+            // The byte determined to be a control code is 0xFF.
+            let gt = _mm256_cmpgt_epi8(Self::SEPARATORS, bytes);
+
+            let mut b = _mm256_movemask_epi8(gt) as u32;
+            let mut now = self.head;
+            if b == 0 && head == usize::MAX {
+                head = self.head;
+            }
+            if head != usize::MAX && b == u32::MAX {
+                b = 0;
+            }
+            while b > 0 {
+                if head == usize::MAX {
+                    let tr = b.trailing_ones();
+                    b >>= tr;
+                    now += tr as usize;
+                    head = now;
+                } else {
+                    let tr = b.trailing_zeros();
+                    b >>= tr;
+                    now += tr as usize;
+                    self.queue.push((head, now));
+                    head = usize::MAX;
+                }
+            }
+
+            self.head += 32;
+        }
+
+        if self.queue.is_empty() {
+            if head == usize::MAX {
+                while self.buf[self.head].is_ascii_whitespace() {
+                    self.head += 1;
+                }
+                head = self.head;
+            }
+            while self.head < self.len && !self.buf[self.head].is_ascii_whitespace() {
+                self.head += 1;
+            }
+            self.queue.push((head, self.head));
+            head = usize::MAX;
+        }
+
+        if head < usize::MAX {
+            self.next = Some(head);
+        }
+
+        self.queue.pop_unchecked()
+    }
 }

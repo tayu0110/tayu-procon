@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+
 // The original source of the scan macro is statiolake/proconio-rs!
 // Please refer to there for the implementation!
 mod ext;
