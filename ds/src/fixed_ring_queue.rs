@@ -6,6 +6,7 @@ pub struct FixedRingQueue<T, const SIZE: usize = { 1 << 20 }> {
     buf: [MaybeUninit<T>; SIZE],
     head: usize,
     tail: usize,
+    empty: bool,
 }
 
 impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
@@ -19,12 +20,13 @@ impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
             buf: unsafe { MaybeUninit::uninit().assume_init() },
             head: 0,
             tail: 0,
+            empty: true,
         }
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.head == self.tail
+        self.empty
     }
 
     #[inline]
@@ -46,23 +48,42 @@ impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
     pub fn clear(&mut self) {
         self.head = 0;
         self.tail = 0;
+        self.empty = true;
     }
 
     pub fn push(&mut self, val: T) {
         debug_assert!(!self.is_full());
-        self.buf[self.tail & Self::MASK].write(val);
+        unsafe {
+            self.buf
+                .as_mut_ptr()
+                .add(self.tail & Self::MASK)
+                .as_mut()
+                .unwrap_unchecked()
+                .write(val)
+        };
         self.tail += 1;
+        self.empty = false;
     }
 
-    pub fn pop(&mut self) -> Option<T> {
-        (!self.is_empty()).then(|| {
-            let res = std::mem::replace(
-                &mut self.buf[(self.head) & Self::MASK],
+    /// # Safety
+    /// * This method does not verify that the queue is empty.
+    /// * You can only use this method if it was verified beforehand using `is_empty()` (which is the same as using `pop()`), or if the routine is certain that the queue will never be empty.
+    #[inline]
+    pub unsafe fn pop_unchecked(&mut self) -> T {
+        let res = unsafe {
+            std::ptr::replace(
+                self.buf.as_mut_ptr().add(self.head & Self::MASK),
                 MaybeUninit::uninit(),
-            );
-            self.head += 1;
-            unsafe { res.assume_init() }
-        })
+            )
+        };
+        self.head += 1;
+        self.empty = self.head == self.tail;
+        res.assume_init()
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        (!self.is_empty()).then(|| unsafe { self.pop_unchecked() })
     }
 }
 
