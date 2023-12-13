@@ -8,7 +8,9 @@ pub struct Edge<Cap: Numeric> {
 }
 
 impl<Cap: Numeric> Edge<Cap> {
-    fn new(to: usize, cap: Cap, rev: usize) -> Self { Self { to, cap, rev } }
+    fn new(to: usize, cap: Cap, rev: usize) -> Self {
+        Self { to, cap, rev }
+    }
 }
 
 pub struct Dinic<Cap: Numeric> {
@@ -127,7 +129,7 @@ impl<Cap: Numeric> Dinic<Cap> {
 
             for e in &self.graph[i] {
                 if !reachable[e.to] {
-                    res.push((i, e.clone()));
+                    res.push((i, *e));
                 }
             }
         }
@@ -136,7 +138,10 @@ impl<Cap: Numeric> Dinic<Cap> {
     }
 }
 
-pub fn maximum_matching_of_bipartite_graph(size: usize, edges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+pub fn maximum_matching_of_bipartite_graph(
+    size: usize,
+    edges: Vec<(usize, usize)>,
+) -> Vec<(usize, usize)> {
     let mut ff = Dinic::new(size + 2);
 
     let mut side = vec![false; size];
@@ -144,8 +149,8 @@ pub fn maximum_matching_of_bipartite_graph(size: usize, edges: Vec<(usize, usize
         ff.set_edge(l, r, 1);
         side[l] = true;
     }
-    for i in 0..size {
-        if side[i] {
+    for (i, &side) in side.iter().enumerate() {
+        if side {
             ff.set_edge(size, i, 1);
         } else {
             ff.set_edge(i, size + 1, 1);

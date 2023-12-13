@@ -10,5 +10,5 @@ license = "CC0-1.0"
 numeric = { path = "../numeric" }
 
 [dev-dependencies]
-proconio = { version = "0.3.8" }
 iolib = { path = "../iolib" }
+proconio = "0.4.5"
