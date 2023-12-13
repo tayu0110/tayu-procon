@@ -8,3 +8,6 @@ license = "CC0-1.0"
 
 [dependencies]
 numeric = { path = "../numeric" }
+
+[dev-dependencies]
+iolib = { path = "../iolib" }
