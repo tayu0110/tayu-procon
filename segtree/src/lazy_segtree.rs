@@ -1,3 +1,4 @@
+#![allow(clippy::ptr_arg)]
 use static_modint::{Modulo, StaticModint};
 use std::{
     fmt::Debug,

@@ -1,3 +1,4 @@
+#![allow(clippy::missing_safety_doc, clippy::inconsistent_digit_grouping)]
 use super::MontgomeryModint;
 use modint_common::*;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]

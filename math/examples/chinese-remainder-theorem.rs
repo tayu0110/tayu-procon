@@ -7,7 +7,7 @@ fn main() {
 
     if let Some((x4, y4)) = chinese_remainder_theorem(x1, y1, x2, y2) {
         match chinese_remainder_theorem(x3, y3, x4, y4) {
-            Some((res, lcm)) if res == 0 => println!("{}", lcm),
+            Some((0, lcm)) => println!("{}", lcm),
             Some((res, _)) => println!("{}", res),
             None => println!("-1"),
         }

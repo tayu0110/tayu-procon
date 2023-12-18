@@ -1,3 +1,5 @@
+#![allow(clippy::ptr_arg)]
+
 #[derive(Clone, Debug)]
 struct BitVector {
     size: u32,
@@ -21,18 +23,27 @@ impl BitVector {
     }
 
     #[inline]
-    fn access(&self, idx: usize) -> u32 { (self.block[idx >> Self::LOG] >> (idx & Self::MASK)) as u32 & 1 }
+    fn access(&self, idx: usize) -> u32 {
+        (self.block[idx >> Self::LOG] >> (idx & Self::MASK)) as u32 & 1
+    }
 
     #[inline]
-    fn set(&mut self, idx: usize) { self.block[idx >> Self::LOG] |= 1u64 << (idx & Self::MASK) }
+    fn set(&mut self, idx: usize) {
+        self.block[idx >> Self::LOG] |= 1u64 << (idx & Self::MASK)
+    }
 
     #[inline]
     /// return the number of '0' in [0, idx)
-    fn rank0(&self, idx: usize) -> u32 { idx as u32 - self.rank1(idx) }
+    fn rank0(&self, idx: usize) -> u32 {
+        idx as u32 - self.rank1(idx)
+    }
 
     #[inline]
     /// return the number of '1' in [0, idx)
-    fn rank1(&self, idx: usize) -> u32 { self.count[idx >> Self::LOG] + (self.block[idx >> Self::LOG] & ((1 << (idx & Self::MASK)) - 1)).count_ones() }
+    fn rank1(&self, idx: usize) -> u32 {
+        self.count[idx >> Self::LOG]
+            + (self.block[idx >> Self::LOG] & ((1 << (idx & Self::MASK)) - 1)).count_ones()
+    }
 
     #[inline]
     // return the index of n-th '0' (0-based)
@@ -93,13 +104,20 @@ impl WaveletMatrix {
         Self { log, bit_vector, first_index }
     }
 
-    fn build(size: usize, a: &Vec<i64>) -> (usize, Vec<BitVector>, std::collections::HashMap<i64, usize>) {
-        let log = (std::cmp::max(*a.iter().max().unwrap_or(&0), 1) as u64 + 1).next_power_of_two().trailing_zeros() as usize;
+    fn build(
+        size: usize,
+        a: &Vec<i64>,
+    ) -> (usize, Vec<BitVector>, std::collections::HashMap<i64, usize>) {
+        let log = (std::cmp::max(*a.iter().max().unwrap_or(&0), 1) as u64 + 1)
+            .next_power_of_two()
+            .trailing_zeros() as usize;
         let mut bit_vector = vec![BitVector::new(size); log];
         let mut now = a.clone();
         let mut next = vec![0; size];
         for (h, bv) in bit_vector.iter_mut().enumerate().rev() {
-            (0..size).filter(|&i| (now[i] >> h) & 1 != 0).for_each(|i| bv.set(i));
+            (0..size)
+                .filter(|&i| (now[i] >> h) & 1 != 0)
+                .for_each(|i| bv.set(i));
             bv.build();
             let mut idx = [0, bv.zeros as usize];
             for (i, j) in (0..size).map(|i| (i, bv.access(i) as usize)) {
@@ -122,7 +140,9 @@ impl WaveletMatrix {
     }
 
     #[inline]
-    fn succ0(&self, l: usize, r: usize, bv: &BitVector) -> (u32, u32) { (bv.rank0(l), bv.rank0(r)) }
+    fn succ0(&self, l: usize, r: usize, bv: &BitVector) -> (u32, u32) {
+        (bv.rank0(l), bv.rank0(r))
+    }
 
     #[inline]
     fn succ1(&self, l: usize, r: usize, bv: &BitVector) -> (u32, u32) {
@@ -186,7 +206,9 @@ impl WaveletMatrix {
     }
 
     #[inline]
-    pub fn kth_largest(&self, l: usize, r: usize, k: usize) -> i64 { self.kth_smallest(l, r, r - l - k - 1) }
+    pub fn kth_largest(&self, l: usize, r: usize, k: usize) -> i64 {
+        self.kth_smallest(l, r, r - l - k - 1)
+    }
 
     fn range_freq_inner(&self, mut l: usize, mut r: usize, upper: i64) -> usize {
         if upper >= 1 << self.log {
@@ -208,7 +230,9 @@ impl WaveletMatrix {
     }
 
     #[inline]
-    pub fn range_freq(&self, l: usize, r: usize, lower: i64, upper: i64) -> usize { self.range_freq_inner(l, r, upper) - self.range_freq_inner(l, r, lower) }
+    pub fn range_freq(&self, l: usize, r: usize, lower: i64, upper: i64) -> usize {
+        self.range_freq_inner(l, r, upper) - self.range_freq_inner(l, r, lower)
+    }
 
     #[inline]
     pub fn prev_value(&self, l: usize, r: usize, upper: i64) -> i64 {

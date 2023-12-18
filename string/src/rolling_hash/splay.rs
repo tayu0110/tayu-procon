@@ -88,7 +88,7 @@ struct NodeRef(NonNull<Node>);
 
 impl Clone for NodeRef {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
@@ -162,7 +162,9 @@ impl NodeRef {
     }
 
     fn rotate_left(mut self) -> Self {
-        let Some(mut right) = self.disconnect_right() else { return self };
+        let Some(mut right) = self.disconnect_right() else {
+            return self;
+        };
         right.sum = self.sum;
         right.subsum = self.subsum;
 
@@ -189,7 +191,9 @@ impl NodeRef {
     }
 
     fn rotate_right(mut self) -> Self {
-        let Some(mut left) = self.disconnect_left() else { return self };
+        let Some(mut left) = self.disconnect_left() else {
+            return self;
+        };
         left.sum = self.sum;
         left.subsum = self.subsum;
 
@@ -478,7 +482,9 @@ impl SplayTree {
 impl FromIterator<char> for SplayTree {
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
-        let Some(mut node) = iter.next().map(NodeRef::new) else { return SplayTree::new() };
+        let Some(mut node) = iter.next().map(NodeRef::new) else {
+            return SplayTree::new();
+        };
 
         for c in iter {
             let new = NodeRef::new(c);

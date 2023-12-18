@@ -1,3 +1,4 @@
+#![allow(clippy::non_canonical_partial_ord_impl)]
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign};
 
 pub const BIT_SIZE: usize = std::mem::size_of::<u128>() << 3;

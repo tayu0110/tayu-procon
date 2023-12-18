@@ -13,10 +13,14 @@ pub struct Polynomial<M: Modulo> {
 
 impl<M: Modulo> Polynomial<M> {
     #[inline]
-    pub fn empty() -> Self { Self { coef: vec![] } }
+    pub fn empty() -> Self {
+        Self { coef: vec![] }
+    }
 
     #[inline]
-    pub fn deg(&self) -> usize { self.coef.len() }
+    pub fn deg(&self) -> usize {
+        self.coef.len()
+    }
 
     #[inline]
     pub fn scale(mut self, s: u32) -> Self {
@@ -121,10 +125,14 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    fn reverse(&mut self) { self.coef.reverse() }
+    fn reverse(&mut self) {
+        self.coef.reverse()
+    }
 
     #[inline]
-    fn resize(&mut self, new_deg: usize) { self.coef.resize(new_deg, Modint::zero()); }
+    fn resize(&mut self, new_deg: usize) {
+        self.coef.resize(new_deg, Modint::zero());
+    }
 
     #[inline]
     pub fn shrink(&mut self) {
@@ -213,7 +221,7 @@ impl<M: Modulo> Polynomial<M> {
         let subproduct_tree = Self::transposed_uptree(m, subproduct_tree);
         subproduct_tree[m..m + len]
             .iter()
-            .map(|v| *v.coef.get(0).unwrap_or(&Modint::zero()))
+            .map(|v| *v.coef.first().unwrap_or(&Modint::zero()))
             .collect()
     }
 
@@ -254,7 +262,9 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree[m..m + len]
             .iter_mut()
             .enumerate()
-            .for_each(|(i, v)| *v = vec![fs[i] / *v.coef.get(0).unwrap_or(&Modint::zero())].into());
+            .for_each(|(i, v)| {
+                *v = vec![fs[i] / *v.coef.first().unwrap_or(&Modint::zero())].into()
+            });
         subproduct_tree[m + len..].fill(Self::empty());
         for i in (1..m).rev() {
             let (r, l) = (
@@ -343,7 +353,9 @@ impl<M: Modulo> Div<Self> for Polynomial<M> {
 
 impl<M: Modulo> Rem<Self> for Polynomial<M> {
     type Output = Self;
-    fn rem(self, rhs: Self) -> Self::Output { self.div_rem(rhs).1 }
+    fn rem(self, rhs: Self) -> Self::Output {
+        self.div_rem(rhs).1
+    }
 }
 
 impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
@@ -362,11 +374,15 @@ impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
 }
 
 impl<M: Modulo> From<Vec<Modint<M>>> for Polynomial<M> {
-    fn from(v: Vec<Modint<M>>) -> Self { Self { coef: v } }
+    fn from(v: Vec<Modint<M>>) -> Self {
+        Self { coef: v }
+    }
 }
 
 impl<M: Modulo> From<&[Modint<M>]> for Polynomial<M> {
-    fn from(value: &[Modint<M>]) -> Self { Self { coef: value.to_vec() } }
+    fn from(value: &[Modint<M>]) -> Self {
+        Self { coef: value.to_vec() }
+    }
 }
 
 impl<M: Modulo> From<Polynomial<M>> for Vec<u32> {
@@ -384,16 +400,22 @@ impl<M: Modulo> From<Polynomial<M>> for Vec<u32> {
 }
 
 impl<M: Modulo> From<Polynomial<M>> for Vec<Modint<M>> {
-    fn from(value: Polynomial<M>) -> Self { value.coef }
+    fn from(value: Polynomial<M>) -> Self {
+        value.coef
+    }
 }
 
 impl<M: Modulo> Index<usize> for Polynomial<M> {
     type Output = Modint<M>;
-    fn index(&self, index: usize) -> &Self::Output { &self.coef[index] }
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.coef[index]
+    }
 }
 
 impl<M: Modulo> IndexMut<usize> for Polynomial<M> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut self.coef[index] }
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.coef[index]
+    }
 }
 
 #[cfg(test)]

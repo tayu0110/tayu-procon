@@ -20,7 +20,7 @@ pub fn arbitrary_convolution<const M: u64>(a: Vec<u32>, b: Vec<u32>) -> Vec<u32>
     let p1i = Modint::<Mod897581057>::raw(P[0] as u32).inv().val() as u64;
     let p2i = Modint::<Mod998244353>::raw(P1P2 as u32).inv().val() as u64;
     c1.into_iter()
-        .zip(c2.into_iter().zip(c3.into_iter()))
+        .zip(c2.into_iter().zip(c3))
         .map(|(c1, (c2, c3))| {
             let t1 = (c2 as u64 + P[1] - c1 as u64) * p1i % P[1];
             let res2 = (c1 as u64 + t1 * P[0]) % P[2];
@@ -47,7 +47,7 @@ pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     let p1i = Modint::<Mod897581057>::raw(P[0] as u32).inv().val() as u64;
     let p2i = Modint::<Mod998244353>::raw(P1P2 as u32).inv().val() as u64;
     c1.into_iter()
-        .zip(c2.into_iter().zip(c3.into_iter()))
+        .zip(c2.into_iter().zip(c3))
         .map(|(c1, (c2, c3))| {
             let t1 = (c2 as u64 + P[1] - c1 as u64) * p1i % P[1];
             let res2 = (c1 as u64 + t1 * P[0]) % P[2];
@@ -121,7 +121,7 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
     const P0P1: u64 = P[0] * P[1] % P[2];
     const P0P1P2: u64 = P[0] * P[1] % P[3] * P[2] % P[3];
     const P0P1P2P3: u64 = P[0] * P[1] % P[4] * P[2] % P[4] * P[3] % P[4];
-    let pi = vec![
+    let pi = [
         Modint::<Mod754974721>::raw(P[0] as u32).inv().val() as u64,
         Modint::<Mod880803841>::from(P0P1).inv().val() as u64,
         Modint::<Mod897581057>::from(P0P1P2).inv().val() as u64,
@@ -130,8 +130,8 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
     let mut res = vec![];
     for i in 0..c1.len() {
         let t0 = c1[i] as u64;
-        let mut w = vec![t0; 5];
-        let mut prod = vec![P[0]; 5];
+        let mut w = [t0; 5];
+        let mut prod = [P[0]; 5];
         for (j, c) in vec![c2[i], c3[i], c4[i], c5[i]].into_iter().enumerate() {
             let t = ((c + P[j + 1] as u32 - w[j + 1] as u32) as u64 * pi[j]) % P[j + 1];
             for (k, &p) in P.iter().enumerate().skip(j + 2) {

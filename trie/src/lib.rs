@@ -16,10 +16,7 @@ impl Trie {
     /// Generate an empty Trie tree.
     pub fn new() -> Self {
         Self {
-            node: vec![Node {
-                terminal: 0,
-                next: vec![std::usize::MAX; 26],
-            }],
+            node: vec![Node { terminal: 0, next: vec![std::usize::MAX; 26] }],
         }
     }
 
@@ -33,10 +30,8 @@ impl Trie {
             if self.node[now].next[idx] == std::usize::MAX {
                 self.node[now].next[idx] = self.node.len();
                 now = self.node.len();
-                self.node.push(Node {
-                    terminal: 0,
-                    next: vec![std::usize::MAX; 26],
-                });
+                self.node
+                    .push(Node { terminal: 0, next: vec![std::usize::MAX; 26] });
             } else {
                 now = self.node[now].next[idx];
             }
@@ -80,8 +75,15 @@ impl Trie {
     }
 }
 
+impl Default for Trie {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unnecessary_to_owned)]
     use crate::Trie;
 
     #[test]

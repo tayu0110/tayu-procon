@@ -14,7 +14,7 @@ fn main() {
         p: [usize; n - 1],
         q: [(usize, usize); q]
     );
-    let p = vec![usize::MAX].into_iter().chain(p.into_iter()).collect();
+    let p = vec![usize::MAX].into_iter().chain(p).collect();
 
     let mut tree = UnDirectedTree::from_par_list(p).unwrap();
 

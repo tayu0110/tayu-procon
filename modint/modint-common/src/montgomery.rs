@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use super::modulo::Modulo;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use std::arch::x86_64::{

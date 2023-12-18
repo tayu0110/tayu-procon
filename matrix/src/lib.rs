@@ -34,7 +34,7 @@ impl<T: Clone> Matrix<T> {
 
     pub fn from_vec(v: Vec<Vec<T>>) -> Self {
         let row = v.len() as u32;
-        let col = v.get(0).map_or(0, |v| v.len()) as u32;
+        let col = v.first().map_or(0, |v| v.len()) as u32;
         Self { row, col, data: v.into_iter().flatten().collect() }
     }
 

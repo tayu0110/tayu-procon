@@ -41,7 +41,7 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
     /// assert_eq!(grid.shape(), (4, 0));
     /// ```
     pub fn shape(&self) -> (usize, usize) {
-        (self.inner.len(), self.inner.get(0).map_or(0, |v| v.len()))
+        (self.inner.len(), self.inner.first().map_or(0, |v| v.len()))
     }
 
     /// When self is as the following,
@@ -159,7 +159,7 @@ impl<const FILL: char, const EMPTY: char> BinaryGrid<FILL, EMPTY> {
         c: usize,
         d: &'a [(usize, usize)],
     ) -> impl Iterator<Item = (usize, usize)> + 'a {
-        let (h, w) = (self.inner.len(), self.inner.get(0).map_or(0, |v| v.len()));
+        let (h, w) = (self.inner.len(), self.inner.first().map_or(0, |v| v.len()));
         d.iter().cloned().filter_map(move |(dr, dc)| {
             let nr = r.wrapping_add(dr);
             let nc = c.wrapping_add(dc);

@@ -6,7 +6,7 @@ const MOD: u64 = 258280327;
 fn main() {
     scan!(n: usize, f: [u64; n + 1], m: usize, g: [u64; m + 1]);
     let (mut f, mut g) = (f, g);
-    for v in vec![&mut f, &mut g] {
+    for v in [&mut f, &mut g] {
         while let Some(p) = v.pop() {
             if p != 0 {
                 v.push(p);

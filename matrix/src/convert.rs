@@ -7,7 +7,7 @@ use static_modint::{Modulo, StaticModint};
 impl<M: Modulo> From<Vec<Vec<u32>>> for Matrix<StaticModint<M>> {
     fn from(value: Vec<Vec<u32>>) -> Self {
         let row = value.len() as u32;
-        let col = value.get(0).map_or(0, |v| v.len()) as u32;
+        let col = value.first().map_or(0, |v| v.len()) as u32;
         let data = value
             .into_iter()
             .flatten()
@@ -20,7 +20,7 @@ impl<M: Modulo> From<Vec<Vec<u32>>> for Matrix<StaticModint<M>> {
 impl<M: Modulo> From<Vec<Vec<u32>>> for Matrix<MontgomeryModint<M>> {
     fn from(value: Vec<Vec<u32>>) -> Self {
         let row = value.len() as u32;
-        let col = value.get(0).map_or(0, |v| v.len()) as u32;
+        let col = value.first().map_or(0, |v| v.len()) as u32;
         let mut data = value.into_iter().flatten().collect::<Vec<_>>();
         data.chunks_exact_mut(8).for_each(|v| unsafe {
             let w = MontgomeryModintx8::<M>::convert_from_u32slice(v);

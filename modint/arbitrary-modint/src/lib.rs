@@ -79,8 +79,8 @@ impl ArbitraryModint {
 
     #[inline]
     pub fn pow(&self, mut exp: u64) -> Self {
-        let (mut val, mut res) = (self.val as u32, 1);
-        let barret = BARRETT.with(|v| v.borrow().clone());
+        let (mut val, mut res) = (self.val, 1);
+        let barret = BARRETT.with(|v| *v.borrow());
         while exp > 0 {
             if exp & 1 == 1 {
                 res = barret.reduce(res as u64 * val as u64);

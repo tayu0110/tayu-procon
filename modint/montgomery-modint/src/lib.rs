@@ -163,9 +163,6 @@ impl<M: Modulo> PartialEq for MontgomeryModint<M> {
     fn eq(&self, other: &Self) -> bool {
         mrestore::<M>(self.val) == mrestore::<M>(other.val)
     }
-    fn ne(&self, other: &Self) -> bool {
-        !(self == other)
-    }
 }
 
 impl<M: Modulo> AddAssign for MontgomeryModint<M> {
@@ -231,7 +228,7 @@ impl<M: Modulo> From<i64> for MontgomeryModint<M> {
 impl<M: Modulo> FromStr for MontgomeryModint<M> {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let neg = s.starts_with("-");
+        let neg = s.starts_with('-');
 
         let val = if neg {
             s[1..].bytes().fold(0u64, |s, v| s * 10 + (v - b'0') as u64)

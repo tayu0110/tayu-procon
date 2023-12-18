@@ -24,7 +24,9 @@ pub fn gcd<T: Integer>(mut x: T, mut y: T) -> T {
 
 /// Return lcm(x, y).
 #[inline]
-pub fn lcm<T: Integer>(x: T, y: T) -> T { x / gcd(x, y) * y }
+pub fn lcm<T: Integer>(x: T, y: T) -> T {
+    x / gcd(x, y) * y
+}
 
 /// Solve the equation "ax + by = gcd(a, b)"
 /// Return (gcd(a, b), x, y)
@@ -309,7 +311,7 @@ pub fn miller_rabin_test(p: u64) -> bool {
     let mont_one = mont_zero.one();
     let mont_neg_one = mont_zero - mont_one;
 
-    vec![2, 325, 9375, 28178, 450775, 9780504, 1795265022]
+    [2, 325, 9375, 28178, 450775, 9780504, 1795265022]
         .iter()
         .map(|&a| a % p)
         .filter(|&a| a != 0)
@@ -564,12 +566,16 @@ impl<const MAX: usize> Sieve<MAX> {
         Self { count, primes }
     }
 
-    pub const fn count(&self) -> usize { self.count }
+    pub const fn count(&self) -> usize {
+        self.count
+    }
 }
 
 impl std::ops::Index<usize> for Sieve {
     type Output = usize;
-    fn index(&self, index: usize) -> &Self::Output { &self.primes[index] }
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.primes[index]
+    }
 }
 
 #[cfg(test)]

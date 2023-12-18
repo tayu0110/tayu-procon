@@ -27,7 +27,7 @@ pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, Inva
 // https://hitonanode.github.io/cplib-cpp/graph/manhattan_mst.hpp
 /// xy :    [(x0, y0), (x1, y1), (x2, y2), ...]
 /// return [(weight0, from0, to0), (weight1, from1, to1), (weight2, from2, to2), ...]
-pub fn manhattan_minimum_spanning_tree(xy: &Vec<(i64, i64)>) -> Vec<(i64, usize, usize)> {
+pub fn manhattan_minimum_spanning_tree(xy: &[(i64, i64)]) -> Vec<(i64, usize, usize)> {
     let (mut xs, mut ys) = xy.iter().cloned().unzip::<i64, i64, Vec<i64>, Vec<i64>>();
     let n = xy.len();
     let mut idx = (0..n).collect::<Vec<_>>();
