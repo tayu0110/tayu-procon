@@ -1,3 +1,6 @@
+mod ford_fulkerson;
+
+pub use ford_fulkerson::*;
 use numeric::Numeric;
 
 #[derive(Clone, Copy, Debug)]

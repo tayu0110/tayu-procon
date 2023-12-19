@@ -8,6 +8,7 @@ license = "CC0-1.0"
 
 [dependencies]
 numeric = { path = "../numeric" }
+zero-one = { version = "0.1.0", path = "../numeric/zero-one" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }
