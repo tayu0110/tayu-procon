@@ -1,4 +1,8 @@
-#![allow(clippy::collapsible_else_if, clippy::comparison_chain)]
+#![allow(
+    clippy::collapsible_else_if,
+    clippy::comparison_chain,
+    clippy::non_canonical_clone_impl
+)]
 
 use super::MapMonoid;
 use std::fmt::Debug;
@@ -178,7 +182,9 @@ impl<M: MapMonoid> NodeRef<M> {
         //       / \
         //      d   e
         // If not, it is not necessary to do anything.
-        let Some(mut right) = self.disconnect_right() else { return self };
+        let Some(mut right) = self.disconnect_right() else {
+            return self;
+        };
 
         // If right has left-child, disconnect it
         //      |
@@ -259,7 +265,9 @@ impl<M: MapMonoid> NodeRef<M> {
         //   / \
         //  d   e
         // If not, it is not necessary to do anything.
-        let Some(mut left) = self.disconnect_left() else { return self };
+        let Some(mut left) = self.disconnect_left() else {
+            return self;
+        };
 
         // If left has right-child, disconnect it
         //      |

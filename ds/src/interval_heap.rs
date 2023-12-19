@@ -157,10 +157,10 @@ impl<T: Ord> IntervalHeap<T> {
     }
 
     pub fn max(&self) -> Option<&T> {
-        self.heap.get(1).or(self.heap.get(0))
+        self.heap.get(1).or(self.heap.first())
     }
 
     pub fn min(&self) -> Option<&T> {
-        self.heap.get(0)
+        self.heap.first()
     }
 }

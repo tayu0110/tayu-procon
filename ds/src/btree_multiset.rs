@@ -73,7 +73,7 @@ impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
     }
     #[inline]
     pub fn last(&self) -> Option<&K> {
-        self.inner.iter().rev().next().map(|(k, _)| k)
+        self.inner.iter().next_back().map(|(k, _)| k)
     }
     #[inline]
     pub fn iter(&'a self) -> Iter<'a, K, btree_map::Iter<'a, K, u32>> {

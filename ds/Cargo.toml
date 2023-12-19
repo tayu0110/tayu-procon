@@ -15,7 +15,7 @@ rand = "0.8.5"
 static-modint = { path = "../modint/static-modint" }
 
 [features]
-default = ["full"]
+default = []
 full = [
   "fixed-ring-queue",
   "btree-multiset",
@@ -26,3 +26,35 @@ fixed-ring-queue = []
 btree-multiset = []
 double-ended-priority-queue = []
 link-cut-tree = []
+
+[[test]]
+name = "ring_queue"
+required-features = ["full"]
+
+[[test]]
+name = "btree_multiset"
+required-features = ["full"]
+
+[[example]]
+name = "btree-multiset"
+required-features = ["full"]
+
+[[example]]
+name = "double-ended-priority-queue"
+required-features = ["full"]
+
+[[example]]
+name = "dynamic-tree-vertex-add-path-sum"
+required-features = ["full"]
+
+[[example]]
+name = "dynamic-tree-vertex-set-path-composite"
+required-features = ["full"]
+
+[[example]]
+name = "link-cut-tree-njpc2017h"
+required-features = ["full"]
+
+[[example]]
+name = "lowest-common-ancestor-lct"
+required-features = ["full"]
