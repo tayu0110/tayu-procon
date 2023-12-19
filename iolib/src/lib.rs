@@ -2,6 +2,7 @@
 
 // The original source of the scan macro is statiolake/proconio-rs!
 // Please refer to there for the implementation!
+#[cfg(target_family = "unix")]
 mod ext;
 mod input;
 mod output;

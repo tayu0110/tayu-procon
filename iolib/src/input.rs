@@ -1,3 +1,4 @@
+#[cfg(target_family = "unix")]
 use super::ext::{mmap, MAP_PRIVATE, PROT_READ};
 use super::parse_number::{parse16c, parse4c, parse4lec, parse8c, parse8lec};
 use ds::FixedRingQueue;
@@ -6,6 +7,7 @@ use std::arch::x86_64::{__m256i, _mm256_cmpgt_epi8, _mm256_loadu_si256, _mm256_m
 use std::fs::File;
 use std::io::Read;
 use std::mem::transmute;
+#[cfg(target_family = "unix")]
 use std::os::unix::io::FromRawFd;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 
@@ -145,7 +147,7 @@ pub fn get_stdin_source() -> &'static mut FastInput {
 struct Source {
     head: usize,
     next: Option<usize>,
-    _file: File,
+    _file: Option<File>,
     len: usize,
     buf: Box<[u8]>,
     queue: FixedRingQueue<(usize, usize), { 1 << 4 }>,
@@ -155,6 +157,7 @@ impl Source {
     // Since Ascii Code use up to 0x20 as control codes, characters smaller than 0x21 are identified as control codes.
     const SEPARATORS: __m256i = unsafe { transmute([0x21i8; 32]) };
 
+    #[cfg(target_family = "unix")]
     fn new() -> Self {
         let mut stdin = unsafe { File::from_raw_fd(0) };
         let meta = stdin.metadata().unwrap();
@@ -174,9 +177,25 @@ impl Source {
         Self {
             head: 0,
             next: None,
-            _file: stdin,
+            _file: Some(stdin),
             len,
             buf,
+            queue: FixedRingQueue::<(usize, usize), { 1 << 4 }>::new(),
+        }
+    }
+
+    #[cfg(not(target_family = "unix"))]
+    fn new() -> Self {
+        let mut buf = Vec::with_capacity(1 << 18);
+        std::io::stdin().lock().read_to_end(&mut buf).ok();
+        let len = buf.len();
+        buf.resize(buf.len() + 32, b' ');
+        Self {
+            head: 0,
+            next: None,
+            _file: None,
+            len,
+            buf: buf.into_boxed_slice(),
             queue: FixedRingQueue::<(usize, usize), { 1 << 4 }>::new(),
         }
     }
