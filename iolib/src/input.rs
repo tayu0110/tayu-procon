@@ -9,6 +9,7 @@ use std::io::Read;
 use std::mem::transmute;
 #[cfg(target_family = "unix")]
 use std::os::unix::io::FromRawFd;
+#[cfg(target_family = "unix")]
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 
 fn parse_u64(buf: &[u8]) -> u64 {
