@@ -228,21 +228,32 @@ impl Source {
             if b == 0 && head == usize::MAX {
                 head = self.head;
             }
-            if head != usize::MAX && b == u32::MAX {
-                b = 0;
-            }
-            while b > 0 {
-                if head == usize::MAX {
-                    let tr = b.trailing_ones();
-                    b >>= tr;
-                    now += tr as usize;
-                    head = now;
-                } else {
-                    let tr = b.trailing_zeros();
-                    b >>= tr;
-                    now += tr as usize;
-                    self.queue.push((head, now));
-                    head = usize::MAX;
+            if !(head != usize::MAX && b == u32::MAX) {
+                // If the most significant bit of the current 32 bits and the first bit of the next 32 bits are both 1's, if the trailing 1 bit is not ignored, the first bit of the next 32 bits is set to HEAD, and the wrong range is pushed to queue.
+                // Therefore, all consecutive 1's from the most significant should be ignored.
+                //
+                //     when this bit is found and head is usize::MAX,
+                //      now
+                //       v
+                //  |....1| |1....|
+                //         add trailing_ones(b) to now, so now is the first bit of the next 32 bits and head is set now
+                //          now
+                //           v
+                //  |....1| |1....|
+                let lowlimit = ((1u64 << b.reverse_bits().trailing_ones()) - 1) as u32;
+                while b > lowlimit {
+                    if head == usize::MAX {
+                        let tr = b.trailing_ones();
+                        b >>= tr;
+                        now += tr as usize;
+                        head = now;
+                    } else {
+                        let tr = b.trailing_zeros();
+                        b >>= tr;
+                        now += tr as usize;
+                        self.queue.push((head, now));
+                        head = usize::MAX;
+                    }
                 }
             }
 
