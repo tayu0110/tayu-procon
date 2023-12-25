@@ -569,6 +569,9 @@ macro_rules! impl_rank {
                     }
 
                     next_row += 1;
+                    if next_row == row {
+                        break;
+                    }
                 }
 
                 next_row
