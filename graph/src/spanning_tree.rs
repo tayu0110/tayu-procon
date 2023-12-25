@@ -1,27 +1,39 @@
 use super::{Graph, InvalidTree, Tree, UnDirected};
-use std::cmp::Reverse;
-use std::collections::{BTreeMap, BinaryHeap};
+use std::collections::BTreeMap;
 use unionfind::UnionFind;
 
 /// If the tree does not result in a normal tree (e.g., missing edges), return InvalidTree Error  
 pub fn spanning_tree(graph: &Graph<UnDirected>) -> Result<Tree<UnDirected>, InvalidTree> {
-    let mut nt = BinaryHeap::new();
-    for from in 0..graph.size() {
-        for (to, weight) in graph.edges(from) {
-            nt.push(Reverse((*weight, from, *to)));
-        }
-    }
+    Tree::from_weighted_edges(
+        minimum_spanning_tree_from_edge(
+            graph.size(),
+            (0..graph.size()).flat_map(|i| {
+                graph
+                    .edges(i)
+                    .filter_map(move |(&to, &w)| (i < to).then_some((i, to, w)))
+            }),
+        )
+        .collect::<Vec<_>>(),
+    )
+}
 
-    let mut uf = UnionFind::new(graph.size());
-    let mut edges = vec![];
-    while let Some(Reverse((w, f, t))) = nt.pop() {
-        if !uf.is_same(f, t) {
-            edges.push((f, t, w));
-            uf.merge(f, t);
-        }
-    }
+/// Receive `size` which is the size of this graph and `edges` which is the undirected edges of this graph represented (u, v, weight).
+///
+/// The elements of `edges` need not be unique. <br/>
+/// In other words, the graph as this function's argument need not be simple graph.
+pub fn minimum_spanning_tree_from_edge(
+    size: usize,
+    edges: impl IntoIterator<Item = (usize, usize, i64)>,
+) -> impl Iterator<Item = (usize, usize, i64)> {
+    let mut edges = edges
+        .into_iter()
+        .map(|(s, d, w)| (s.min(d), s.max(d), w))
+        .collect::<Vec<_>>();
+    edges.sort_unstable_by_key(|&(s, d, w)| (w, s, d));
+    edges.dedup();
 
-    Tree::<UnDirected>::from_weighted_edges(edges)
+    let mut uf = UnionFind::new(size);
+    edges.into_iter().filter(move |&(s, d, _)| uf.merge(s, d))
 }
 
 // https://hitonanode.github.io/cplib-cpp/graph/manhattan_mst.hpp

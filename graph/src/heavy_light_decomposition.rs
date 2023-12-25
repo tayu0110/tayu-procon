@@ -1,4 +1,3 @@
-// use crate::UnDirectedTree;
 use ds::FixedRingQueue;
 use std::{ops::RangeInclusive, sync::Mutex};
 
@@ -21,12 +20,16 @@ impl PathVertex {
     }
 
     pub fn is_range(&self) -> bool {
-        let Self::Range { .. } = self else { return false };
+        let Self::Range { .. } = self else {
+            return false;
+        };
         true
     }
 
     pub fn try_into_range_inclusive(self) -> Result<RangeInclusive<usize>, &'static str> {
-        let Self::Range { from, to } = self else { return Err("Failed to convert to RangeInclusive. This is not PathVertex::Range.")};
+        let Self::Range { from, to } = self else {
+            return Err("Failed to convert to RangeInclusive. This is not PathVertex::Range.");
+        };
         Ok(from.min(to)..=from.max(to))
     }
 }
