@@ -1,6 +1,8 @@
 mod ford_fulkerson;
+mod hopcroft_karp;
 
 pub use ford_fulkerson::*;
+pub use hopcroft_karp::*;
 use numeric::Numeric;
 
 #[derive(Clone, Copy, Debug)]
@@ -139,40 +141,4 @@ impl<Cap: Numeric> Dinic<Cap> {
 
         res
     }
-}
-
-pub fn maximum_matching_of_bipartite_graph(
-    size: usize,
-    edges: Vec<(usize, usize)>,
-) -> Vec<(usize, usize)> {
-    let mut ff = Dinic::new(size + 2);
-
-    let mut side = vec![false; size];
-    for (l, r) in edges {
-        ff.set_edge(l, r, 1);
-        side[l] = true;
-    }
-    for (i, &side) in side.iter().enumerate() {
-        if side {
-            ff.set_edge(size, i, 1);
-        } else {
-            ff.set_edge(i, size + 1, 1);
-        }
-    }
-
-    let _ = ff.flow(size, size + 1);
-
-    let graph = ff.graph;
-    let mut res = vec![];
-    for from in 0..size {
-        if side[from] {
-            for e in &graph[from] {
-                if e.to < size && e.cap == 0 {
-                    res.push((from, e.to));
-                }
-            }
-        }
-    }
-
-    res
 }

@@ -1,19 +1,13 @@
 // https://judge.yosupo.jp/problem/bipartitematching
-use flow::maximum_matching_of_bipartite_graph;
-use iolib::scan;
+use flow::hopcroft_karp;
+use iolib::*;
 
 fn main() {
-    use std::io::Write;
-    let out = std::io::stdout();
-    let mut out = std::io::BufWriter::new(out.lock());
+    scan!(_: usize, _: usize, m: usize, e: [(usize, usize); m]);
 
-    scan!(l: usize, r: usize, m: usize, p: [(usize, usize); m]);
-    let p = p.into_iter().map(|(a, b)| (a, b + l)).collect::<Vec<_>>();
-
-    let res = maximum_matching_of_bipartite_graph(l + r, p);
-
-    writeln!(out, "{}", res.len()).unwrap();
+    let res = hopcroft_karp(&e);
+    putln!(res.len());
     for (c, d) in res {
-        writeln!(out, "{} {}", c, d - l).unwrap();
+        putitln!([c, d].into_iter(), sep = ' ');
     }
 }
