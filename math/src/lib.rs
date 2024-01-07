@@ -578,11 +578,30 @@ impl std::ops::Index<usize> for Sieve {
     }
 }
 
+pub fn primitive_root(p: u64) -> u64 {
+    if p == 2 {
+        return 1;
+    }
+
+    assert!(miller_rabin_test(p));
+
+    let mut factor = factorize(p - 1);
+    factor.sort_unstable();
+    factor.dedup();
+
+    for g in 1.. {
+        let mg = ArbitraryMontgomeryModint::new(g, p);
+        if factor.iter().all(|&f| mg.pow((p - 1) / f) != mg.one()) {
+            return g % p;
+        }
+    }
+
+    unreachable!()
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::divisors_enumeration;
-
-    use super::{chinese_remainder_theorem, ext_gcd, factorize, gcd, lcm, miller_rabin_test};
+    use super::*;
 
     #[test]
     fn numeric_test() {
@@ -654,5 +673,10 @@ mod tests {
         let mut f = divisors_enumeration(999381247093216751);
         f.sort();
         assert_eq!(f, vec![1, 999665081, 999716071, 999381247093216751]);
+    }
+
+    #[test]
+    fn primitive_root_test() {
+        assert_eq!(primitive_root(998244353), 3);
     }
 }
