@@ -25,7 +25,7 @@ const fn montgomery_multiplication(lhs: u64, rhs: u64, modulo: u64, modulo_inv: 
     t.wrapping_add(modulo * f as u64)
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArbitraryMontgomeryModint {
     pub val: u64,
     modulo: u64,

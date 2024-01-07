@@ -15,7 +15,7 @@ use zero_one::{One, Zero};
 /// MontgomeryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Copy, Eq)]
+#[derive(Clone, Copy, Eq, Hash)]
 pub struct MontgomeryModint<M: Modulo> {
     pub val: u32,
     _phantom: PhantomData<fn() -> M>,

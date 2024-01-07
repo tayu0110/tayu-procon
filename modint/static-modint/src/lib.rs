@@ -3,7 +3,7 @@ use std::marker::{self, PhantomData};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use zero_one::{One, Zero};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct StaticModint<M: Modulo> {
     val: u32,
     _p: PhantomData<fn() -> M>,
