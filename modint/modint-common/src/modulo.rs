@@ -1,20 +1,20 @@
-use std::{arch::x86_64::__m256i, fmt::Debug, marker, mem::transmute};
-
-macro_rules! newtons_method {
-    ( $mod:expr ) => {{
-            let inv = $mod.wrapping_mul(2u32.wrapping_sub($mod.wrapping_mul($mod)));
-            let inv = inv.wrapping_mul(2u32.wrapping_sub($mod.wrapping_mul(inv)));
-            let inv = inv.wrapping_mul(2u32.wrapping_sub($mod.wrapping_mul(inv)));
-            let inv = inv.wrapping_mul(2u32.wrapping_sub($mod.wrapping_mul(inv)));
-            inv.wrapping_mul(2u32.wrapping_sub($mod.wrapping_mul(inv)))
-    }};
-}
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+use std::arch::x86_64::__m256i;
+use std::fmt::Debug;
+use std::marker;
+use std::mem::transmute;
 
 pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     const N: u32;
     const N2: u32 = Self::N.wrapping_mul(2);
     // N * N_INV = 1 mod R
-    const N_INV: u32 = newtons_method!(Self::N);
+    const N_INV: u32 = {
+        let mut inv = Self::N.wrapping_mul(2u32.wrapping_sub(Self::N.wrapping_mul(Self::N)));
+        while Self::N.wrapping_mul(inv) != 1 {
+            inv = inv.wrapping_mul(2u32.wrapping_sub(Self::N.wrapping_mul(inv)));
+        }
+        inv
+    };
     // NN' = -1 mod R
     const N_PRIME: u32 = Self::N_INV.wrapping_neg();
     // R = 2^32 mod N
@@ -22,11 +22,17 @@ pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     // R2 = 2^64 mod N
     const R2: u32 = ((Self::N as u64).wrapping_neg() % Self::N as u64) as u32;
     const PRIM_ROOT: u32;
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const NX8: __m256i = unsafe { transmute([Self::N; 8]) };
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const N2X8: __m256i = unsafe { transmute([Self::N2; 8]) };
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const N_INVX8: __m256i = unsafe { transmute([Self::N_INV; 8]) };
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const N_PRIMEX8: __m256i = unsafe { transmute([Self::N_PRIME; 8]) };
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const RX8: __m256i = unsafe { transmute([Self::R; 8]) };
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const R2X8: __m256i = unsafe { transmute([Self::R2; 8]) };
 }
 

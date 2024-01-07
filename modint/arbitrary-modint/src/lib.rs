@@ -1,7 +1,7 @@
 mod barrett;
 mod static_modint;
 
-use barrett::*;
+pub use barrett::*;
 pub use static_modint::*;
 use std::{
     cell::RefCell,

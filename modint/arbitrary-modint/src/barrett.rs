@@ -1,6 +1,6 @@
 // https://natsugiri.hatenablog.com/entry/2020/04/06/030559
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BarrettReduction {
+pub struct BarrettReduction {
     modulo: u32,
     m: u128,
 }
