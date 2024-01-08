@@ -5,6 +5,7 @@ use iolib::{FastInput, Readable};
 pub use modint_common::*;
 pub use simd::*;
 use std::convert::From;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -15,7 +16,7 @@ use zero_one::{One, Zero};
 /// MontgomeryModint
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Copy, Eq, Hash)]
+#[derive(Clone, Copy, Eq)]
 pub struct MontgomeryModint<M: Modulo> {
     pub val: u32,
     _phantom: PhantomData<fn() -> M>,
@@ -243,6 +244,12 @@ impl<M: Modulo> FromStr for MontgomeryModint<M> {
         } else {
             Ok(Self::from(val))
         }
+    }
+}
+
+impl<M: Modulo> Hash for MontgomeryModint<M> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        mrestore::<M>(self.val).hash(state)
     }
 }
 
