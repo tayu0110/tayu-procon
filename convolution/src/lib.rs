@@ -1,5 +1,3 @@
-#![allow(clippy::ptr_arg)]
-
 #[cfg(feature = "arbitrary-modulo-convolution")]
 mod arbitrary_modulo_convolution;
 #[cfg(feature = "large-convolution")]
