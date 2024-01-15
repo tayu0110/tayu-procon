@@ -17,7 +17,7 @@ type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
 
 #[inline]
-pub fn hadamard<M: Modulo>(a: &mut Vec<Modint<M>>, b: &[Modint<M>]) {
+pub fn hadamard<M: Modulo>(a: &mut [Modint<M>], b: &[Modint<M>]) {
     if a.len() < 8 {
         a.iter_mut().zip(b).for_each(|(a, &b)| *a *= b);
     } else {
@@ -32,7 +32,7 @@ pub fn hadamard<M: Modulo>(a: &mut Vec<Modint<M>>, b: &[Modint<M>]) {
 }
 
 #[inline]
-pub fn hadamard_u32<M: Modulo>(a: &mut Vec<u32>, b: &[u32]) {
+pub fn hadamard_u32<M: Modulo>(a: &mut [u32], b: &[u32]) {
     let a = unsafe { transmute(a) };
     let b = unsafe { transmute(b) };
     hadamard::<M>(a, b);
