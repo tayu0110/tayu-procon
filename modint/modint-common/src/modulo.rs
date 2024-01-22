@@ -1,4 +1,6 @@
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[cfg(target_arch = "x86")]
+use std::arch::x86::__m256i;
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::__m256i;
 use std::fmt::Debug;
 use std::marker;
@@ -15,8 +17,6 @@ pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
         }
         inv
     };
-    // NN' = -1 mod R
-    const N_PRIME: u32 = Self::N_INV.wrapping_neg();
     // R = 2^32 mod N
     const R: u32 = ((1u64 << 32) % Self::N as u64) as u32;
     // R2 = 2^64 mod N
@@ -28,8 +28,6 @@ pub trait Modulo: Clone + marker::Copy + PartialEq + Eq + Debug {
     const N2X8: __m256i = unsafe { transmute([Self::N2; 8]) };
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const N_INVX8: __m256i = unsafe { transmute([Self::N_INV; 8]) };
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-    const N_PRIMEX8: __m256i = unsafe { transmute([Self::N_PRIME; 8]) };
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     const RX8: __m256i = unsafe { transmute([Self::R; 8]) };
     #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]

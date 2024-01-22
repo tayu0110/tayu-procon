@@ -1,13 +1,12 @@
-#![allow(clippy::missing_safety_doc)]
-
 use super::modulo::Modulo;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use std::arch::x86_64::{
-    __m256i, _mm256_add_epi32 as addi32, _mm256_add_epi64 as addi64, _mm256_and_si256 as and256,
-    _mm256_blend_epi32 as blendi32, _mm256_cmpeq_epi32 as eqi32, _mm256_cmpgt_epi32,
-    _mm256_max_epu32 as maxu32, _mm256_min_epu32, _mm256_mul_epu32 as mulu32,
-    _mm256_mullo_epi32 as mulloi32, _mm256_or_si256, _mm256_setzero_si256 as zero256,
-    _mm256_shuffle_epi32 as shufi32, _mm256_sub_epi32 as subi32, _mm256_xor_si256 as xor256,
+    __m256i, _mm256_add_epi32 as addi32, _mm256_and_si256 as and256,
+    _mm256_blend_epi32 as blendi32, _mm256_castps_si256, _mm256_castsi256_ps,
+    _mm256_cmpeq_epi32 as eqi32, _mm256_cmpgt_epi32, _mm256_max_epu32 as maxu32, _mm256_min_epu32,
+    _mm256_mul_epu32 as mulu32, _mm256_mullo_epi32 as mulloi32, _mm256_or_si256,
+    _mm256_setzero_si256 as zero256, _mm256_shuffle_epi32 as shufi32, _mm256_shuffle_ps,
+    _mm256_sub_epi32 as subi32, _mm256_xor_si256 as xor256,
 };
 
 // Montgomery Operators
@@ -24,32 +23,29 @@ pub const fn mreduce<M: Modulo>(t: u32) -> u32 {
             .overflowing_neg();
         t.wrapping_add(M::N & (f as u32).wrapping_neg())
     } else {
-        ((t as u64 + t.wrapping_mul(M::N_PRIME) as u64 * M::N as u64) >> 32) as u32
+        M::N.wrapping_sub(
+            ((t.wrapping_mul(M::N_INV) as u64).wrapping_mul(M::N as u64) >> 32) as u32,
+        )
     }
 }
 
+/// # Safety
+/// - The argument must be a register containing eight u32s of Montgomery representation.
 #[inline]
-#[target_feature(enable = "avx")]
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx", enable = "avx2")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 pub unsafe fn mreducex8<M: Modulo>(t: __m256i) -> __m256i {
+    let t_ninv = mulloi32(t, M::N_INVX8);
+    let t_ninv_n_lo = mulu32(t_ninv, M::NX8);
+    let t_ninv_n_hi = mulu32(shufi32(t_ninv, 0b10_11_00_01), M::NX8);
+    let mr = blendi32(shufi32(t_ninv_n_lo, 0b10_11_00_01), t_ninv_n_hi, 0b10101010);
     if M::N > THRESHOLD {
-        let t_ninv = mulloi32(t, M::N_INVX8);
-        let t_ninv_n_lo = mulu32(t_ninv, M::NX8);
-        let t_ninv_n_hi = mulu32(shufi32(t_ninv, 0b10_11_00_01), M::NX8);
-        let mr = blendi32(shufi32(t_ninv_n_lo, 0b10_11_00_01), t_ninv_n_hi, 0b10101010);
         let zero = zero256();
         let mask = eqi32(mr, zero);
         let mask = and256(M::NX8, xor256(mask, eqi32(mask, mask)));
         subi32(mask, mr)
     } else {
-        let t_np = mulloi32(t, M::N_PRIMEX8);
-        let res_lo = addi64(mulu32(t_np, M::NX8), blendi32(t, zero256(), 0b10101010));
-        let res_hi = addi64(
-            mulu32(shufi32(t_np, 0b10_11_00_01), M::NX8),
-            blendi32(shufi32(t, 0b10_11_00_01), zero256(), 0b10101010),
-        );
-        blendi32(shufi32(res_lo, 0b10_11_00_01), res_hi, 0b10101010)
+        subi32(M::NX8, mr)
     }
 }
 
@@ -62,42 +58,51 @@ pub const fn mmul<M: Modulo>(a: u32, b: u32) -> u32 {
         );
         t.wrapping_add(M::N & (f as u32).wrapping_neg())
     } else {
-        ((t + (t as u32).wrapping_mul(M::N_PRIME) as u64 * M::N as u64) >> 32) as u32
+        ((t >> 32) as u32)
+            .wrapping_sub(
+                (((t as u32).wrapping_mul(M::N_INV) as u64).wrapping_mul(M::N as u64) >> 32) as u32,
+            )
+            .wrapping_add(M::N)
     }
 }
 
+/// # Safety
+/// - The argument must be a register containing eight u32s of Montgomery representation.
 #[inline]
-#[target_feature(enable = "avx")]
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx", enable = "avx2")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 pub unsafe fn mmulx8<M: Modulo>(a: __m256i, b: __m256i) -> __m256i {
+    let t1 = mulu32(a, b);
+    let t2 = mulu32(shufi32(a, 0b11_11_01_01), shufi32(b, 0b11_11_01_01));
+    let t_modinv = mulloi32(
+        _mm256_castps_si256(_mm256_shuffle_ps(
+            _mm256_castsi256_ps(t1),
+            _mm256_castsi256_ps(t2),
+            0b10_00_10_00,
+        )),
+        M::N_INVX8,
+    );
+
+    let c = shufi32(
+        _mm256_castps_si256(_mm256_shuffle_ps(
+            _mm256_castsi256_ps(mulu32(t_modinv, M::NX8)),
+            _mm256_castsi256_ps(mulu32(shufi32(t_modinv, 0b11_11_01_01), M::NX8)),
+            0b11_01_11_01,
+        )),
+        0b11_01_10_00,
+    );
+
+    let t = _mm256_castps_si256(_mm256_shuffle_ps(
+        _mm256_castsi256_ps(t1),
+        _mm256_castsi256_ps(t2),
+        0b11_01_11_01,
+    ));
     if M::N > THRESHOLD {
-        let t1 = mulu32(a, b);
-        let t2 = mulu32(shufi32(a, 0b10_11_00_01), shufi32(b, 0b10_11_00_01));
-        let t_modinv = mulloi32(
-            blendi32(t1, shufi32(t2, 0b10_11_00_01), 0b10101010),
-            M::N_INVX8,
-        );
-        let c = blendi32(
-            shufi32(mulu32(t_modinv, M::NX8), 0b10_11_00_01),
-            mulu32(shufi32(t_modinv, 0b10_11_00_01), M::NX8),
-            0b10101010,
-        );
-        let t = blendi32(shufi32(t1, 0b10_11_00_01), t2, 0b10101010);
         let one = eqi32(c, c);
         let mask = and256(M::NX8, xor256(one, eqi32(_mm256_min_epu32(t, c), c)));
-        addi32(mask, subi32(t, c))
+        shufi32(addi32(mask, subi32(t, c)), 0b11_01_10_00)
     } else {
-        let t_lo = mulu32(a, b);
-        let t_hi = mulu32(shufi32(a, 0b10_11_00_01), shufi32(b, 0b10_11_00_01));
-        let t_np = mulloi32(
-            blendi32(t_lo, shufi32(t_hi, 0b10_11_00_01), 0b10101010),
-            M::N_PRIMEX8,
-        );
-        let n64x4 = blendi32(M::NX8, zero256(), 0b10101010);
-        let res_lo = addi64(t_lo, mulu32(t_np, n64x4));
-        let res_hi = addi64(t_hi, mulu32(shufi32(t_np, 0b10_11_00_01), n64x4));
-        blendi32(shufi32(res_lo, 0b10_11_00_01), res_hi, 0b10101010)
+        shufi32(addi32(M::NX8, subi32(t, c)), 0b11_01_10_00)
     }
 }
 
@@ -106,6 +111,8 @@ pub const fn mrestore<M: Modulo>(t: u32) -> u32 {
     t - if M::N <= THRESHOLD { M::N & ((t >= M::N) as u32).wrapping_neg() } else { 0 }
 }
 
+/// # Safety
+/// - The argument must be a register containing eight u32s of Montgomery representation.
 #[inline]
 #[target_feature(enable = "avx2")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
@@ -131,6 +138,8 @@ pub const fn madd<M: Modulo>(a: u32, b: u32) -> u32 {
     }
 }
 
+/// # Safety
+/// - The argument must be a register containing eight u32s of Montgomery representation.
 #[inline]
 #[target_feature(enable = "avx2")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
@@ -157,6 +166,8 @@ pub const fn msub<M: Modulo>(a: u32, b: u32) -> u32 {
     }
 }
 
+/// # Safety
+/// - The argument must be a register containing eight u32s of Montgomery representation.
 #[inline]
 #[target_feature(enable = "avx2")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
