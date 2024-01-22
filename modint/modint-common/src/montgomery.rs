@@ -74,14 +74,15 @@ pub const fn mmul<M: Modulo>(a: u32, b: u32) -> u32 {
 pub unsafe fn mmulx8<M: Modulo>(a: __m256i, b: __m256i) -> __m256i {
     let t1 = mulu32(a, b);
     let t2 = mulu32(shufi32(a, 0b11_11_01_01), shufi32(b, 0b11_11_01_01));
-    let t_modinv = mulloi32(
+    let t_modinv = {
+        let tmi1 = mulu32(t1, M::N_INVX8);
+        let tmi2 = mulu32(t2, M::N_INVX8);
         _mm256_castps_si256(_mm256_shuffle_ps(
-            _mm256_castsi256_ps(t1),
-            _mm256_castsi256_ps(t2),
+            _mm256_castsi256_ps(tmi1),
+            _mm256_castsi256_ps(tmi2),
             0b10_00_10_00,
-        )),
-        M::N_INVX8,
-    );
+        ))
+    };
 
     let c = shufi32(
         _mm256_castps_si256(_mm256_shuffle_ps(
