@@ -10,6 +10,7 @@ license = "CC0-1.0"
 convolution = { version = "0.1.0", path = "../convolution" }
 montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
 number-theoretic-transform = { version = "0.1.0", path = "../number-theoretic-transform" }
+zero-one = { version = "0.1.0", path = "../numeric/zero-one" }
 
 [dev-dependencies]
 iolib = { path = "../iolib" }

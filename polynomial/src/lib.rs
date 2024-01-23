@@ -1,7 +1,9 @@
+use std::ops::{Add, Div, Index, IndexMut, Mul, Rem, Sub};
+
 use convolution::hadamard;
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
 use number_theoretic_transform::NumberTheoreticTransform;
-use std::ops::{Add, Div, Index, IndexMut, Mul, Rem, Sub};
+use zero_one::{One, Zero};
 
 type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
@@ -42,7 +44,7 @@ impl<M: Modulo> Polynomial<M> {
             .into_iter()
             .enumerate()
             .skip(1)
-            .map(|(i, p)| p * Modint::raw(i as u32))
+            .map(|(i, p)| p * Modint::new(i as u32))
             .collect::<Vec<_>>();
         coef.into()
     }
@@ -409,6 +411,18 @@ impl<M: Modulo> From<Polynomial<M>> for Vec<u32> {
 impl<M: Modulo> From<Polynomial<M>> for Vec<Modint<M>> {
     fn from(value: Polynomial<M>) -> Self {
         value.coef
+    }
+}
+
+impl<M: Modulo> Zero for Polynomial<M> {
+    fn zero() -> Self {
+        Self::empty()
+    }
+}
+
+impl<M: Modulo> One for Polynomial<M> {
+    fn one() -> Self {
+        Self::from(vec![Modint::one()])
     }
 }
 
