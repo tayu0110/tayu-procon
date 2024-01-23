@@ -298,24 +298,40 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree.pop().unwrap()
     }
 
-    pub fn sqrt(&self) -> Option<Self> {
-        let sqrt = if self.deg() == 0 {
-            Modint::zero()
-        } else if let Some(sqrt) = self[0].sqrt() {
-            sqrt
-        } else {
-            return None;
-        };
-        let mut now = 1;
-        let mut res = Self::from(vec![sqrt]);
-        let inv2 = Modint::new(2).inv();
-        while now < self.deg() {
-            eprintln!("res.inv(now): {:?}", res.inv(now));
-            res = (res.inv(now).multiply(self) + res).scale(inv2);
-            now <<= 1;
+    pub fn sqrt(&self, deg: usize) -> Option<Self> {
+        if self.deg() == 0 {
+            return Some(Self::zero());
         }
-        todo!("This method is buggy in this version");
-        // Some(res)
+
+        let d = self.deg();
+        if self[0] == Modint::zero() {
+            for i in 0..d {
+                if self[i] == Modint::zero() {
+                    continue;
+                }
+                if i & 1 != 0 {
+                    return None;
+                }
+                if deg <= i >> 1 {
+                    return Some(Self::zero().prefix(deg));
+                }
+
+                return Some((self >> i).sqrt(deg - (i >> 2))? << (i / 2));
+            }
+
+            return Some(Self::zero().prefix(deg));
+        }
+
+        let mut now = 1;
+        let sqrt = self[0].sqrt()?;
+        let inv2 = Modint::new(2).inv();
+        let mut res = Self::from(vec![sqrt]);
+        while now < deg {
+            now <<= 1;
+            res += res.inv(now).multiply(self);
+            res = res.scale(inv2);
+        }
+        Some(res.prefix(deg))
     }
 }
 
@@ -420,12 +436,26 @@ impl<M: Modulo> Rem<Self> for Polynomial<M> {
     }
 }
 
-impl<M: Modulo> Shl<usize> for Polynomial<M> {
-    type Output = Self;
+impl<M: Modulo> Shl<usize> for &Polynomial<M> {
+    type Output = Polynomial<M>;
     fn shl(self, rhs: usize) -> Self::Output {
         let mut coef = vec![Modint::zero(); rhs];
-        coef.extend(self.coef);
-        Self { coef }
+        coef.extend(&self.coef);
+        Polynomial { coef }
+    }
+}
+
+impl<M: Modulo> Shl<u32> for &Polynomial<M> {
+    type Output = Polynomial<M>;
+    fn shl(self, rhs: u32) -> Self::Output {
+        self << (rhs as usize)
+    }
+}
+
+impl<M: Modulo> Shl<usize> for Polynomial<M> {
+    type Output = Polynomial<M>;
+    fn shl(self, rhs: usize) -> Self::Output {
+        (&self) << rhs
     }
 }
 
@@ -436,14 +466,27 @@ impl<M: Modulo> Shl<u32> for Polynomial<M> {
     }
 }
 
+impl<M: Modulo> Shr<usize> for &Polynomial<M> {
+    type Output = Polynomial<M>;
+    fn shr(self, rhs: usize) -> Self::Output {
+        if rhs >= self.deg() {
+            return Polynomial::zero();
+        }
+        Polynomial { coef: self.coef[rhs..].to_vec() }
+    }
+}
+
+impl<M: Modulo> Shr<u32> for &Polynomial<M> {
+    type Output = Polynomial<M>;
+    fn shr(self, rhs: u32) -> Self::Output {
+        self >> (rhs as usize)
+    }
+}
+
 impl<M: Modulo> Shr<usize> for Polynomial<M> {
     type Output = Self;
-    fn shr(mut self, rhs: usize) -> Self::Output {
-        if rhs >= self.deg() {
-            self.coef.clear();
-            return self;
-        }
-        Self { coef: self.coef[rhs..].to_vec() }
+    fn shr(self, rhs: usize) -> Self::Output {
+        (&self) >> rhs
     }
 }
 
