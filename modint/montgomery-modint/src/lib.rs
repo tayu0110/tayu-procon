@@ -1,15 +1,17 @@
 mod simd;
 
-#[cfg(feature = "iolib")]
-use iolib::{FastInput, Readable};
-pub use modint_common::*;
-pub use simd::*;
 use std::convert::From;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::str::FromStr;
+
+#[cfg(feature = "iolib")]
+use iolib::{FastInput, Readable};
+pub use modint_common::*;
+pub use simd::*;
+use simple_rand::xor_shift32;
 use zero_one::{One, Zero};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +77,46 @@ impl<M: Modulo> MontgomeryModint<M> {
     #[inline(always)]
     pub const fn inv(&self) -> Self {
         self.pow(M::N as u64 - 2)
+    }
+
+    pub fn sqrt(self) -> Option<Self> {
+        if self == Self::zero() {
+            Some(Self::zero())
+        } else if self.pow(M::N as u64 >> 1) != Self::one() {
+            None
+        } else if M::N & 0b11 == 3 {
+            let s = self.pow((M::N as u64 + 1) >> 2);
+            let t = -s;
+            Some(if s.val() < t.val() { s } else { t })
+        } else {
+            for b in xor_shift32(381928476372819).map(|v| v % (M::N - 2) + 2) {
+                let b = Self::new(b);
+                if b.pow((M::N as u64 - 1) >> 1) != Self::one() {
+                    let q = (M::N - 1).trailing_zeros() as u64;
+                    let s = (M::N - 1) >> q;
+
+                    let mut x = self.pow((s as u64 + 1) >> 1);
+                    let mut x2 = x * x;
+                    let mut b = b.pow(s as u64);
+                    let mninv = self.inv();
+
+                    let mut shift = 2;
+                    while x2 != self {
+                        let diff = mninv * x2;
+                        if diff.pow(1 << (q - shift)) != Self::one() {
+                            x *= b;
+                            b *= b;
+                            x2 *= b;
+                        } else {
+                            b *= b;
+                        }
+                        shift += 1;
+                    }
+                    return Some(x);
+                }
+            }
+            None // in this branch, sqrt of self must be found. so this point is unreachable
+        }
     }
 
     #[inline]
@@ -257,7 +299,9 @@ impl<M: Modulo> Readable for MontgomeryModint<M> {
 
 #[cfg(test)]
 mod tests {
-    use super::MontgomeryModint;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
     use modint_common::{Mod4194304001, Mod998244353, Modulo};
 
     #[test]
@@ -320,5 +364,23 @@ mod tests {
         );
         assert_eq!(a.pow(B as u64).val(), 101451096u32);
         assert_eq!((a / b).val(), 3072607503);
+    }
+
+    #[test]
+    fn mod_sqrt_test() {
+        for n in xor_shift32(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        )
+        .take(10000)
+        {
+            let sq = (n as u64 * n as u64 % Mod998244353::N as u64) as u32;
+            let sq = MontgomeryModint::<Mod998244353>::new(sq);
+            let sqrt = sq.sqrt();
+            assert!(sqrt.is_some());
+            assert_eq!(sqrt.unwrap() * sqrt.unwrap(), sq);
+        }
     }
 }

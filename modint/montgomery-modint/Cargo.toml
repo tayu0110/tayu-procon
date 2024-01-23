@@ -9,6 +9,7 @@ license = "CC0-1.0"
 [dependencies]
 iolib = { version = "0.1.0", path = "../../iolib", optional = true }
 modint-common = { version = "0.1.0", path = "../modint-common" }
+simple-rand = { version = "0.1.0", path = "../../simple-rand" }
 zero-one = { version = "0.1.0", path = "../../numeric/zero-one" }
 
 [lib]
