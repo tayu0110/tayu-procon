@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn transpose_test() {
-        let data = (0..64).map(Modint::raw).collect();
+        let data = (0..64).map(Modint::new).collect();
         let mat = SquareMatrix::from_vec_as_shape(8, data);
 
         let transposed = mat.transpose();
