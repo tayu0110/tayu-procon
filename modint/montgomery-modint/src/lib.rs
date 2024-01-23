@@ -23,13 +23,8 @@ pub struct MontgomeryModint<M: Modulo> {
 }
 
 impl<M: Modulo> MontgomeryModint<M> {
-    #[inline(always)]
-    pub const fn new(val: u32) -> Self {
-        Self::raw(val.rem_euclid(M::N))
-    }
-
     #[inline]
-    pub const fn raw(val: u32) -> Self {
+    pub const fn new(val: u32) -> Self {
         Self { val: mmul::<M>(val, M::R2), _phantom: PhantomData }
     }
 
@@ -210,19 +205,19 @@ impl<M: Modulo> From<u32> for MontgomeryModint<M> {
 
 impl<M: Modulo> From<u64> for MontgomeryModint<M> {
     fn from(value: u64) -> Self {
-        Self::raw(value.rem_euclid(M::N as u64) as u32)
+        Self::new(value.rem_euclid(M::N as u64) as u32)
     }
 }
 
 impl<M: Modulo> From<i32> for MontgomeryModint<M> {
     fn from(value: i32) -> Self {
-        Self::raw(value.rem_euclid(M::N as i32) as u32)
+        Self::new(value.rem_euclid(M::N as i32) as u32)
     }
 }
 
 impl<M: Modulo> From<i64> for MontgomeryModint<M> {
     fn from(value: i64) -> Self {
-        Self::raw(value.rem_euclid(M::N as i64) as u32)
+        Self::new(value.rem_euclid(M::N as i64) as u32)
     }
 }
 
@@ -238,7 +233,7 @@ impl<M: Modulo> FromStr for MontgomeryModint<M> {
         };
 
         if !neg && val < M::N as u64 {
-            Ok(Self::raw(val as u32))
+            Ok(Self::new(val as u32))
         } else if neg {
             Ok(Self::from(-(val as i64)))
         } else {

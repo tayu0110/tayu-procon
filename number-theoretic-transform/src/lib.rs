@@ -46,7 +46,7 @@ impl<M: Modulo> NumberTheoreticTransform<M> for [MontgomeryModint<M>] {
 
         unsafe { cooley_tukey_radix_4_butterfly_inv(n, self, &Self::CACHE) }
 
-        let ninv = Modint::raw(n as u32).inv();
+        let ninv = Modint::new(n as u32).inv();
         if n >= 8 && is_x86_feature_detected!("avx") && is_x86_feature_detected!("avx2") {
             let ninv = Modintx8::<M>::splat(ninv);
             for v in self.chunks_exact_mut(8) {
@@ -90,7 +90,7 @@ mod tests {
     fn self_change_ntt_test() {
         type Modint = MontgomeryModint<Mod998244353>;
         for i in 15..=20 {
-            let mut data = (1..=1 << i).map(Modint::raw).collect::<Vec<_>>();
+            let mut data = (1..=1 << i).map(Modint::new).collect::<Vec<_>>();
             let expect = data.clone();
             data.ntt();
             data.intt();

@@ -35,7 +35,7 @@ fn main() {
     let mut st = SegmentTree::<Reversible<Affine>>::from_vec(p.into_iter().enumerate().fold(
         vec![Reversible::new(Affine::id()); n],
         |mut s, (i, (a, b))| {
-            s[hld.index(i)] = Reversible::new(Affine { a: Modint::raw(a), b: Modint::raw(b) });
+            s[hld.index(i)] = Reversible::new(Affine { a: Modint::new(a), b: Modint::new(b) });
             s
         },
     ));

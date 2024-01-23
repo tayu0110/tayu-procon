@@ -17,8 +17,8 @@ pub fn arbitrary_convolution<const M: u64>(a: Vec<u32>, b: Vec<u32>) -> Vec<u32>
     ];
     const P1P2: u64 = P[0] * P[1] % P[2];
     let p1p2mod: u64 = P[0] * P[1] % M;
-    let p1i = Modint::<Mod897581057>::raw(P[0] as u32).inv().val() as u64;
-    let p2i = Modint::<Mod998244353>::raw(P1P2 as u32).inv().val() as u64;
+    let p1i = Modint::<Mod897581057>::new(P[0] as u32).inv().val() as u64;
+    let p2i = Modint::<Mod998244353>::new(P1P2 as u32).inv().val() as u64;
     c1.into_iter()
         .zip(c2.into_iter().zip(c3))
         .map(|(c1, (c2, c3))| {
@@ -44,8 +44,8 @@ pub fn convolution_1e97(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     ];
     const P1P2: u64 = P[0] * P[1] % P[2];
     const P1P2MOD: u64 = P[0] * P[1] % MOD;
-    let p1i = Modint::<Mod897581057>::raw(P[0] as u32).inv().val() as u64;
-    let p2i = Modint::<Mod998244353>::raw(P1P2 as u32).inv().val() as u64;
+    let p1i = Modint::<Mod897581057>::new(P[0] as u32).inv().val() as u64;
+    let p2i = Modint::<Mod998244353>::new(P1P2 as u32).inv().val() as u64;
     c1.into_iter()
         .zip(c2.into_iter().zip(c3))
         .map(|(c1, (c2, c3))| {
@@ -122,7 +122,7 @@ pub fn convolution_mod_2_64(a: Vec<u64>, b: Vec<u64>) -> Vec<u64> {
     const P0P1P2: u64 = P[0] * P[1] % P[3] * P[2] % P[3];
     const P0P1P2P3: u64 = P[0] * P[1] % P[4] * P[2] % P[4] * P[3] % P[4];
     let pi = [
-        Modint::<Mod754974721>::raw(P[0] as u32).inv().val() as u64,
+        Modint::<Mod754974721>::new(P[0] as u32).inv().val() as u64,
         Modint::<Mod880803841>::from(P0P1).inv().val() as u64,
         Modint::<Mod897581057>::from(P0P1P2).inv().val() as u64,
         Modint::<Mod998244353>::from(P0P1P2P3).inv().val() as u64,

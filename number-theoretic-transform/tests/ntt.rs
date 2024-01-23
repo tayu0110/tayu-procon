@@ -11,7 +11,7 @@ fn simple_ntt_bench(b: &mut Bencher) {
     type Modint = MontgomeryModint<Mod998244353>;
     b.iter(|| {
         for i in 15..=20 {
-            let mut data = (0..1 << i).map(Modint::raw).collect::<Vec<_>>();
+            let mut data = (0..1 << i).map(Modint::new).collect::<Vec<_>>();
             data.ntt();
             data.intt();
         }
