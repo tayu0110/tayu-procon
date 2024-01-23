@@ -1,4 +1,6 @@
-use std::ops::{Add, Div, Index, IndexMut, Mul, Rem, Sub};
+use std::ops::{
+    Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, Shr, Sub, SubAssign,
+};
 
 use convolution::hadamard;
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
@@ -25,8 +27,7 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    pub fn scale(mut self, s: u32) -> Self {
-        let s = Modint::new(s);
+    pub fn scale(mut self, s: Modint<M>) -> Self {
         self.coef.iter_mut().for_each(|v| *v *= s);
         self
     }
@@ -296,46 +297,98 @@ impl<M: Modulo> Polynomial<M> {
         }
         subproduct_tree.pop().unwrap()
     }
+
+    pub fn sqrt(&self) -> Option<Self> {
+        let sqrt = if self.deg() == 0 {
+            Modint::zero()
+        } else if let Some(sqrt) = self[0].sqrt() {
+            sqrt
+        } else {
+            return None;
+        };
+        let mut now = 1;
+        let mut res = Self::from(vec![sqrt]);
+        let inv2 = Modint::new(2).inv();
+        while now < self.deg() {
+            eprintln!("res.inv(now): {:?}", res.inv(now));
+            res = (res.inv(now).multiply(self) + res).scale(inv2);
+            now <<= 1;
+        }
+        todo!("This method is buggy in this version");
+        // Some(res)
+    }
 }
 
 impl<M: Modulo> Add<Self> for Polynomial<M> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        let (mut l, mut r) = (self.coef, rhs.coef);
-        if l.len() < r.len() {
-            std::mem::swap(&mut l, &mut r);
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<M: Modulo> AddAssign for Polynomial<M> {
+    fn add_assign(&mut self, mut rhs: Self) {
+        if self.deg() < rhs.deg() {
+            std::mem::swap(&mut self.coef, &mut rhs.coef);
         }
 
-        l.iter_mut().zip(r.iter()).for_each(|(l, r)| *l += *r);
-        Polynomial { coef: l }
+        self.coef
+            .iter_mut()
+            .zip(rhs.coef.iter())
+            .for_each(|(l, r)| *l += *r);
     }
 }
 
 impl<M: Modulo> Sub<Self> for Polynomial<M> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        let (mut l, mut r) = (self.coef, rhs.coef);
-        if l.len() < r.len() {
-            std::mem::swap(&mut l, &mut r);
-        }
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        self -= rhs;
+        self
+    }
+}
 
-        l.iter_mut().zip(r.iter()).for_each(|(l, r)| *l -= *r);
-        Polynomial { coef: l }
+impl<M: Modulo> SubAssign for Polynomial<M> {
+    fn sub_assign(&mut self, mut rhs: Self) {
+        if self.deg() >= rhs.deg() {
+            self.coef
+                .iter_mut()
+                .zip(rhs.coef)
+                .for_each(|(s, r)| *s -= r);
+        } else {
+            let d = self.deg();
+            std::mem::swap(&mut self.coef, &mut rhs.coef);
+            self.coef
+                .iter_mut()
+                .zip(rhs.coef)
+                .for_each(|(s, r)| *s = r - *s);
+            self.coef.iter_mut().skip(d).for_each(|s| *s = -*s);
+        }
     }
 }
 
 impl<M: Modulo> Mul<Self> for Polynomial<M> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        if self.deg() == 0 || rhs.deg() == 0 {
-            return <Vec<Modint<M>> as Into<Polynomial<M>>>::into(vec![]);
+    fn mul(mut self, rhs: Self) -> Self::Output {
+        self *= rhs;
+        self
+    }
+}
+
+impl<M: Modulo> MulAssign for Polynomial<M> {
+    fn mul_assign(&mut self, mut rhs: Self) {
+        if self.deg() == 0 {
+            return;
+        }
+        if rhs.deg() == 0 {
+            self.coef.clear();
+            return;
         }
         // Due to the constraints of `naive_multiply()`, the right side must always be smaller.
         if self.deg() > rhs.deg() {
-            self.multiply(&rhs)
-        } else {
-            rhs.multiply(&self)
+            std::mem::swap(&mut self.coef, &mut rhs.coef);
         }
+        *self = rhs.multiply(self);
     }
 }
 
@@ -364,6 +417,40 @@ impl<M: Modulo> Rem<Self> for Polynomial<M> {
     type Output = Self;
     fn rem(self, rhs: Self) -> Self::Output {
         self.div_rem(rhs).1
+    }
+}
+
+impl<M: Modulo> Shl<usize> for Polynomial<M> {
+    type Output = Self;
+    fn shl(self, rhs: usize) -> Self::Output {
+        let mut coef = vec![Modint::zero(); rhs];
+        coef.extend(self.coef);
+        Self { coef }
+    }
+}
+
+impl<M: Modulo> Shl<u32> for Polynomial<M> {
+    type Output = Self;
+    fn shl(self, rhs: u32) -> Self::Output {
+        self << (rhs as usize)
+    }
+}
+
+impl<M: Modulo> Shr<usize> for Polynomial<M> {
+    type Output = Self;
+    fn shr(mut self, rhs: usize) -> Self::Output {
+        if rhs >= self.deg() {
+            self.coef.clear();
+            return self;
+        }
+        Self { coef: self.coef[rhs..].to_vec() }
+    }
+}
+
+impl<M: Modulo> Shr<u32> for Polynomial<M> {
+    type Output = Self;
+    fn shr(self, rhs: u32) -> Self::Output {
+        self >> (rhs as usize)
     }
 }
 
@@ -471,6 +558,19 @@ mod tests {
             .map(|v| v.val())
             .collect::<Vec<_>>();
         assert_eq!(sub, vec![4, 2, 998244352, 998244347, 998244338]);
+
+        let poly = Polynomial::<Mod998244353>::from(vec![5, 4, 3, 2, 1]);
+        let poly2 = Polynomial::<Mod998244353>::from(vec![1, 2, 4, 8, 16, 5, 8]);
+
+        let sub = (poly - poly2)
+            .coef
+            .into_iter()
+            .map(|v| v.val())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            sub,
+            vec![4, 2, 998244352, 998244347, 998244338, 998244348, 998244345]
+        );
     }
 
     #[test]
