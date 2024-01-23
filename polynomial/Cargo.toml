@@ -14,6 +14,3 @@ number-theoretic-transform = { version = "0.1.0", path = "../number-theoretic-tr
 [dev-dependencies]
 iolib = { path = "../iolib" }
 rand = "0.8.5"
-
-[lib]
-doctest = false

@@ -47,6 +47,8 @@ impl<M: Modulo> Polynomial<M> {
         coef.into()
     }
 
+    // This version assumes that `rhs.deg()` is significantly smaller than `self.deg()`.
+    // If `rhs.deg()` is larger, performance will be significantly degraded and will need to be corrected in the future.
     #[inline]
     fn naive_multiply(mut self, rhs: &Self) -> Self {
         let deg = self.deg();
@@ -64,7 +66,7 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     fn multiply(mut self, rhs: &Self) -> Self {
-        if self.deg().min(rhs.deg()) <= 8 {
+        if rhs.deg() <= 8 {
             return self.naive_multiply(rhs);
         }
         let mut rhs = rhs.clone();
@@ -326,7 +328,12 @@ impl<M: Modulo> Mul<Self> for Polynomial<M> {
         if self.deg() == 0 || rhs.deg() == 0 {
             return <Vec<Modint<M>> as Into<Polynomial<M>>>::into(vec![]);
         }
-        self.multiply(&rhs)
+        // Due to the constraints of `naive_multiply()`, the right side must always be smaller.
+        if self.deg() > rhs.deg() {
+            self.multiply(&rhs)
+        } else {
+            rhs.multiply(&self)
+        }
     }
 }
 
