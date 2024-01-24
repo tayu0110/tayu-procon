@@ -28,7 +28,15 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     pub fn scale(mut self, s: Modint<M>) -> Self {
-        self.coef.iter_mut().for_each(|v| *v *= s);
+        let sv = Modintx8::splat(s);
+        let mut it = self.coef.chunks_exact_mut(8);
+        for v in it.by_ref() {
+            unsafe {
+                let mv = Modintx8::load(v.as_ptr());
+                (mv * sv).store(v.as_mut_ptr());
+            }
+        }
+        it.into_remainder().iter_mut().for_each(|v| *v *= s);
         self
     }
 
@@ -303,23 +311,18 @@ impl<M: Modulo> Polynomial<M> {
             return Some(Self::zero());
         }
 
-        let d = self.deg();
         if self[0] == Modint::zero() {
-            for i in 0..d {
-                if self[i] == Modint::zero() {
-                    continue;
-                }
-                if i & 1 != 0 {
-                    return None;
-                }
-                if deg <= i >> 1 {
-                    return Some(Self::zero().prefix(deg));
-                }
-
-                return Some((self >> i).sqrt(deg - (i >> 2))? << (i / 2));
+            let Some(pos) = self.coef.iter().position(|c| c != &Modint::zero()) else {
+                return Some(Self::zero().prefix(deg));
+            };
+            if pos & 1 != 0 {
+                return None;
+            }
+            if deg <= pos >> 1 {
+                return Some(Self::zero().prefix(deg));
             }
 
-            return Some(Self::zero().prefix(deg));
+            return Some((self >> pos).sqrt(deg - (pos >> 1))? << (pos >> 1));
         }
 
         let mut now = 1;
@@ -328,7 +331,15 @@ impl<M: Modulo> Polynomial<M> {
         let mut res = Self::from(vec![sqrt]);
         while now < deg {
             now <<= 1;
-            res += res.inv(now).multiply(self);
+            res += res.inv(now).multiply(
+                &self
+                    .coef
+                    .iter()
+                    .copied()
+                    .take(now)
+                    .collect::<Vec<_>>()
+                    .into(),
+            );
             res = res.scale(inv2);
         }
         Some(res.prefix(deg))
