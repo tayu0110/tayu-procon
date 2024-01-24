@@ -1,5 +1,6 @@
-use std::ops::{
-    Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, Shr, Sub, SubAssign,
+use std::{
+    mem::transmute,
+    ops::{Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, Shr, Sub, SubAssign},
 };
 
 use convolution::hadamard;
@@ -58,6 +59,60 @@ impl<M: Modulo> Polynomial<M> {
         coef.into()
     }
 
+    #[inline]
+    pub fn integral(&self) -> Self {
+        if self.deg() == 0 {
+            Self::zero()
+        } else if self.deg() == 1 {
+            let mut res = Self::from(vec![Modint::zero(), self[0]]);
+            res.shrink();
+            res
+        } else {
+            // https://37zigen.com/linear-sieve/#i-4
+            let mut inv = vec![u32::MAX; self.deg() + 1];
+            {
+                let mut primes = vec![];
+                for i in 2..self.deg() + 1 {
+                    if inv[i] == u32::MAX {
+                        inv[i] = i as u32;
+                        primes.push(i as u32);
+                    }
+                    for &p in &primes {
+                        if p * i as u32 > self.deg() as u32 + 1 || p > inv[i] {
+                            break;
+                        }
+                        inv[p as usize * i] = p;
+                    }
+                }
+            }
+
+            inv[0] = 0;
+            inv[1] = Modint::<M>::one().rawval();
+            for i in 2..self.deg() + 1 {
+                if inv[i] == i as u32 {
+                    inv[i] = Modint::<M>::new(i as u32).inv().rawval();
+                } else {
+                    let (p, q) = (inv[i], i as u32 / inv[i]);
+                    inv[i] = (Modint::<M>::from_rawval(inv[p as usize])
+                        * Modint::from_rawval(inv[q as usize]))
+                    .rawval();
+                }
+
+                debug_assert_eq!(
+                    Modint::<M>::new(i as u32) * Modint::from_rawval(inv[i] as u32),
+                    Modint::one()
+                );
+            }
+
+            let mut coef: Vec<Modint<M>> = unsafe { transmute(inv) };
+            coef.iter_mut()
+                .skip(1)
+                .zip(&self.coef)
+                .for_each(|(n, &c)| *n *= c);
+            Self { coef }
+        }
+    }
+
     // This version assumes that `rhs.deg()` is significantly smaller than `self.deg()`.
     // If `rhs.deg()` is larger, performance will be significantly degraded and will need to be corrected in the future.
     #[inline]
@@ -110,7 +165,7 @@ impl<M: Modulo> Polynomial<M> {
                 f.ntt();
                 hadamard(&mut f, &g_ntt);
                 f.intt();
-                f[..size].iter_mut().for_each(|h| *h = Modint::zero());
+                f[..size].fill(Modint::zero());
                 f.ntt();
                 hadamard(&mut f, &g_ntt);
                 f.intt();
@@ -686,6 +741,24 @@ mod tests {
                 870509167, 978731889, 911693879
             ]
         );
+    }
+
+    #[test]
+    fn polynomial_sqrt_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![0, 0, 9, 12]);
+        let inv = poly.sqrt(poly.deg());
+
+        assert!(inv.is_some());
+        let inv: Vec<u32> = inv.unwrap().into();
+        assert_eq!(inv, vec![0, 3, 2, 332748117]);
+    }
+
+    #[test]
+    fn polynomial_integral_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4]);
+        let inv: Vec<u32> = poly.integral().into();
+
+        assert_eq!(inv, vec![0, 1, 1, 1, 1]);
     }
 
     #[test]
