@@ -78,7 +78,7 @@ impl<M: Modulo> Polynomial<M> {
                         primes.push(i as u32);
                     }
                     for &p in &primes {
-                        if p * i as u32 > self.deg() as u32 + 1 || p > inv[i] {
+                        if p * i as u32 > self.deg() as u32 || p > inv[i] {
                             break;
                         }
                         inv[p as usize * i] = p;
@@ -755,10 +755,10 @@ mod tests {
 
     #[test]
     fn polynomial_integral_test() {
-        let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4]);
+        let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4, 5, 6, 7, 8]);
         let inv: Vec<u32> = poly.integral().into();
 
-        assert_eq!(inv, vec![0, 1, 1, 1, 1]);
+        assert_eq!(inv, vec![0, 1, 1, 1, 1, 1, 1, 1, 1]);
     }
 
     #[test]
