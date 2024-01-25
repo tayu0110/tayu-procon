@@ -42,25 +42,29 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     #[inline]
-    pub fn prefix(mut self, new_deg: usize) -> Self {
-        self.resize(new_deg);
-        self
+    pub fn prefix(&self, new_deg: usize) -> Self {
+        let mut res = self.coef.iter().copied().take(new_deg).collect::<Vec<_>>();
+        res.resize(new_deg, Modint::zero());
+        Self { coef: res }
     }
 
     #[inline]
-    pub fn derivative(self) -> Self {
-        let coef = self
-            .coef
-            .into_iter()
+    pub fn derivative(&self) -> Self {
+        self.coef
+            .iter()
+            .copied()
             .enumerate()
             .skip(1)
             .map(|(i, p)| p * Modint::new(i as u32))
-            .collect::<Vec<_>>();
-        coef.into()
+            .collect::<Vec<_>>()
+            .into()
     }
 
-    #[inline]
     pub fn integral(&self) -> Self {
+        self._integral(Self::gen_inverse_table(self.deg()))
+    }
+
+    fn _integral(&self, table: Vec<Modint<M>>) -> Self {
         if self.deg() == 0 {
             Self::zero()
         } else if self.deg() == 1 {
@@ -68,49 +72,52 @@ impl<M: Modulo> Polynomial<M> {
             res.shrink();
             res
         } else {
-            // https://37zigen.com/linear-sieve/#i-4
-            let mut inv = vec![u32::MAX; self.deg() + 1];
-            {
-                let mut primes = vec![];
-                for i in 2..self.deg() + 1 {
-                    if inv[i] == u32::MAX {
-                        inv[i] = i as u32;
-                        primes.push(i as u32);
-                    }
-                    for &p in &primes {
-                        if p * i as u32 > self.deg() as u32 || p > inv[i] {
-                            break;
-                        }
-                        inv[p as usize * i] = p;
-                    }
-                }
-            }
-
-            inv[0] = 0;
-            inv[1] = Modint::<M>::one().rawval();
-            for i in 2..self.deg() + 1 {
-                if inv[i] == i as u32 {
-                    inv[i] = Modint::<M>::new(i as u32).inv().rawval();
-                } else {
-                    let (p, q) = (inv[i], i as u32 / inv[i]);
-                    inv[i] = (Modint::<M>::from_rawval(inv[p as usize])
-                        * Modint::from_rawval(inv[q as usize]))
-                    .rawval();
-                }
-
-                debug_assert_eq!(
-                    Modint::<M>::new(i as u32) * Modint::from_rawval(inv[i] as u32),
-                    Modint::one()
-                );
-            }
-
-            let mut coef: Vec<Modint<M>> = unsafe { transmute(inv) };
+            let mut coef: Vec<Modint<M>> = table;
             coef.iter_mut()
                 .skip(1)
                 .zip(&self.coef)
                 .for_each(|(n, &c)| *n *= c);
             Self { coef }
         }
+    }
+
+    // https://37zigen.com/linear-sieve/#i-4
+    fn gen_inverse_table(deg: usize) -> Vec<Modint<M>> {
+        let mut inv = vec![u32::MAX; deg + 1];
+        {
+            let mut primes = vec![];
+            for i in 2..deg + 1 {
+                if inv[i] == u32::MAX {
+                    inv[i] = i as u32;
+                    primes.push(i as u32);
+                }
+                for &p in &primes {
+                    if p * i as u32 > deg as u32 || p > inv[i] {
+                        break;
+                    }
+                    inv[p as usize * i] = p;
+                }
+            }
+        }
+
+        inv[0] = 0;
+        inv[1] = Modint::<M>::one().rawval();
+        for i in 2..deg + 1 {
+            if inv[i] == i as u32 {
+                inv[i] = Modint::<M>::new(i as u32).inv().rawval();
+            } else {
+                let (p, q) = (inv[i], i as u32 / inv[i]);
+                inv[i] = (Modint::<M>::from_rawval(inv[p as usize])
+                    * Modint::from_rawval(inv[q as usize]))
+                .rawval();
+            }
+
+            debug_assert_eq!(
+                Modint::<M>::new(i as u32) * Modint::from_rawval(inv[i] as u32),
+                Modint::one()
+            );
+        }
+        unsafe { transmute(inv) }
     }
 
     // This version assumes that `rhs.deg()` is significantly smaller than `self.deg()`.
@@ -151,7 +158,6 @@ impl<M: Modulo> Polynomial<M> {
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
     // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
     // reference: https://judge.yosupo.jp/submission/68532
-    #[inline]
     pub fn inv(&self, deg: usize) -> Self {
         let mut g = vec![Modint::zero(); deg.next_power_of_two()];
         g[0] = self.coef[0].inv();
@@ -396,6 +402,39 @@ impl<M: Modulo> Polynomial<M> {
                     .into(),
             );
             res = res.scale(inv2);
+        }
+        Some(res.prefix(deg))
+    }
+
+    pub fn log(&self, deg: usize) -> Option<Self> {
+        self._log(deg, Self::gen_inverse_table(deg))
+    }
+
+    fn _log(&self, deg: usize, table: Vec<Modint<M>>) -> Option<Self> {
+        (self.deg() >= 1 && self[0] == Modint::one()).then_some(
+            (self.derivative() * self.inv(deg))
+                ._integral(table)
+                .prefix(deg),
+        )
+    }
+
+    pub fn exp(&self, deg: usize) -> Option<Self> {
+        if self.deg() >= 1 && self[0] != Modint::zero() {
+            return None;
+        }
+        if self.deg() == 0 {
+            return Some(Self::one());
+        }
+
+        let mut now = 1;
+        let mut res = Self::one();
+        let table = Self::gen_inverse_table(deg.next_power_of_two());
+        while now < deg {
+            now <<= 1;
+            let mut tmp = self.prefix(now) - res._log(now, table[..now].to_vec())?;
+            tmp[0] += Modint::one();
+            res *= tmp;
+            res.resize(now);
         }
         Some(res.prefix(deg))
     }
