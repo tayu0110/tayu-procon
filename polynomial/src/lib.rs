@@ -407,13 +407,9 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     pub fn log(&self, deg: usize) -> Option<Self> {
-        self._log(deg, Self::gen_inverse_table(deg))
-    }
-
-    fn _log(&self, deg: usize, table: Vec<Modint<M>>) -> Option<Self> {
         (self.deg() >= 1 && self[0] == Modint::one()).then_some(
             (self.derivative() * self.inv(deg))
-                ._integral(table)
+                ._integral(Self::gen_inverse_table(deg))
                 .prefix(deg),
         )
     }
@@ -431,10 +427,18 @@ impl<M: Modulo> Polynomial<M> {
         let table = Self::gen_inverse_table(deg.next_power_of_two());
         while now < deg {
             now <<= 1;
-            let mut tmp = self.prefix(now) - res._log(now, table[..now].to_vec())?;
-            tmp[0] += Modint::one();
-            res *= tmp;
-            res.resize(now);
+            let log = (res.derivative() * res.inv(now))
+                ._integral(table[..now].to_vec())
+                .prefix(now);
+            let mut f = self.prefix(now) - log;
+            f[0] += Modint::one();
+            f.coef.ntt();
+            let mut g = res.prefix(now);
+            g.coef.ntt();
+            hadamard(&mut f.coef, &g.coef);
+            f.coef.intt();
+            f.coef[..now >> 1].fill(Modint::zero());
+            res += f;
         }
         Some(res.prefix(deg))
     }
