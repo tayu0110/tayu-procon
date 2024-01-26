@@ -436,19 +436,24 @@ impl<M: Modulo> Polynomial<M> {
             return Some(Self::one());
         }
 
+        let mut written = 0;
         let mut now = 1;
         let mut res = Self::one();
         let mut inv = Self::one();
-        let table = Self::gen_inverse_table(deg.next_power_of_two());
+        let mut table = Self::gen_inverse_table(deg.next_power_of_two());
         while now < deg {
             let mut f = res.prefix(now << 1);
             let mut g = inv.prefix(now << 1);
             f.coef.ntt();
             g.coef.ntt();
 
-            let deriv = self.prefix(now).derivative() << 1u32;
+            let mut w = self.prefix(now).derivative() << 1u32;
+            table[written..now]
+                .iter_mut()
+                .zip(&w.coef[written..now])
+                .for_each(|(s, t)| *s *= *t);
+            written = now;
 
-            let mut w = deriv.clone();
             w.coef.ntt();
             hadamard(&mut w.coef, &f.prefix(now).coef);
             w.coef.intt();
@@ -458,10 +463,12 @@ impl<M: Modulo> Polynomial<M> {
             w.coef.ntt();
             hadamard(&mut w.coef, &g.coef);
             w.coef.intt();
-            w = w.prefix(now) << now;
-            w.coef[..now].copy_from_slice(&deriv.coef[..now]);
 
-            let mut z = self.prefix(now << 1) - (w >> 1u32)._integral(table[..now << 1].to_vec());
+            let mut z = self.prefix(now << 1) - table[..now].into();
+            z.coef[now..]
+                .iter_mut()
+                .zip(table[now..].iter().zip(w.coef).map(|(s, t)| *s * t))
+                .for_each(|(s, t)| *s -= t);
             z.coef.ntt();
             hadamard(&mut z.coef, &f.coef);
             z.coef.intt();
