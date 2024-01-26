@@ -72,7 +72,7 @@ impl<M: Modulo> Polynomial<M> {
             res.shrink();
             res
         } else {
-            let mut coef: Vec<Modint<M>> = table;
+            let mut coef = table;
             coef.iter_mut()
                 .skip(1)
                 .zip(&self.coef)
@@ -155,47 +155,60 @@ impl<M: Modulo> Polynomial<M> {
         self
     }
 
+    fn doubling_step_for_inv(&self, mut g: Self) -> Self {
+        debug_assert_eq!(1 << g.deg().trailing_zeros(), g.deg());
+        // `g` must be the inverse of `self` on mod `g.deg()`
+        debug_assert_eq!(
+            {
+                eprintln!("self: {self:?}, g: {g:?}");
+                let mut g = self.clone().multiply(&g).prefix(g.deg());
+                g.shrink();
+                g.coef
+            },
+            Self::one().coef
+        );
+        let size = g.deg();
+        let mut f = self.prefix(size << 1);
+        g.resize(size << 1);
+        let hg = {
+            let mut g_ntt = g.prefix(size << 1);
+            g_ntt.coef.ntt();
+            f.coef.ntt();
+            hadamard(&mut f.coef, &g_ntt.coef);
+            f.coef.intt();
+            f.coef[..size].fill(Modint::zero());
+            f.coef.ntt();
+            hadamard(&mut f.coef, &g_ntt.coef);
+            f.coef.intt();
+            f
+        };
+        let mut git = g.coef[size..2 * size].chunks_exact_mut(8);
+        let mut hgit = hg.coef[size..].chunks_exact(8);
+        for (p, v) in git.by_ref().zip(hgit.by_ref()) {
+            unsafe {
+                (Modintx8::load(p.as_ptr()) - Modintx8::load(v.as_ptr())).store(p.as_mut_ptr());
+            }
+        }
+        git.into_remainder()
+            .iter_mut()
+            .zip(hgit.remainder())
+            .for_each(|(p, v)| *p -= *v);
+        g
+    }
+
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
     // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
     // reference: https://judge.yosupo.jp/submission/68532
     pub fn inv(&self, deg: usize) -> Self {
-        let mut g = vec![Modint::zero(); deg.next_power_of_two()];
-        g[0] = self.coef[0].inv();
+        let mut res = Self::one();
+        res[0] = self[0].inv();
+        res.coef.reserve(deg);
         let mut size = 1;
         while size < deg {
-            let mut f = self.coef.iter().take(2 * size).cloned().collect::<Vec<_>>();
-            f.resize(2 * size, Modint::zero());
-            let hg = {
-                let mut g_ntt = g[0..2 * size].to_vec();
-                g_ntt.ntt();
-                f.ntt();
-                hadamard(&mut f, &g_ntt);
-                f.intt();
-                f[..size].fill(Modint::zero());
-                f.ntt();
-                hadamard(&mut f, &g_ntt);
-                f.intt();
-                f
-            };
-            if size < 8 {
-                g[size..]
-                    .iter_mut()
-                    .zip(hg[size..].iter().take(size))
-                    .for_each(|(p, &v)| *p -= v);
-            } else {
-                g[size..]
-                    .chunks_exact_mut(8)
-                    .zip(hg[size..].chunks_exact(8))
-                    .for_each(|(p, v)| unsafe {
-                        (Modintx8::load(p.as_ptr()) - Modintx8::load(v.as_ptr()))
-                            .store(p.as_mut_ptr())
-                    });
-            }
+            res = self.doubling_step_for_inv(res);
             size <<= 1;
         }
-
-        g.resize(deg, Modint::zero());
-        g.into()
+        res.prefix(deg)
     }
 
     #[inline]
@@ -414,6 +427,7 @@ impl<M: Modulo> Polynomial<M> {
         )
     }
 
+    // reference: https://judge.yosupo.jp/submission/70211
     pub fn exp(&self, deg: usize) -> Option<Self> {
         if self.deg() >= 1 && self[0] != Modint::zero() {
             return None;
@@ -424,21 +438,39 @@ impl<M: Modulo> Polynomial<M> {
 
         let mut now = 1;
         let mut res = Self::one();
+        let mut inv = Self::one();
         let table = Self::gen_inverse_table(deg.next_power_of_two());
         while now < deg {
-            now <<= 1;
-            let log = (res.derivative() * res.inv(now))
-                ._integral(table[..now].to_vec())
-                .prefix(now);
-            let mut f = self.prefix(now) - log;
-            f[0] += Modint::one();
+            let mut f = res.prefix(now << 1);
+            let mut g = inv.prefix(now << 1);
             f.coef.ntt();
-            let mut g = res.prefix(now);
             g.coef.ntt();
-            hadamard(&mut f.coef, &g.coef);
-            f.coef.intt();
-            f.coef[..now >> 1].fill(Modint::zero());
-            res += f;
+
+            let deriv = self.prefix(now).derivative() << 1u32;
+
+            let mut w = deriv.clone();
+            w.coef.ntt();
+            hadamard(&mut w.coef, &f.prefix(now).coef);
+            w.coef.intt();
+            w = (res.derivative() << 1u32) - w;
+
+            w.resize(now << 1);
+            w.coef.ntt();
+            hadamard(&mut w.coef, &g.coef);
+            w.coef.intt();
+            w = w.prefix(now) << now;
+            w.coef[..now].copy_from_slice(&deriv.coef[..now]);
+
+            let mut z = self.prefix(now << 1) - (w >> 1u32)._integral(table[..now << 1].to_vec());
+            z.coef.ntt();
+            hadamard(&mut z.coef, &f.coef);
+            z.coef.intt();
+            res.coef.extend(&z.coef[now..]);
+
+            now <<= 1;
+            if now < deg {
+                inv = res.doubling_step_for_inv(inv);
+            }
         }
         Some(res.prefix(deg))
     }
@@ -794,6 +826,16 @@ mod tests {
         assert!(inv.is_some());
         let inv: Vec<u32> = inv.unwrap().into();
         assert_eq!(inv, vec![0, 3, 2, 332748117]);
+    }
+
+    #[test]
+    fn polynomial_exp_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![0, 1, 2, 3, 4]);
+        let exp = poly.exp(poly.deg());
+
+        assert!(exp.is_some());
+        let exp: Vec<u32> = exp.unwrap().into();
+        assert_eq!(exp, vec![1, 1, 499122179, 166374064, 291154613]);
     }
 
     #[test]
