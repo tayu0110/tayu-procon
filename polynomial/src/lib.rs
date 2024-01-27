@@ -160,7 +160,6 @@ impl<M: Modulo> Polynomial<M> {
         // `g` must be the inverse of `self` on mod `g.deg()`
         debug_assert_eq!(
             {
-                eprintln!("self: {self:?}, g: {g:?}");
                 let mut g = self.clone().multiply(&g).prefix(g.deg());
                 g.shrink();
                 g.coef
@@ -480,6 +479,37 @@ impl<M: Modulo> Polynomial<M> {
             }
         }
         Some(res.prefix(deg))
+    }
+
+    pub fn pow(&self, n: u64, deg: usize) -> Self {
+        if n == 0 {
+            return Self::one().prefix(deg);
+        }
+        if self.deg() == 0 {
+            return Self::zero().prefix(deg);
+        }
+
+        if self[0] != Modint::one() {
+            let Some(pos) = self.coef.iter().position(|c| *c != Modint::zero()) else {
+                return Self::zero().prefix(deg);
+            };
+
+            if deg as u128 <= pos as u128 * n as u128 {
+                return Self::zero().prefix(deg);
+            }
+
+            let mut f = self >> pos;
+            let f0 = f[0];
+            f = f.scale(f0.inv());
+
+            return f.pow(n, deg - pos * n as usize).scale(f0.pow(n)) << (pos * n as usize);
+        }
+
+        self.log(deg)
+            .unwrap()
+            .scale(Modint::from(n))
+            .exp(deg)
+            .unwrap()
     }
 }
 
