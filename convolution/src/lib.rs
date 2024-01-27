@@ -14,19 +14,23 @@ use std::mem::transmute;
 type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
 
+/// Multiply each element of `a` and `b` and store in `a`.  
+/// `a.len()` and `b.len()` need not be aligned to a power of 2.
+///
+/// # Panics
+/// `a.len()` must be equal to `b.len()`.  
 #[inline]
 pub fn hadamard<M: Modulo>(a: &mut [Modint<M>], b: &[Modint<M>]) {
-    if a.len() < 8 {
-        a.iter_mut().zip(b).for_each(|(a, &b)| *a *= b);
-    } else {
-        unsafe {
-            a.chunks_exact_mut(8)
-                .zip(b.chunks_exact(8))
-                .for_each(|(v, w)| {
-                    (Modintx8::load(v.as_ptr()) * Modintx8::load(w.as_ptr())).store(v.as_mut_ptr())
-                })
-        }
+    assert_eq!(a.len(), b.len());
+    let mut ait = a.chunks_exact_mut(8);
+    let mut bit = b.chunks_exact(8);
+    for (a, b) in ait.by_ref().zip(bit.by_ref()) {
+        unsafe { (Modintx8::load(a.as_ptr()) * Modintx8::load(b.as_ptr())).store(a.as_mut_ptr()) }
     }
+    ait.into_remainder()
+        .iter_mut()
+        .zip(bit.remainder())
+        .for_each(|(a, b)| *a *= *b);
 }
 
 #[inline]

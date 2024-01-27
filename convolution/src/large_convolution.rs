@@ -48,7 +48,6 @@ pub fn convolution_large(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
                 hadamard_u32::<Mod998244353>(&mut x, y);
                 p.iter_mut()
                     .zip(x)
-                    // .zip(Nttable::<Mod998244353>::dot(x.clone(), y))
                     .for_each(|(p, v)| *p += Modint::from_rawval(v));
             }
         }
