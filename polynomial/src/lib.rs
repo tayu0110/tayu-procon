@@ -32,10 +32,7 @@ impl<M: Modulo> Polynomial<M> {
         let sv = Modintx8::splat(s);
         let mut it = self.coef.chunks_exact_mut(8);
         for v in it.by_ref() {
-            unsafe {
-                let mv = Modintx8::load(v.as_ptr());
-                (mv * sv).store(v.as_mut_ptr());
-            }
+            unsafe { (Modintx8::load(v.as_ptr()) * sv).store(v.as_mut_ptr()) }
         }
         it.into_remainder().iter_mut().for_each(|v| *v *= s);
         self
@@ -43,9 +40,9 @@ impl<M: Modulo> Polynomial<M> {
 
     #[inline]
     pub fn prefix(&self, new_deg: usize) -> Self {
-        let mut res = self.coef.iter().copied().take(new_deg).collect::<Vec<_>>();
-        res.resize(new_deg, Modint::zero());
-        Self { coef: res }
+        let mut coef = self.coef.iter().copied().take(new_deg).collect::<Vec<_>>();
+        coef.resize(new_deg, Modint::zero());
+        Self { coef }
     }
 
     #[inline]
@@ -73,10 +70,8 @@ impl<M: Modulo> Polynomial<M> {
             res
         } else {
             let mut coef = table;
-            coef.iter_mut()
-                .skip(1)
-                .zip(&self.coef)
-                .for_each(|(n, &c)| *n *= c);
+            let len = coef.len() - 1;
+            hadamard(&mut coef[1..], &self.coef[..len]);
             Self { coef }
         }
     }
@@ -873,6 +868,16 @@ mod tests {
         assert!(exp.is_some());
         let exp: Vec<u32> = exp.unwrap().into();
         assert_eq!(exp, vec![1, 1, 499122179, 166374064, 291154613]);
+    }
+
+    #[test]
+    fn polynomial_log_test() {
+        let poly = Polynomial::<Mod998244353>::from(vec![1, 1, 499122179, 166374064, 291154613]);
+        let log = poly.log(poly.deg());
+
+        assert!(log.is_some());
+        let log: Vec<u32> = log.unwrap().into();
+        assert_eq!(log, vec![0, 1, 2, 3, 4]);
     }
 
     #[test]
