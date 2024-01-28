@@ -309,6 +309,10 @@ impl<M: Modulo> Polynomial<M> {
     pub fn interpolation(xs: Vec<Modint<M>>, fs: Vec<Modint<M>>) -> Self {
         let len = xs.len();
         assert_eq!(len, fs.len());
+        if len == 0 {
+            return Self::empty();
+        }
+
         let m = len.next_power_of_two();
 
         let mut subproduct_tree = Self::gen_subproduct_tree(xs);
