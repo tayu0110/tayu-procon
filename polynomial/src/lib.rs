@@ -746,6 +746,65 @@ impl<M: Modulo> IndexMut<usize> for Polynomial<M> {
     }
 }
 
+/// Calculate the value of `f(target)` if the value of `f(x)` is known for `x=0..N`.  
+/// `fs[i]` denotes the value of `f(x)` for `x`=`i`.
+///
+/// Since the coefficients are not explicitly restored,  
+/// this method does NOT requires NTT multiplication, and <strong>works well even without NTT Friendly mod</strong>.
+///
+/// reference: https://atcoder.jp/contests/abc208/editorial/2195
+///
+/// # Examples
+/// ```rust
+/// use polynomial::interpolation_with_eval;
+/// use montgomery_modint::{Mod1000000007, MontgomeryModint};
+///
+/// type Modint = MontgomeryModint<Mod1000000007>;
+///
+/// let poly = vec![1.into(), 3.into(), 7.into()];
+/// // x^2 + x + 1 = 3*3 + 3 + 1 = 13
+/// assert_eq!(interpolation_with_eval(poly, 3.into()), Modint::new(13));
+///
+/// let poly = vec![4.into(), 16.into(), 106.into(), 484.into(), 1624.into(), 4384.into()];
+/// assert_eq!(interpolation_with_eval(poly, 1000000000.into()), Modint::new(999984471));
+/// ```
+pub fn interpolation_with_eval<M: Modulo>(fs: Vec<Modint<M>>, target: Modint<M>) -> Modint<M> {
+    if fs.is_empty() {
+        return Modint::zero();
+    }
+
+    let n = fs.len() - 1;
+    let mut inv = vec![Modint::one(); n + 1];
+    inv[n] = (2..n as u32 + 1)
+        .map(Modint::new)
+        .reduce(Modint::mul)
+        .unwrap_or(Modint::one());
+    inv[n] = inv[n].inv();
+    for i in (1..n).rev() {
+        inv[i] = inv[i + 1] * Modint::new(i as u32 + 1);
+    }
+
+    let mut lmul = vec![Modint::one(); n + 1];
+    for i in 0..n {
+        lmul[i + 1] = lmul[i] * (target - Modint::new(i as u32));
+    }
+    let mut rmul = vec![Modint::one(); n + 1];
+    for i in (1..n + 1).rev() {
+        rmul[i - 1] = rmul[i] * (target - Modint::new(i as u32));
+    }
+
+    let mut res = Modint::zero();
+    for i in 0..n + 1 {
+        let l = inv[i] * inv[n - i] * lmul[i] * rmul[i] * fs[i];
+        if (n - i) & 1 != 0 {
+            res -= l;
+        } else {
+            res += l;
+        }
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
     use super::Polynomial;
