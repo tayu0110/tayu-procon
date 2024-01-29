@@ -1,6 +1,9 @@
 use std::{
     mem::transmute,
-    ops::{Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, Shr, Sub, SubAssign},
+    ops::{
+        Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, ShlAssign, Shr, ShrAssign,
+        Sub, SubAssign,
+    },
 };
 
 use convolution::hadamard;
@@ -250,12 +253,10 @@ impl<M: Modulo> Polynomial<M> {
             subproduct_tree[(i << 1) | 1].resize(new_deg);
             subproduct_tree[i << 1].coef.ntt();
             subproduct_tree[(i << 1) | 1].coef.ntt();
-            subproduct_tree[i] = Self {
-                coef: {
-                    let mut coef = subproduct_tree[i << 1].clone().coef;
-                    hadamard(&mut coef, &subproduct_tree[(i << 1) | 1].coef);
-                    coef
-                },
+            subproduct_tree[i] = {
+                let mut poly = subproduct_tree[i << 1].clone();
+                hadamard(&mut poly.coef, &subproduct_tree[(i << 1) | 1].coef);
+                poly
             };
             subproduct_tree[i].coef.intt();
             let k = subproduct_tree[i].coef[0] - Modint::one();
@@ -273,9 +274,7 @@ impl<M: Modulo> Polynomial<M> {
             for b in b.iter_mut().take(2) {
                 hadamard(&mut b.coef, &a[i].coef);
                 b.coef.intt();
-                b.reverse();
-                b.resize(n);
-                b.reverse();
+                *b >>= n;
             }
             b.swap(0, 1);
         }
@@ -346,10 +345,8 @@ impl<M: Modulo> Polynomial<M> {
 
         subproduct_tree[m..m + len]
             .iter_mut()
-            .enumerate()
-            .for_each(|(i, v)| {
-                *v = vec![fs[i] / *v.coef.first().unwrap_or(&Modint::zero())].into()
-            });
+            .zip(fs)
+            .for_each(|(v, f)| *v = vec![f / *v.coef.first().unwrap_or(&Modint::zero())].into());
         subproduct_tree[m + len..].fill(Self::empty());
         for i in (1..m).rev() {
             let (r, l) = (
@@ -369,9 +366,8 @@ impl<M: Modulo> Polynomial<M> {
             }
             if kl.deg() != kr.deg() {
                 let new_deg = kl.deg() + kr.deg() - 1;
-                keep[i].reverse();
-                keep[i].resize(new_deg);
-                keep[i].reverse();
+                let sh = keep[i].deg() - new_deg;
+                keep[i] >>= sh;
             }
             subproduct_tree[i] = l * kr + r * kl;
         }
@@ -446,10 +442,7 @@ impl<M: Modulo> Polynomial<M> {
             g.coef.ntt();
 
             let mut w = self.prefix(now).derivative() << 1u32;
-            table[written..now]
-                .iter_mut()
-                .zip(&w.coef[written..now])
-                .for_each(|(s, t)| *s *= *t);
+            hadamard(&mut table[written..now], &w.coef[written..now]);
             written = now;
 
             w.coef.ntt();
@@ -463,9 +456,10 @@ impl<M: Modulo> Polynomial<M> {
             w.coef.intt();
 
             let mut z = self.prefix(now << 1) - table[..now].into();
+            hadamard(&mut w.coef[..now], &table[now..now << 1]);
             z.coef[now..]
                 .iter_mut()
-                .zip(table[now..].iter().zip(w.coef).map(|(s, t)| *s * t))
+                .zip(w.coef)
                 .for_each(|(s, t)| *s -= t);
             z.coef.ntt();
             hadamard(&mut z.coef, &f.coef);
@@ -631,8 +625,9 @@ impl<M: Modulo> Shl<u32> for &Polynomial<M> {
 
 impl<M: Modulo> Shl<usize> for Polynomial<M> {
     type Output = Polynomial<M>;
-    fn shl(self, rhs: usize) -> Self::Output {
-        (&self) << rhs
+    fn shl(mut self, rhs: usize) -> Self::Output {
+        self <<= rhs;
+        self
     }
 }
 
@@ -640,6 +635,28 @@ impl<M: Modulo> Shl<u32> for Polynomial<M> {
     type Output = Self;
     fn shl(self, rhs: u32) -> Self::Output {
         self << (rhs as usize)
+    }
+}
+
+impl<M: Modulo> ShlAssign<usize> for Polynomial<M> {
+    fn shl_assign(&mut self, rhs: usize) {
+        if rhs > 0 {
+            let mut coef = vec![Modint::zero(); self.deg() + rhs];
+            coef[rhs..].copy_from_slice(&self.coef);
+            self.coef = coef;
+        }
+    }
+}
+
+impl<M: Modulo> ShlAssign<u32> for Polynomial<M> {
+    fn shl_assign(&mut self, rhs: u32) {
+        *self <<= rhs as usize;
+    }
+}
+
+impl<M: Modulo> ShlAssign<u64> for Polynomial<M> {
+    fn shl_assign(&mut self, rhs: u64) {
+        *self <<= rhs as usize;
     }
 }
 
@@ -662,8 +679,9 @@ impl<M: Modulo> Shr<u32> for &Polynomial<M> {
 
 impl<M: Modulo> Shr<usize> for Polynomial<M> {
     type Output = Self;
-    fn shr(self, rhs: usize) -> Self::Output {
-        (&self) >> rhs
+    fn shr(mut self, rhs: usize) -> Self::Output {
+        self >>= rhs;
+        self
     }
 }
 
@@ -671,6 +689,30 @@ impl<M: Modulo> Shr<u32> for Polynomial<M> {
     type Output = Self;
     fn shr(self, rhs: u32) -> Self::Output {
         self >> (rhs as usize)
+    }
+}
+
+impl<M: Modulo> ShrAssign<usize> for Polynomial<M> {
+    fn shr_assign(&mut self, rhs: usize) {
+        if rhs >= self.deg() {
+            self.coef.clear();
+        } else {
+            self.reverse();
+            self.resize(self.deg() - rhs);
+            self.reverse();
+        }
+    }
+}
+
+impl<M: Modulo> ShrAssign<u32> for Polynomial<M> {
+    fn shr_assign(&mut self, rhs: u32) {
+        *self >>= rhs as usize;
+    }
+}
+
+impl<M: Modulo> ShrAssign<u64> for Polynomial<M> {
+    fn shr_assign(&mut self, rhs: u64) {
+        *self >>= rhs as usize;
     }
 }
 
