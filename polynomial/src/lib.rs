@@ -14,22 +14,53 @@ use zero_one::{One, Zero};
 type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Polynomial<M: Modulo> {
     coef: Vec<Modint<M>>,
 }
 
 impl<M: Modulo> Polynomial<M> {
+    /// Return an empty Polynomial. This method is as same as `<Self as Zero>::zero()`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    /// use zero_one::Zero;
+    ///
+    /// assert_eq!(Polynomial::<Mod998244353>::empty(), Polynomial::<Mod998244353>::zero());
+    /// ```
     #[inline]
     pub fn empty() -> Self {
         Self { coef: vec![] }
     }
 
+    /// Returns the number of terms in the polynomial.  
+    /// Therefore, the highest degree of `self` is `self.deg() - 1`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4]);
+    /// assert_eq!(poly.deg(), 4);
+    /// ```
     #[inline]
     pub fn deg(&self) -> usize {
         self.coef.len()
     }
 
+    /// Multiply all terms in `self` by `s`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::{Mod998244353, MontgomeryModint};
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4]);
+    /// assert_eq!(poly.scale(5.into()), Polynomial::from(vec![5, 10, 15, 20]));
+    /// ```
     #[inline]
     pub fn scale(mut self, s: Modint<M>) -> Self {
         let sv = Modintx8::splat(s);
@@ -41,6 +72,19 @@ impl<M: Modulo> Polynomial<M> {
         self
     }
 
+    /// Return the lower `new_deg` term of self.  
+    /// If `new_deg` is greater than `self.deg()`, adjust and return the `new_deg` term with a zero fill.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4, 5, 6]);
+    /// assert_eq!(poly.prefix(3), Polynomial::from(vec![1, 2, 3]));
+    /// assert_eq!(poly.prefix(6), poly);
+    /// assert_eq!(poly.prefix(10), Polynomial::from(vec![1, 2, 3, 4, 5, 6, 0, 0, 0, 0]));
+    /// ```
     #[inline]
     pub fn prefix(&self, new_deg: usize) -> Self {
         let mut coef = self.coef.iter().copied().take(new_deg).collect::<Vec<_>>();
@@ -48,6 +92,16 @@ impl<M: Modulo> Polynomial<M> {
         Self { coef }
     }
 
+    /// Returns the first derivative of `self`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4, 5]);
+    /// assert_eq!(poly.derivative(), Polynomial::from(vec![2, 6, 12, 20]));
+    /// ```
     #[inline]
     pub fn derivative(&self) -> Self {
         self.coef
@@ -60,6 +114,17 @@ impl<M: Modulo> Polynomial<M> {
             .into()
     }
 
+    /// Calculate the indefinite integral.  
+    /// The constant term is filled with 0.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4]);
+    /// assert_eq!(poly.integral(), Polynomial::from(vec![0, 1, 1, 1, 1]));
+    /// ```
     pub fn integral(&self) -> Self {
         self._integral(Self::gen_inverse_table(self.deg()))
     }
@@ -196,6 +261,26 @@ impl<M: Modulo> Polynomial<M> {
     // reference: https://web.archive.org/web/20220903140644/https://opt-cp.com/fps-fast-algorithms/#toc4
     // reference: https://nyaannyaan.github.io/library/fps/formal-power-series.hpp
     // reference: https://judge.yosupo.jp/submission/68532
+    /// Return the inverse of `self` mod x<sup>deg</sup>.
+    ///
+    /// Since `Self::div()` returns the quotient of a polynomial, it may not match the result of FPS division.  
+    /// When performing FPS division, it is necessary to perform multiplication with the result of `self.inv(deg)`, which specifies the required precision in `deg`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    /// use zero_one::One;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4, 5]);
+    /// let mut res = (poly.clone() * poly.inv(5)).prefix(5);
+    /// res.shrink();
+    /// assert_eq!(res, Polynomial::one());
+    ///
+    /// let mut res = (poly.clone() * poly.inv(30)).prefix(30);
+    /// res.shrink();
+    /// assert_eq!(res, Polynomial::one());
+    /// ```
     pub fn inv(&self, deg: usize) -> Self {
         let mut res = Self::one();
         res[0] = self[0].inv();
@@ -218,6 +303,8 @@ impl<M: Modulo> Polynomial<M> {
         self.coef.resize(new_deg, Modint::zero());
     }
 
+    /// Remove Leading Zeros.  
+    /// Do not perform capacity adjustments such as `Vec::shrink_to_fit`.
     #[inline]
     pub fn shrink(&mut self) {
         let garbage_cnt = self
@@ -229,6 +316,23 @@ impl<M: Modulo> Polynomial<M> {
         self.coef.resize(self.deg() - garbage_cnt, Modint::zero());
     }
 
+    /// Return a pair of `(self / rhs, self % rhs)`.  
+    /// For returned values, `Quotient * Divisor + Remainder == self` and `Divisor.deg() > Remainder.deg()` is always satisfied.
+    ///
+    /// If you need both a quotient and a remainder,  
+    /// it may be more efficient to use `self.div_rem(rhs)` than to use `self.div(rhs)` and `self.rem(rhs)` separately.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::Mod998244353;
+    ///
+    /// let poly = Polynomial::<Mod998244353>::from(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+    /// let divisor = Polynomial::from(vec![5, 4, 3, 2, 1]);
+    /// let (quotient, remainder) = poly.clone().div_rem(divisor.clone());
+    /// assert!(divisor.deg() > remainder.deg());
+    /// assert_eq!(divisor * quotient + remainder, poly);
+    /// ```
     #[inline]
     pub fn div_rem(self, rhs: Self) -> (Self, Self) {
         let q = self.clone() / rhs.clone();
@@ -281,6 +385,7 @@ impl<M: Modulo> Polynomial<M> {
         subproduct_tree
     }
 
+    /// Returns all the results of evaluating self with the elements of `xs`.  
     // reference: https://specfun.inria.fr/bostan/publications/BoLeSc03.pdf
     // reference: https://judge.yosupo.jp/submission/127492
     pub fn multipoint_evaluation(mut self, xs: Vec<Modint<M>>) -> Vec<Modint<M>> {
@@ -305,6 +410,14 @@ impl<M: Modulo> Polynomial<M> {
             .collect()
     }
 
+    /// Derive a polynomial such that substituting `xs[i]` for f(x) for any `i` evaluates to `fs[i]` using Lagrange interpolation.  
+    /// It may work with duplicate elements, but it is not recommended because it is not expected.
+    ///
+    /// Since this method uses NTT multiplication internally, there is no guarantee that it works with anything except for NTT Friendly mods at this time.  
+    /// If it is not necessary to restore the coefficients explicitly, you can use `polynomial::interpolation_with_eval` except for the NTT Friendly mod also.
+    ///
+    /// # Panics
+    /// `xs.len()` must be equal to `fs.len()`.
     pub fn interpolation(xs: Vec<Modint<M>>, fs: Vec<Modint<M>>) -> Self {
         let len = xs.len();
         assert_eq!(len, fs.len());
@@ -474,6 +587,7 @@ impl<M: Modulo> Polynomial<M> {
         Some(res.prefix(deg))
     }
 
+    /// Calculate f(x)<sup>n</sup> mod x<sup>deg</sup>.
     pub fn pow(&self, n: u64, deg: usize) -> Self {
         if n == 0 {
             return Self::one().prefix(deg);
