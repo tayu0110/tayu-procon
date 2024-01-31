@@ -618,25 +618,30 @@ impl<M: Modulo> Polynomial<M> {
     }
 
     // reference: https://twitter.com/risujiroh/status/1215710785000751104?s=20
+    // reference: https://nyaannyaan.github.io/library/fps/taylor-shift.hpp.html
     pub fn taylor_shift(mut self, shift: Modint<M>) -> Self {
         let n = self.deg();
-        let mut fact = vec![Modint::zero(); n];
-        fact[0] = Modint::one();
+        let mut frac = vec![Modint::zero(); n];
+        frac[0] = Modint::one();
         for i in 1..n {
-            fact[i] = fact[i - 1] * Modint::new(i as u32);
-            self[i] *= fact[i];
+            frac[i] = frac[i - 1] * Modint::new(i as u32);
         }
+        hadamard(&mut self.coef, &frac);
         self.reverse();
-        self *= Self::from(vec![Modint::zero(), shift])
-            .exp(self.deg())
-            .unwrap();
-        self = self.prefix(n);
-        self.reverse();
-        fact[n - 1] = fact[n - 1].inv();
+        frac[n - 1] = frac[n - 1].inv();
         for i in (1..n).rev() {
-            self[i] *= fact[i];
-            fact[i - 1] = fact[i] * Modint::new(i as u32);
+            frac[i - 1] = frac[i] * Modint::new(i as u32);
         }
+        let mut exp = self.clone();
+        exp[0] = Modint::one();
+        let mut f = Modint::one();
+        for i in 1..n {
+            exp[i] = exp[i - 1] * shift * frac[i] * f;
+            f *= Modint::new(i as u32);
+        }
+        self = (self * exp).prefix(n);
+        self.reverse();
+        hadamard(&mut self.coef, &frac);
         self
     }
 }
