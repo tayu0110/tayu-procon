@@ -1,9 +1,7 @@
-use std::{
-    mem::transmute,
-    ops::{
-        Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, ShlAssign, Shr, ShrAssign,
-        Sub, SubAssign,
-    },
+use std::mem::transmute;
+use std::ops::{
+    Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Rem, Shl, ShlAssign, Shr, ShrAssign, Sub,
+    SubAssign,
 };
 
 use convolution::hadamard;
@@ -617,6 +615,29 @@ impl<M: Modulo> Polynomial<M> {
             .scale(Modint::from(n))
             .exp(deg)
             .unwrap()
+    }
+
+    // reference: https://twitter.com/risujiroh/status/1215710785000751104?s=20
+    pub fn taylor_shift(mut self, shift: Modint<M>) -> Self {
+        let n = self.deg();
+        let mut fact = vec![Modint::zero(); n];
+        fact[0] = Modint::one();
+        for i in 1..n {
+            fact[i] = fact[i - 1] * Modint::new(i as u32);
+            self[i] *= fact[i];
+        }
+        self.reverse();
+        self *= Self::from(vec![Modint::zero(), shift])
+            .exp(self.deg())
+            .unwrap();
+        self = self.prefix(n);
+        self.reverse();
+        fact[n - 1] = fact[n - 1].inv();
+        for i in (1..n).rev() {
+            self[i] *= fact[i];
+            fact[i - 1] = fact[i] * Modint::new(i as u32);
+        }
+        self
     }
 }
 
