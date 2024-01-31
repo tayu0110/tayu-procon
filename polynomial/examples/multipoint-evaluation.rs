@@ -6,11 +6,9 @@ use polynomial::Polynomial;
 fn main() {
     scan!(n: usize, m: usize, c: [u32; n], p: [u32; m]);
 
-    let p = p.into_iter().map(MontgomeryModint::new).collect::<Vec<_>>();
-    let f = Polynomial::<Mod998244353>::from(c);
-
-    let res: Polynomial<Mod998244353> = f.multipoint_evaluation(p).into();
-    let res: Vec<u32> = res.into();
+    let p: Vec<MontgomeryModint<Mod998244353>> = Polynomial::<Mod998244353>::from(p).into();
+    let res: Vec<u32> =
+        Polynomial::from(Polynomial::<Mod998244353>::from(c).multipoint_evaluation(p)).into();
 
     putvln!(res, sep = ' ');
 }
