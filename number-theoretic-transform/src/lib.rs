@@ -22,7 +22,7 @@ use montgomery_modint::MontgomeryModintx8;
 use montgomery_modint::{Modulo, MontgomeryModint};
 use std::mem::transmute;
 pub use traits::NumberTheoreticTransform;
-pub use utility::bit_reverse;
+pub use utility::*;
 
 type Modint<M> = MontgomeryModint<M>;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]

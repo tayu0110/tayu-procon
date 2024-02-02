@@ -1,15 +1,19 @@
 #[cfg(feature = "arbitrary-modulo-convolution")]
 mod arbitrary_modulo_convolution;
-#[cfg(feature = "large-convolution")]
-mod large_convolution;
+// #[cfg(feature = "large-convolution")]
+// mod large_convolution;
+
+use std::iter::repeat;
+use std::mem::transmute;
 
 #[cfg(feature = "arbitrary-modulo-convolution")]
 pub use arbitrary_modulo_convolution::*;
-#[cfg(feature = "large-convolution")]
-pub use large_convolution::*;
-use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
-use number_theoretic_transform::NumberTheoreticTransform;
-use std::mem::transmute;
+// #[cfg(feature = "large-convolution")]
+// pub use large_convolution::*;
+use montgomery_modint::{
+    Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint, MontgomeryModintx8,
+};
+use number_theoretic_transform::{utility, NumberTheoreticTransform};
 
 type Modint<M> = MontgomeryModint<M>;
 type Modintx8<M> = MontgomeryModintx8<M>;
@@ -33,26 +37,148 @@ pub fn hadamard<M: Modulo>(a: &mut [Modint<M>], b: &[Modint<M>]) {
         .for_each(|(a, b)| *a *= *b);
 }
 
-#[inline]
-pub fn hadamard_u32<M: Modulo>(a: &mut [u32], b: &[u32]) {
-    let a = unsafe { transmute(a) };
-    let b = unsafe { transmute(b) };
-    hadamard::<M>(a, b);
+pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
+    unsafe {
+        utility::u32tomint::<M>(&mut a);
+        utility::u32tomint::<M>(&mut b);
+        let mut res = convolution_mod::<M>(transmute(a), transmute(b));
+        utility::minttou32(&mut res);
+        transmute(res)
+    }
 }
 
-pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
+pub fn convolution_mod_ntt_friendly<M: Modulo>(
+    mut a: Vec<Modint<M>>,
+    mut b: Vec<Modint<M>>,
+) -> Vec<Modint<M>> {
     let deg = a.len() + b.len() - 1;
     let n = deg.next_power_of_two();
 
-    a.resize(n, 0);
-    b.resize(n, 0);
+    a.resize(n, Modint::zero());
+    b.resize(n, Modint::zero());
 
-    <[u32] as NumberTheoreticTransform<M>>::ntt(&mut a);
-    <[u32] as NumberTheoreticTransform<M>>::ntt(&mut b);
+    a.ntt();
+    b.ntt();
 
-    hadamard_u32::<M>(&mut a, &b);
+    hadamard(&mut a, &b);
 
-    <[u32] as NumberTheoreticTransform<M>>::intt(&mut a);
-    a.resize(deg, 0);
+    a.intt();
+    a.truncate(deg);
     a
+}
+
+fn convolution_mod_not_ntt_friendly<M: Modulo>(
+    a: Vec<Modint<M>>,
+    b: Vec<Modint<M>>,
+) -> Vec<Modint<M>> {
+    let c1 = convolution_mod::<Mod880803841>(
+        a.iter().map(|a| Modint::new(a.val())).collect(),
+        b.iter().map(|b| Modint::new(b.val())).collect(),
+    );
+    let c2 = convolution_mod::<Mod897581057>(
+        a.iter().map(|a| Modint::new(a.val())).collect(),
+        b.iter().map(|b| Modint::new(b.val())).collect(),
+    );
+    let c3 = convolution_mod::<Mod998244353>(
+        a.iter().map(|a| Modint::new(a.val())).collect(),
+        b.iter().map(|b| Modint::new(b.val())).collect(),
+    );
+
+    const P: [u64; 3] = [
+        Mod880803841::N as u64,
+        Mod897581057::N as u64,
+        Mod998244353::N as u64,
+    ];
+    const P1P2: u64 = P[0] * P[1] % P[2];
+    let p1p2mod: u64 = P[0] * P[1] % M::N as u64;
+    let p1i = Modint::<Mod897581057>::new(P[0] as u32).inv().val() as u64;
+    let p2i = Modint::<Mod998244353>::new(P1P2 as u32).inv().val() as u64;
+    c1.iter()
+        .map(Modint::val)
+        .zip(c2.iter().map(Modint::val).zip(c3.iter().map(Modint::val)))
+        .map(|(c1, (c2, c3))| {
+            let t1 = (c2 as u64 + P[1] - c1 as u64) * p1i % P[1];
+            let res2 = (c1 as u64 + t1 * P[0]) % P[2];
+            let res3 = (c1 as u64 + t1 * P[0]) % M::N as u64;
+            let t2 = (c3 as u64 + P[2] - res2) * p2i % P[2];
+            Modint::<M>::from(res3 + t2 * p1p2mod)
+        })
+        .collect()
+}
+
+pub fn convolution_mod<M: Modulo>(mut a: Vec<Modint<M>>, mut b: Vec<Modint<M>>) -> Vec<Modint<M>> {
+    if a.len() < b.len() {
+        (a, b) = (b, a);
+    }
+
+    let m = a.len() + b.len() - 1;
+    if b.len() <= 8 {
+        a.resize(m, Modint::zero());
+        for i in (0..m).rev() {
+            let mut res = Modint::zero();
+            for (j, &r) in b.iter().enumerate().take_while(|&(j, _)| i >= j) {
+                res += a[i - j] * r;
+            }
+            a[i] = res;
+        }
+        return a;
+    }
+
+    if m.next_power_of_two() <= 1 << (M::N - 1).trailing_zeros() {
+        return convolution_mod_ntt_friendly(a, b);
+    }
+
+    const THRESH: u32 = {
+        let m880 = (Mod880803841::N - 1).trailing_zeros();
+        let m897 = (Mod897581057::N - 1).trailing_zeros();
+        let m998 = (Mod998244353::N - 1).trailing_zeros();
+        let a = if m880 < m897 { m880 } else { m897 };
+        if a < m998 {
+            a
+        } else {
+            m998
+        }
+    };
+
+    if m.next_power_of_two() <= 1 << THRESH {
+        return convolution_mod_not_ntt_friendly(a, b);
+    }
+
+    let n = a.len().next_power_of_two() >> 1;
+    if a.len() > n && b.len() > n {
+        let a1 = a.split_off(n);
+        let b1 = b.split_off(n);
+
+        let mut z0 = convolution_mod(a.clone(), b.clone());
+        let z2 = convolution_mod(a1.clone(), b1.clone());
+
+        let mut z1 = z0.clone();
+        z1.iter_mut().zip(&z2).for_each(|(s, t)| *s += *t);
+
+        let mut a1m0 = a;
+        a1m0.iter_mut()
+            .zip(a1.into_iter().chain(repeat(Modint::zero())))
+            .for_each(|(s, t)| *s = t - *s);
+        let mut b1m0 = b;
+        b1m0.iter_mut()
+            .zip(b1.into_iter().chain(repeat(Modint::zero())))
+            .for_each(|(s, t)| *s = t - *s);
+
+        z1.iter_mut()
+            .zip(convolution_mod(a1m0, b1m0))
+            .for_each(|(s, t)| *s -= t);
+
+        z0.resize(m, Modint::zero());
+        z0[n..].iter_mut().zip(z1).for_each(|(s, t)| *s += t);
+        z0[n * 2..].iter_mut().zip(z2).for_each(|(s, t)| *s += t);
+        return z0;
+    }
+
+    let a1 = a.split_off(n);
+    let mut lo = convolution_mod(a, b.clone());
+    let hi = convolution_mod(a1, b);
+    lo.resize(m, Modint::zero());
+    lo[n..].iter_mut().zip(hi).for_each(|(s, t)| *s += t);
+
+    lo
 }
