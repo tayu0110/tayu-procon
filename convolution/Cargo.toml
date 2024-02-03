@@ -18,7 +18,7 @@ proconio = { version = "0.4.3", features = ["derive"] }
 doctest = false
 
 [features]
-default = ["large-convolution", "arbitrary-modulo-convolution"]
+default = []
 large-convolution = []
 arbitrary-modulo-convolution = []
 
@@ -27,7 +27,6 @@ debug = true
 
 [[example]]
 name = "convolution-large"
-required-features = ["large-convolution"]
 
 [[example]]
 name = "convolution-mod2-64"
@@ -43,4 +42,4 @@ required-features = ["arbitrary-modulo-convolution"]
 
 [[test]]
 name = "convolution"
-required-features = ["arbitrary-modulo-convolution", "large-convolution"]
+required-features = ["arbitrary-modulo-convolution"]

@@ -1,15 +1,11 @@
 #[cfg(feature = "arbitrary-modulo-convolution")]
 mod arbitrary_modulo_convolution;
-// #[cfg(feature = "large-convolution")]
-// mod large_convolution;
 
 use std::iter::repeat;
 use std::mem::transmute;
 
 #[cfg(feature = "arbitrary-modulo-convolution")]
 pub use arbitrary_modulo_convolution::*;
-// #[cfg(feature = "large-convolution")]
-// pub use large_convolution::*;
 use montgomery_modint::{
     Mod880803841, Mod897581057, Mod998244353, Modulo, MontgomeryModint, MontgomeryModintx8,
 };
