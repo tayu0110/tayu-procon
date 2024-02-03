@@ -14,9 +14,6 @@ number-theoretic-transform = { version = "0.1.0", path = "../number-theoretic-tr
 iolib = { package = "iolib", path = "../iolib" }
 proconio = { version = "0.4.3", features = ["derive"] }
 
-[lib]
-doctest = false
-
 [features]
 default = []
 large-convolution = []

@@ -19,6 +19,17 @@ type Modintx8<M> = MontgomeryModintx8<M>;
 ///
 /// # Panics
 /// `a.len()` must be equal to `b.len()`.  
+///
+/// # Examples
+/// ```rust
+/// use convolution::hadamard;
+/// use montgomery_modint::Mod998244353;
+///
+/// let mut a = vec![0.into(), 1.into(), 2.into(), 3.into()];
+/// let b = vec![1.into(), 2.into(), 4.into(), 8.into()];
+/// hadamard::<Mod998244353>(&mut a, &b);
+/// assert_eq!(a, vec![0.into(), 2.into(), 8.into(), 24.into()]);
+/// ```
 #[inline]
 pub fn hadamard<M: Modulo>(a: &mut [Modint<M>], b: &[Modint<M>]) {
     assert_eq!(a.len(), b.len());
@@ -33,6 +44,21 @@ pub fn hadamard<M: Modulo>(a: &mut [Modint<M>], b: &[Modint<M>]) {
         .for_each(|(a, b)| *a *= *b);
 }
 
+/// Convolve `a` and `b` with mod `M`.
+///
+/// `a` and `b` need not be within mod `M` and `Vec::len` of them can be different.  
+/// `M` need not be NTT Friendly and there is no length limit.
+///
+/// The length of `a` and `b` is adjusted so that the result of the convolution does not cycle.
+///
+/// # Examples
+/// ```rust
+/// use convolution::convolution;
+/// use montgomery_modint::Mod998244353;
+///
+/// let res = convolution::<Mod998244353>(vec![1, 2, 3, 4], vec![5, 6, 7, 8, 9]);
+/// assert_eq!(res, vec![5, 16, 34, 60, 70, 70, 59, 36]);
+/// ```
 pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     unsafe {
         utility::u32tomint::<M>(&mut a);
@@ -43,7 +69,7 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     }
 }
 
-pub fn convolution_mod_ntt_friendly<M: Modulo>(
+fn convolution_mod_ntt_friendly<M: Modulo>(
     mut a: Vec<Modint<M>>,
     mut b: Vec<Modint<M>>,
 ) -> Vec<Modint<M>> {
@@ -102,6 +128,27 @@ fn convolution_mod_not_ntt_friendly<M: Modulo>(
         .collect()
 }
 
+/// Convolve `a` and `b` with mod `M`.
+///
+/// `M` need not be NTT Friendly and there is no length limit.  
+/// It is better to use `convolution` when you convolve `u32` arrays.
+///
+/// The length of `a` and `b` is adjusted so that the result of the convolution does not cycle.
+///
+/// # Examples
+/// ```rust
+/// use convolution::convolution_mod;
+/// use montgomery_modint::Mod998244353;
+///
+/// let res = convolution_mod::<Mod998244353>(
+///     vec![1.into(), 2.into(), 3.into(), 4.into()],
+///     vec![5.into(), 6.into(), 7.into(), 8.into(), 9.into()],
+/// );
+/// assert_eq!(
+///     res,
+///     vec![5.into(), 16.into(), 34.into(), 60.into(), 70.into(), 70.into(), 59.into(), 36.into()]
+/// );
+/// ```
 pub fn convolution_mod<M: Modulo>(mut a: Vec<Modint<M>>, mut b: Vec<Modint<M>>) -> Vec<Modint<M>> {
     if a.len() < b.len() {
         (a, b) = (b, a);
