@@ -677,6 +677,50 @@ impl<M: Modulo> Polynomial<M> {
         hadamard(&mut self.coef, &frac);
         self
     }
+
+    /// Calculate \[x<sup>n</sup>\](`self`/`other`).  
+    /// reference: https://qiita.com/ryuhe1/items/da5acbcce4ac1911f47a
+    ///
+    /// # Examples
+    /// ```rust
+    /// use polynomial::Polynomial;
+    /// use montgomery_modint::{Mod998244353, MontgomeryModint};
+    ///
+    /// type Modint = MontgomeryModint<Mod998244353>;
+    ///
+    /// // Fibonacci Sequence
+    /// let p = Polynomial::from(vec![Modint::zero(), Modint::one()]);
+    /// let q = Polynomial::from(vec![Modint::one(), -Modint::one(), -Modint::one()]);
+    ///
+    /// // 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987
+    /// assert_eq!(p.bostan_mori(&q, 0), 0.into());
+    /// assert_eq!(p.bostan_mori(&q, 10), 55.into());
+    /// assert_eq!(p.bostan_mori(&q, 16), 987.into())
+    /// ```
+    pub fn bostan_mori(&self, other: &Self, mut n: u64) -> Modint<M> {
+        let (mut p, mut q) = (self.clone(), other.clone());
+        while n > 0 {
+            let mut nq = q.clone();
+            nq.coef.iter_mut().skip(1).step_by(2).for_each(|q| *q = -*q);
+            let u = p.multiply(&nq);
+            let lsb = (n & 1) as usize;
+            p = u
+                .coef
+                .into_iter()
+                .enumerate()
+                .filter_map(|u| ((u.0 & 1) == lsb).then_some(u.1))
+                .collect::<Vec<_>>()
+                .into();
+            q = (q * nq)
+                .coef
+                .into_iter()
+                .step_by(2)
+                .collect::<Vec<_>>()
+                .into();
+            n >>= 1;
+        }
+        p[0] / q[0]
+    }
 }
 
 impl<M: Modulo> Add<Self> for Polynomial<M> {
@@ -1014,6 +1058,44 @@ pub fn interpolation_with_eval<M: Modulo>(fs: Vec<Modint<M>>, target: Modint<M>)
         }
     }
     res
+}
+
+/// When given the first d terms of the linear recurrence sequence, find the `k`-th term.
+///
+/// `c` represents the coefficients for the linear recurrence relation `c[0]a[n-1]+c[1]a[n-2]+...+c[d-1]a[n-k]`.  
+/// `a` reprecents the first d terms of the sequence.  
+/// `k` is 0-index.
+///
+/// # Examples
+/// ```rust
+/// use polynomial::kth_term_of_linearly_recurrent_sequence;
+/// use montgomery_modint::Mod998244353;
+///
+/// // These reprecents the Fibonacci sequence
+/// // Fn = Fn-1 + Fn-2
+/// let c = vec![1, 1];
+/// // 1, 1, 2, 3, 5, 8, 13, 21, 34, ...
+/// let a = vec![1, 1];
+/// assert_eq!(kth_term_of_linearly_recurrent_sequence::<Mod998244353>(c, a, 8), 34.into());
+///
+/// // What is this ?
+/// // Fn = Fn-1 + 2Fn-2
+/// let c = vec![1, 2];
+/// // it seems the power of 2...
+/// // 1, 2, 4, 8, 16, 32, ...
+/// let a = vec![1, 2];
+/// assert_eq!(kth_term_of_linearly_recurrent_sequence::<Mod998244353>(c, a, 10), 1024.into());
+/// ```
+pub fn kth_term_of_linearly_recurrent_sequence<M: Modulo>(
+    c: impl Into<Polynomial<M>>,
+    a: impl Into<Polynomial<M>>,
+    k: u64,
+) -> Modint<M> {
+    let (mut q, a): (Polynomial<M>, Polynomial<M>) = (c.into(), a.into());
+    q.coef.iter_mut().for_each(|c| *c = -*c);
+    q.coef.insert(0, Modint::one());
+    let p = a.multiply(&q).prefix(q.deg() - 1);
+    p.bostan_mori(&q, k)
 }
 
 #[cfg(test)]
