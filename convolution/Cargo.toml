@@ -31,7 +31,6 @@ required-features = ["arbitrary-modulo-convolution"]
 
 [[example]]
 name = "convolution-mod1000000007"
-required-features = ["arbitrary-modulo-convolution"]
 
 [[example]]
 name = "arbitrary-convolution"

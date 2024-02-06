@@ -171,17 +171,15 @@ pub fn convolution_mod<M: Modulo>(mut a: Vec<Modint<M>>, mut b: Vec<Modint<M>>) 
         return convolution_mod_ntt_friendly(a, b);
     }
 
-    const THRESH: u32 = {
-        let m880 = (Mod880803841::N - 1).trailing_zeros();
-        let m897 = (Mod897581057::N - 1).trailing_zeros();
-        let m998 = (Mod998244353::N - 1).trailing_zeros();
-        let a = if m880 < m897 { m880 } else { m897 };
-        if a < m998 {
-            a
-        } else {
-            m998
-        }
-    };
+    // THRESH is as same as the return value of the following block.
+    // {
+    //     let m880 = (Mod880803841::N - 1).trailing_zeros();
+    //     let m897 = (Mod897581057::N - 1).trailing_zeros();
+    //     let m998 = (Mod998244353::N - 1).trailing_zeros();
+    //     let a = if m880 < m897 { m880 } else { m897 };
+    //     if a < m998 { a } else { m998 }
+    // }
+    const THRESH: u32 = 23;
 
     if m.next_power_of_two() <= 1 << THRESH {
         return convolution_mod_not_ntt_friendly(a, b);
@@ -198,14 +196,12 @@ pub fn convolution_mod<M: Modulo>(mut a: Vec<Modint<M>>, mut b: Vec<Modint<M>>) 
         let mut z1 = z0.clone();
         z1.iter_mut().zip(&z2).for_each(|(s, t)| *s += *t);
 
-        let mut a1m0 = a;
-        a1m0.iter_mut()
-            .zip(a1.into_iter().chain(repeat(Modint::zero())))
-            .for_each(|(s, t)| *s = t - *s);
-        let mut b1m0 = b;
-        b1m0.iter_mut()
-            .zip(b1.into_iter().chain(repeat(Modint::zero())))
-            .for_each(|(s, t)| *s = t - *s);
+        let (mut a1m0, mut b1m0) = (a, b);
+        for (s, t) in [(&mut a1m0, a1), (&mut b1m0, b1)] {
+            s.iter_mut()
+                .zip(t.into_iter().chain(repeat(Modint::zero())))
+                .for_each(|(s, t)| *s = t - *s);
+        }
 
         z1.iter_mut()
             .zip(convolution_mod(a1m0, b1m0))
