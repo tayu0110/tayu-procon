@@ -117,9 +117,9 @@ impl<M: Modulo> Polynomial<M> {
     /// ```
     #[inline]
     pub fn prefix(&self, new_deg: usize) -> Self {
-        let mut coef = self.coef.iter().copied().take(new_deg).collect::<Vec<_>>();
-        coef.resize(new_deg, Modint::zero());
-        Self { coef }
+        let mut res = self.coef.iter().copied().take(new_deg).collect::<Self>();
+        res.resize(new_deg);
+        res
     }
 
     /// Returns the first derivative of `self`.
@@ -140,8 +140,7 @@ impl<M: Modulo> Polynomial<M> {
             .enumerate()
             .skip(1)
             .map(|(i, p)| p * Modint::new(i as u32))
-            .collect::<Vec<_>>()
-            .into()
+            .collect::<Self>()
     }
 
     /// Calculate the indefinite integral.  
@@ -304,7 +303,7 @@ impl<M: Modulo> Polynomial<M> {
             .rev()
             .take_while(|&&v| v == Modint::zero())
             .count();
-        self.coef.resize(self.deg() - garbage_cnt, Modint::zero());
+        self.resize(self.deg() - garbage_cnt);
     }
 
     /// Return a pair of `(self / rhs, self % rhs)`.  
@@ -708,14 +707,8 @@ impl<M: Modulo> Polynomial<M> {
                 .into_iter()
                 .enumerate()
                 .filter_map(|u| ((u.0 & 1) == lsb).then_some(u.1))
-                .collect::<Vec<_>>()
-                .into();
-            q = (q * nq)
-                .coef
-                .into_iter()
-                .step_by(2)
-                .collect::<Vec<_>>()
-                .into();
+                .collect::<Self>();
+            q = (q * nq).coef.into_iter().step_by(2).collect::<Self>();
             n >>= 1;
         }
         p[0] / q[0]
@@ -757,6 +750,27 @@ impl<M: Modulo> From<Polynomial<M>> for Vec<Modint<M>> {
         value.coef
     }
 }
+
+impl<M: Modulo> FromIterator<u32> for Polynomial<M> {
+    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self {
+        let coef = iter.into_iter().collect::<Vec<_>>();
+        coef.into()
+    }
+}
+
+macro_rules! impl_from_iter {
+    ( $( $t:ty ),+ ) => {
+        $(
+            impl<M: Modulo> FromIterator<$t> for Polynomial<M> {
+                fn from_iter<T: IntoIterator<Item = $t>>(iter: T) -> Self {
+                    Self { coef: iter.into_iter().map(Modint::from).collect() }
+                }
+            }
+        )+
+    };
+}
+
+impl_from_iter!(Modint<M>, u64, i32, i64);
 
 impl<M: Modulo> Zero for Polynomial<M> {
     fn zero() -> Self {
