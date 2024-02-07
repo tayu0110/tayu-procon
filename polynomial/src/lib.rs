@@ -730,6 +730,19 @@ impl<M: Modulo> From<Vec<Modint<M>>> for Polynomial<M> {
     }
 }
 
+macro_rules! impl_from {
+    ( $( $t:ty ),+ ) => {
+        $(
+            impl<M: Modulo> From<Vec<$t>> for Polynomial<M> {
+                fn from(value: Vec<$t>) -> Self {
+                    value.into_iter().collect::<Polynomial<M>>()
+                }
+            }
+        )+
+    };
+}
+impl_from!(i32, i64, u64);
+
 impl<M: Modulo> From<&[Modint<M>]> for Polynomial<M> {
     fn from(value: &[Modint<M>]) -> Self {
         Self { coef: value.to_vec() }
