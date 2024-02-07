@@ -444,19 +444,8 @@ impl<M: Modulo> Polynomial<M> {
             return Polynomial::empty();
         }
 
-        if is_ntt_friendly_mod::<M>(m) {
-            return unsafe { ntt_friendly::interpolation(xs, fs) };
-        }
-
         let mut subproduct_tree = Self::gen_subproduct_tree(xs);
         let mut keep = subproduct_tree.clone();
-        for i in 1..m {
-            let n = keep[i << 1].deg() >> 1;
-            for j in 0..2 {
-                keep[(i << 1) | j].resize(n + 1);
-                keep[(i << 1) | j].reverse();
-            }
-        }
 
         let mut p = subproduct_tree[1].clone().prefix(len + 1);
         p.reverse();
@@ -479,6 +468,18 @@ impl<M: Modulo> Polynomial<M> {
             .zip(fs)
             .for_each(|(v, f)| *v = vec![f / *v.coef.first().unwrap_or(&Modint::zero())].into());
         subproduct_tree[m + len..].fill(Polynomial::empty());
+
+        if is_ntt_friendly_mod::<M>(m) {
+            return unsafe { ntt_friendly::interpolation(m, keep, subproduct_tree) };
+        }
+
+        for i in 1..m {
+            let n = keep[i << 1].deg() >> 1;
+            for j in 0..2 {
+                keep[(i << 1) | j].resize(n + 1);
+                keep[(i << 1) | j].reverse();
+            }
+        }
         for i in (1..m).rev() {
             let (r, l) = (
                 subproduct_tree.pop().unwrap(),

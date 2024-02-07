@@ -140,31 +140,10 @@ pub(crate) unsafe fn transposed_uptree<M: Modulo>(
 
 #[target_feature(enable = "avx", enable = "avx2")]
 pub(crate) unsafe fn interpolation<M: Modulo>(
-    xs: Vec<Modint<M>>,
-    fs: Vec<Modint<M>>,
+    m: usize,
+    mut keep: Vec<Polynomial<M>>,
+    mut subproduct_tree: Vec<Polynomial<M>>,
 ) -> Polynomial<M> {
-    let len = xs.len();
-    let m = len.next_power_of_two();
-
-    let mut subproduct_tree = gen_subproduct_tree(xs);
-    let mut keep = subproduct_tree.clone();
-
-    let mut p = subproduct_tree[1].clone().prefix(len + 1);
-    p.reverse();
-    let mut p = p.derivative();
-
-    let n = p.deg();
-    let alpha = subproduct_tree[1].inv(n);
-    p.reverse();
-    let mut t = alpha * p;
-    t.resize(n);
-    t.reverse();
-    t.resize(m);
-    t.reverse();
-    subproduct_tree[1] = t;
-
-    let mut subproduct_tree = transposed_uptree(m, subproduct_tree);
-
     for i in 1..m {
         let n = keep[i << 1].deg() >> 1;
         keep[i << 1].coef.intt();
@@ -175,11 +154,6 @@ pub(crate) unsafe fn interpolation<M: Modulo>(
         keep[(i << 1) | 1].reverse();
     }
 
-    subproduct_tree[m..m + len]
-        .iter_mut()
-        .zip(fs)
-        .for_each(|(v, f)| *v = vec![f / *v.coef.first().unwrap_or(&Modint::zero())].into());
-    subproduct_tree[m + len..].fill(Polynomial::empty());
     for i in (1..m).rev() {
         let (r, l) = (
             subproduct_tree.pop().unwrap(),

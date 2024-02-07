@@ -88,12 +88,12 @@ impl<M: Modulo> Div<Self> for Polynomial<M> {
         }
 
         let k = n - m + 1;
-        self.coef.reverse();
-        rhs.coef.reverse();
+        self.reverse();
+        rhs.reverse();
         let rhs_inv = rhs.inv(k);
         let mut fg = self * rhs_inv;
         fg.resize(k);
-        fg.coef.reverse();
+        fg.reverse();
         fg.shrink();
         fg
     }
