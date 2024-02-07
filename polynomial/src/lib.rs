@@ -8,6 +8,7 @@ use std::ops::{
 
 use convolution::{convolution_mod, hadamard};
 use montgomery_modint::{Modulo, MontgomeryModint, MontgomeryModintx8};
+use number_theoretic_transform::{minttou32, u32tomint};
 use zero_one::{One, Zero};
 
 use crate::ntt_friendly::is_ntt_friendly_mod;
@@ -931,16 +932,10 @@ impl<M: Modulo> ShrAssign<u64> for Polynomial<M> {
 
 impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
     fn from(mut v: Vec<u32>) -> Self {
-        let l = v.len() >> 3 << 3;
-        v[..l].chunks_exact_mut(8).for_each(|v| {
-            let w =
-                unsafe { Modintx8::<M>::load(v.as_ptr() as _) * Modintx8::from_rawval(M::R2X8) };
-            unsafe { w.store(v.as_mut_ptr() as _) }
-        });
-        v[l..]
-            .iter_mut()
-            .for_each(|v| *v = Modint::<M>::new(*v).val);
-        Self { coef: unsafe { std::mem::transmute(v) } }
+        unsafe {
+            u32tomint::<M>(&mut v[..]);
+            Self { coef: transmute(v) }
+        }
     }
 }
 
@@ -958,15 +953,10 @@ impl<M: Modulo> From<&[Modint<M>]> for Polynomial<M> {
 
 impl<M: Modulo> From<Polynomial<M>> for Vec<u32> {
     fn from(mut value: Polynomial<M>) -> Self {
-        let l = value.deg() >> 3 << 3;
-        value.coef[..l].chunks_exact_mut(8).for_each(|v| {
-            let w = unsafe { Modintx8::load(v.as_ptr()) };
-            unsafe { Modintx8::from_rawval(w.val()).store(v.as_mut_ptr()) }
-        });
-        value.coef[l..]
-            .iter_mut()
-            .for_each(|v| *v = Modint::from_rawval(v.val()));
-        unsafe { std::mem::transmute(value.coef) }
+        unsafe {
+            minttou32(&mut value.coef[..]);
+            transmute(value.coef)
+        }
     }
 }
 
@@ -1096,6 +1086,44 @@ pub fn kth_term_of_linearly_recurrent_sequence<M: Modulo>(
     q.coef.insert(0, Modint::one());
     let p = a.multiply(&q).prefix(q.deg() - 1);
     p.bostan_mori(&q, k)
+}
+
+pub fn berlekamp_massey<M: Modulo>(a: impl Into<Polynomial<M>>) -> Polynomial<M> {
+    let a: Polynomial<M> = a.into();
+    let n = a.deg();
+    let (mut b, mut c) = (vec![Modint::one()], vec![Modint::one()]);
+    b.reserve(n);
+    c.reserve(n);
+    let mut y = Modint::one();
+    for i in 1..=n {
+        let x = c
+            .iter()
+            .zip(&a.coef[i - c.len()..])
+            .map(|(c, a)| *c * *a)
+            .reduce(Modint::add)
+            .unwrap();
+        b.push(Modint::zero());
+        if x == Modint::zero() {
+            continue;
+        }
+        let freq = x / y;
+        if c.len() < b.len() {
+            let t = c.clone();
+            c.reverse();
+            c.resize(b.len(), Modint::zero());
+            c.reverse();
+            c.iter_mut().zip(b).for_each(|(c, b)| *c -= freq * b);
+            b = t;
+            y = x;
+        } else {
+            c.iter_mut()
+                .rev()
+                .zip(b.iter().rev())
+                .for_each(|(c, b)| *c -= freq * *b);
+        }
+    }
+    c.reverse();
+    c.into()
 }
 
 #[cfg(test)]
