@@ -772,6 +772,14 @@ macro_rules! impl_from_iter {
 
 impl_from_iter!(Modint<M>, u64, i32, i64);
 
+impl<M: Modulo> IntoIterator for Polynomial<M> {
+    type Item = Modint<M>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.coef.into_iter()
+    }
+}
+
 impl<M: Modulo> Zero for Polynomial<M> {
     fn zero() -> Self {
         Self::empty()
