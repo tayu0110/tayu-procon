@@ -1,10 +1,23 @@
+mod rollbackable;
+
+pub use rollbackable::RollbackableUnionFind;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreviousState {
+    AlreadyConnected,
+    NotYetConnected,
+}
+
+#[derive(Debug, Clone)]
 pub struct UnionFind {
     tree: Vec<i32>,
 }
 
 impl UnionFind {
     #[inline]
-    pub fn new(size: usize) -> Self { UnionFind { tree: vec![-1; size] } }
+    pub fn new(size: usize) -> Self {
+        UnionFind { tree: vec![-1; size] }
+    }
 
     #[inline]
     pub fn root(&mut self, index: usize) -> usize {
@@ -93,7 +106,9 @@ impl WeightedUnionFind {
         root
     }
 
-    pub fn is_same(&mut self, l: usize, r: usize) -> bool { self.root(l) == self.root(r) }
+    pub fn is_same(&mut self, l: usize, r: usize) -> bool {
+        self.root(l) == self.root(r)
+    }
 
     pub fn merge(
         &mut self,
@@ -128,7 +143,9 @@ impl WeightedUnionFind {
         self.potential[index]
     }
 
-    pub fn diff(&mut self, l: usize, r: usize) -> i64 { self.weight(r) - self.weight(l) }
+    pub fn diff(&mut self, l: usize, r: usize) -> i64 {
+        self.weight(r) - self.weight(l)
+    }
 }
 
 #[cfg(test)]
