@@ -1,5 +1,3 @@
-#![allow(clippy::len_without_is_empty)]
-
 mod dynamic;
 mod lazy_segtree;
 

@@ -20,6 +20,10 @@ impl<T: Monoid> DynamicSegmentTree<T> {
         self.range.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn create_node(&mut self) -> u32 {
         let res = self.nodes.len();
         let node = SegtreeNode::new(T::id(), Zst);

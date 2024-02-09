@@ -1,4 +1,3 @@
-#![allow(clippy::ptr_arg)]
 use static_modint::{Modulo, StaticModint};
 use std::{
     fmt::Debug,
@@ -32,7 +31,7 @@ impl<M: MapMonoid> LazySegtree<M> {
         LazySegtree::from_vec(&vec![M::e(); size])
     }
 
-    pub fn from_vec(v: &Vec<M::E>) -> Self {
+    pub fn from_vec(v: &[M::E]) -> Self {
         let n = v.len();
         let size = n.next_power_of_two();
         let log = size.trailing_zeros() as usize;
@@ -284,7 +283,10 @@ pub struct RangeAffineRangeSum<M: Modulo>(PhantomData<fn() -> M>);
 
 impl<M: Modulo> RangeAffineRangeSum<M> {
     pub fn new(a: Vec<StaticModint<M>>) -> LazySegtree<Self> {
-        let a = a.into_iter().map(|v| (v, StaticModint::one())).collect();
+        let a = a
+            .into_iter()
+            .map(|v| (v, StaticModint::one()))
+            .collect::<Vec<_>>();
         LazySegtree::from_vec(&a)
     }
 }
@@ -320,7 +322,7 @@ impl RangeFlipRangeLongestTerm {
                     let f = f as u32;
                     (f, f, f, 1, 1 - f, 1 - f, 1 - f)
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         )
     }
 }

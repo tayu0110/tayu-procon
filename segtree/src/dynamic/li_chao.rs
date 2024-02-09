@@ -38,6 +38,10 @@ impl LiChaoTree {
         self.range.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn create_node(&mut self) -> u32 {
         let res = self.nodes.len();
         let node = LiChaoTreeNode::new((0, isize::MAX).into(), Zst);
