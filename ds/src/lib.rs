@@ -1,5 +1,7 @@
 #[cfg(feature = "btree-multiset")]
 mod btree_multiset;
+#[cfg(feature = "cartesian-tree")]
+mod cartesian_tree;
 #[cfg(feature = "fixed-ring-queue")]
 mod fixed_ring_queue;
 #[cfg(feature = "double-ended-priority-queue")]
@@ -9,6 +11,8 @@ mod link_cut_tree;
 
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
+#[cfg(feature = "cartesian-tree")]
+pub use cartesian_tree::*;
 #[cfg(feature = "fixed-ring-queue")]
 pub use fixed_ring_queue::*;
 #[cfg(feature = "double-ended-priority-queue")]

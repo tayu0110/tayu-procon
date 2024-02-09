@@ -21,11 +21,13 @@ full = [
   "btree-multiset",
   "double-ended-priority-queue",
   "link-cut-tree",
+  "cartesian-tree",
 ]
 fixed-ring-queue = []
 btree-multiset = []
 double-ended-priority-queue = []
 link-cut-tree = []
+cartesian-tree = []
 
 [[test]]
 name = "ring_queue"
@@ -57,4 +59,8 @@ required-features = ["full"]
 
 [[example]]
 name = "lowest-common-ancestor-lct"
+required-features = ["full"]
+
+[[example]]
+name = "cartesian-tree"
 required-features = ["full"]
