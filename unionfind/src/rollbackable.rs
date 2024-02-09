@@ -3,7 +3,7 @@ use crate::PreviousState;
 #[derive(Debug, Clone)]
 pub struct RollbackableUnionFind {
     par: Vec<i32>,
-    history: Vec<(i32, i32, i32, i32)>,
+    history: Vec<(i32, i32)>,
 }
 
 impl RollbackableUnionFind {
@@ -66,13 +66,12 @@ impl RollbackableUnionFind {
     /// ```
     pub fn merge(&mut self, l: usize, r: usize) -> PreviousState {
         let (mut rl, mut rr) = (self.root(l), self.root(r));
-        self.history
-            .push((rl as i32, self.par[rl], rr as i32, self.par[rr]));
-        if rl == rr {
-            return PreviousState::AlreadyConnected;
-        }
         if self.par[rl] > self.par[rr] {
             (rl, rr) = (rr, rl);
+        }
+        self.history.push((rr as i32, self.par[rr]));
+        if rl == rr {
+            return PreviousState::AlreadyConnected;
         }
 
         self.par[rl] += self.par[rr];
@@ -161,9 +160,12 @@ impl RollbackableUnionFind {
             panic!("The current version is 0, so there is no history to restore.");
         }
 
-        let (l, lv, r, rv) = self.history.pop().unwrap();
-        self.par[l as usize] = lv;
+        let (r, rv) = self.history.pop().unwrap();
+        let parent = self.par[r as usize];
         self.par[r as usize] = rv;
+        if parent >= 0 {
+            self.par[parent as usize] -= rv;
+        }
     }
 
     /// Perform `nth` times undo.
