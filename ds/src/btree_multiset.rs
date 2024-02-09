@@ -1,9 +1,4 @@
-use std::{
-    collections::{btree_map, BTreeMap},
-    fmt::Debug,
-    iter::FusedIterator,
-    ops::RangeBounds,
-};
+use std::{collections::BTreeMap, fmt::Debug, ops::RangeBounds};
 
 pub struct BTreeMultiSet<K> {
     len: usize,
@@ -76,15 +71,16 @@ impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
         self.inner.iter().next_back().map(|(k, _)| k)
     }
     #[inline]
-    pub fn iter(&'a self) -> Iter<'a, K, btree_map::Iter<'a, K, u32>> {
-        Iter::new(self.inner.iter())
+    pub fn iter(&'a self) -> impl DoubleEndedIterator + 'a {
+        self.inner
+            .iter()
+            .flat_map(|(k, &cnt)| (0..cnt).map(move |_| k))
     }
     #[inline]
-    pub fn range<R: RangeBounds<K>>(
-        &'a self,
-        range: R,
-    ) -> Iter<'a, K, btree_map::Range<'a, K, u32>> {
-        Iter::new(self.inner.range(range))
+    pub fn range<R: RangeBounds<K>>(&'a self, range: R) -> impl DoubleEndedIterator + 'a {
+        self.inner
+            .range(range)
+            .flat_map(|(k, &cnt)| (0..cnt).map(move |_| k))
     }
 }
 
@@ -92,101 +88,4 @@ impl<K: Ord + Debug + Clone> Default for BTreeMultiSet<K> {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[derive(Debug)]
-pub struct Iter<'a, K, I>
-where
-    K: Ord,
-    I: Iterator<Item = (&'a K, &'a u32)>
-        + DoubleEndedIterator<Item = (&'a K, &'a u32)>
-        + FusedIterator
-        + Debug
-        + Clone,
-{
-    fvalue: Option<&'a K>,
-    frem: u32,
-    bvalue: Option<&'a K>,
-    brem: u32,
-    iter: I,
-}
-
-impl<'a, K, I> Iter<'a, K, I>
-where
-    K: Ord,
-    I: Iterator<Item = (&'a K, &'a u32)>
-        + DoubleEndedIterator<Item = (&'a K, &'a u32)>
-        + FusedIterator
-        + Debug
-        + Clone,
-{
-    fn new(iter: I) -> Self {
-        Self { fvalue: None, frem: 0, bvalue: None, brem: 0, iter }
-    }
-}
-
-impl<'a, K, I> Iterator for Iter<'a, K, I>
-where
-    K: Ord,
-    I: Iterator<Item = (&'a K, &'a u32)>
-        + DoubleEndedIterator<Item = (&'a K, &'a u32)>
-        + FusedIterator
-        + Debug
-        + Clone,
-{
-    type Item = &'a K;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.frem == 0 {
-            if let Some((k, v)) = self.iter.next() {
-                self.fvalue = Some(k);
-                self.frem = *v;
-            } else if self.brem > 0 {
-                self.brem -= 1;
-                return self.bvalue;
-            } else {
-                return None;
-            }
-        }
-
-        self.frem -= 1;
-        self.fvalue
-    }
-}
-
-impl<'a, K, I> DoubleEndedIterator for Iter<'a, K, I>
-where
-    K: Ord,
-    I: Iterator<Item = (&'a K, &'a u32)>
-        + DoubleEndedIterator<Item = (&'a K, &'a u32)>
-        + FusedIterator
-        + Debug
-        + Clone,
-{
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.brem == 0 {
-            if let Some((k, v)) = self.iter.next_back() {
-                self.bvalue = Some(k);
-                self.brem = *v;
-            } else if self.frem > 0 {
-                self.frem -= 1;
-                return self.fvalue;
-            } else {
-                return None;
-            }
-        }
-
-        self.brem -= 1;
-        self.bvalue
-    }
-}
-
-impl<'a, K, I> FusedIterator for Iter<'a, K, I>
-where
-    K: Ord,
-    I: Iterator<Item = (&'a K, &'a u32)>
-        + DoubleEndedIterator<Item = (&'a K, &'a u32)>
-        + FusedIterator
-        + Debug
-        + Clone,
-{
 }
