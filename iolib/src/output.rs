@@ -2,7 +2,7 @@
 use std::{
     cell::RefCell,
     io::{StdoutLock, Write},
-    ptr::copy_nonoverlapping,
+    ptr::{addr_of_mut, copy_nonoverlapping},
 };
 const BUF_SIZE: usize = 1 << 20;
 
@@ -244,7 +244,9 @@ impl Drop for DummyForFlush {
 }
 static mut OUTPUT: FastOutput<'static> = FastOutput::new();
 static mut STDOUTSOURCE: fn() -> &'static mut FastOutput<'static> = init;
-thread_local! {static DUMMY:RefCell<DummyForFlush> =RefCell::new(DummyForFlush(0));}
+thread_local! {
+    static DUMMY:RefCell<DummyForFlush> = const { RefCell::new(DummyForFlush(0)) };
+}
 fn init() -> &'static mut FastOutput<'static> {
     DUMMY.with(|d| {
         unsafe { core::ptr::write_volatile((&mut d.borrow_mut().0) as *const _ as *mut _, 32) };
@@ -257,7 +259,7 @@ fn init() -> &'static mut FastOutput<'static> {
     res
 }
 fn get_output() -> &'static mut FastOutput<'static> {
-    unsafe { &mut OUTPUT }
+    unsafe { addr_of_mut!(OUTPUT).as_mut().unwrap() }
 }
 pub fn get_output_source() -> &'static mut FastOutput<'static> {
     unsafe { STDOUTSOURCE() }
