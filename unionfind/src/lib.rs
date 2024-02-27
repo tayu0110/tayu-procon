@@ -19,6 +19,10 @@ impl UnionFind {
         UnionFind { tree: vec![-1; size] }
     }
 
+    pub fn clear(&mut self) {
+        self.tree.fill(-1);
+    }
+
     #[inline]
     pub fn root(&mut self, index: usize) -> usize {
         let mut now = index;
