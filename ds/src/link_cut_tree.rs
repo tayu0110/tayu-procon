@@ -714,7 +714,11 @@ impl<M: MapMonoid> LinkCutTree<M> {
     /// ```
     pub fn parent(&self, node: usize) -> Option<usize> {
         self.expose(node);
-        self.nodes[node].left.map(|n| n.index())
+        let mut par = self.nodes[node].left?;
+        while let Some(r) = par.right {
+            par = r;
+        }
+        Some(par.index())
     }
 }
 
