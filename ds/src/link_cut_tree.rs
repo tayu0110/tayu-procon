@@ -685,6 +685,37 @@ impl<M: MapMonoid> LinkCutTree<M> {
             &self.nodes[v].sum
         })
     }
+
+    /// Get the parent of `node`.  
+    /// If `node` does not have a parent, return `None`.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ds::LinkCutTree;
+    ///
+    /// let mut tree = <LinkCutTree>::new(6);
+    /// //      0
+    /// //     / \
+    /// //    1   2
+    /// //   / \   \
+    /// //  3   4   5
+    /// tree.link(0, 1).unwrap();
+    /// tree.link(0, 2).unwrap();
+    /// tree.link(1, 3).unwrap();
+    /// tree.link(1, 4).unwrap();
+    /// tree.link(2, 5).unwrap();
+    ///
+    /// assert_eq!(tree.parent(0), None);
+    /// assert_eq!(tree.parent(1), Some(0));
+    /// assert_eq!(tree.parent(2), Some(0));
+    /// assert_eq!(tree.parent(3), Some(1));
+    /// assert_eq!(tree.parent(4), Some(1));
+    /// assert_eq!(tree.parent(5), Some(2));
+    /// ```
+    pub fn parent(&self, node: usize) -> Option<usize> {
+        self.expose(node);
+        self.nodes[node].left.map(|n| n.index())
+    }
 }
 
 impl<M: MapMonoid> Drop for LinkCutTree<M> {
