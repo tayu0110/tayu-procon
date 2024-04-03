@@ -97,7 +97,7 @@ fn cooley_tukey_radix_4_kernel<M: Modulo>(
     }
 }
 
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx2", enable = "bmi1")]
 #[cfg(feature = "simd")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(
@@ -147,7 +147,7 @@ unsafe fn cooley_tukey_radix_2_kernel<M: Modulo>(
     }
 }
 
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx2", enable = "bmi1")]
 #[cfg(feature = "simd")]
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(
@@ -356,7 +356,7 @@ unsafe fn cooley_tukey_radix_4_kernel<M: Modulo>(
 /// # Safety
 /// The length of `a` must be the power of 2.
 #[inline]
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx2", enable = "bmi1")]
 pub unsafe fn cooley_tukey_radix_4_butterfly<M: Modulo>(
     deg: usize,
     a: &mut [Modint<M>],
@@ -378,7 +378,7 @@ pub unsafe fn cooley_tukey_radix_4_butterfly<M: Modulo>(
 /// # Safety
 /// The length of `a` must be the power of 2.
 #[inline]
-#[target_feature(enable = "avx2")]
+#[target_feature(enable = "avx2", enable = "bmi1")]
 pub unsafe fn cooley_tukey_radix_4_butterfly_inv<M: Modulo>(
     deg: usize,
     a: &mut [Modint<M>],
@@ -401,7 +401,7 @@ pub unsafe fn cooley_tukey_radix_4_butterfly_inv<M: Modulo>(
 mod tests {
     use super::*;
     use crate::utility::bit_reverse;
-    use montgomery_modint::{Mod998244353, MontgomeryModint};
+    use montgomery_modint::Mod998244353;
 
     type Modint = MontgomeryModint<Mod998244353>;
 

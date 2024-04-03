@@ -84,7 +84,7 @@ impl<M: Modulo> NumberTheoreticTransform<M> for [u32] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use montgomery_modint::{Mod998244353, MontgomeryModint};
+    use montgomery_modint::Mod998244353;
 
     #[test]
     fn self_change_ntt_test() {
