@@ -1,22 +1,15 @@
 // https://judge.yosupo.jp/problem/factorize
-use iolib::scan;
+use iolib::{putitln, putln, scan};
 use math::factorize;
 
 fn main() {
-    use std::io::Write;
-    let out = std::io::stdout();
-    let mut out = std::io::BufWriter::new(out.lock());
-
     scan!(q: usize, a: [u64; q]);
 
     for a in a {
         let mut f = factorize(a);
-        f.sort();
+        f.sort_unstable();
 
-        write!(out, "{}", f.len()).unwrap();
-        for f in f {
-            write!(out, " {}", f).unwrap();
-        }
-        writeln!(out).unwrap();
+        putln!(f.len());
+        putitln!(f.into_iter(), sep = ' ');
     }
 }

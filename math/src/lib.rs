@@ -370,6 +370,13 @@ pub fn factorize(mut n: u64) -> Vec<u64> {
     let mut res = vec![2u64; n.trailing_zeros() as usize];
     n >>= n.trailing_zeros();
 
+    for b in [3, 5, 7, 11, 13, 17, 19] {
+        while n % b == 0 {
+            res.push(b);
+            n /= b;
+        }
+    }
+
     while let Some(g) = pollard_rho(n) {
         while n % g == 0 {
             res.push(g);
@@ -417,7 +424,7 @@ fn pollard_rho(n: u64) -> Option<u64> {
             (r..=(3 * r) >> 2).for_each(|_| y = y * y + c);
             for k in (((3 * r) >> 2)..r).step_by(m as usize) {
                 let ys = y;
-                (0..std::cmp::min(m, r - k)).for_each(|_| {
+                (0..m.min(r - k)).for_each(|_| {
                     y = y * y + c;
                     q *= x - y;
                 });
