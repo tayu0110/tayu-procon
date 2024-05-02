@@ -5,6 +5,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
+use std::rc::Rc;
+use std::sync::Mutex;
 
 // Left children are sallower than self, and right children are deeper than self.
 struct Node<M: MapMonoid> {
@@ -168,15 +170,6 @@ where
 struct NodeRef<M: MapMonoid>(NonNull<Node<M>>);
 
 impl<M: MapMonoid> NodeRef<M> {
-    fn new(node: Node<M>) -> Self {
-        let reference = Box::leak(Box::new(node));
-        Self(NonNull::new(reference as *mut _).unwrap())
-    }
-
-    fn drop_in_place(self) {
-        let _ = unsafe { Box::from_raw(self.0.as_ptr()) };
-    }
-
     fn connect_left(mut self, mut child: Self) {
         assert_ne!(self.index, child.index);
         self.left = Some(child);
@@ -471,20 +464,66 @@ pub enum EttLinkError {
     MakeCycle,
 }
 
+struct Allocator<M: MapMonoid> {
+    cnt: usize,
+    nodes: Vec<Box<[Node<M>]>>,
+    ptr: Vec<NodeRef<M>>,
+}
+
+impl<M: MapMonoid> Allocator<M> {
+    fn with_capacity(cap: usize) -> Self {
+        let nodes = (0..cap.max(1)).map(|_| Node::new(0, 0, false)).collect();
+        Self { cnt: 0, nodes: vec![nodes], ptr: vec![] }
+    }
+
+    fn make_edge(&mut self, src: usize, dest: usize, own_layer: bool) -> NodeRef<M> {
+        if let Some(mut p) = self.ptr.pop() {
+            p.initialize(src as u32, dest as u32, own_layer);
+            p
+        } else {
+            if self.cnt < self.nodes.last().unwrap().len() {
+                self.cnt += 1;
+                let mut res = unsafe {
+                    NodeRef(NonNull::new_unchecked(
+                        self.nodes
+                            .last_mut()
+                            .unwrap()
+                            .as_mut_ptr()
+                            .add(self.cnt - 1),
+                    ))
+                };
+                res.initialize(src as u32, dest as u32, own_layer);
+                return res;
+            }
+
+            self.cnt = 0;
+            let newlen = self.nodes.last().unwrap().len() * 2;
+            self.nodes
+                .push((0..newlen).map(|_| Node::new(0, 0, false)).collect());
+
+            self.make_edge(src, dest, own_layer)
+        }
+    }
+
+    fn return_edge(&mut self, p: NodeRef<M>) {
+        self.ptr.push(p);
+    }
+}
+
 /// https://web.stanford.edu/class/cs166/lectures/15/Slides15.pdf
 ///
 /// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
 struct EulerTourTree<M: MapMonoid> {
     vertex: Box<[Node<M>]>,
     edges: Vec<HashMap<usize, NodeRef<M>>>,
-    membuf: Vec<NodeRef<M>>,
+    alloc: Rc<Mutex<Allocator<M>>>,
 }
 
 impl<M: MapMonoid> EulerTourTree<M> {
     /// Return the forest that its size is `size`.
-    fn new(n: usize) -> Self {
+    fn new(n: usize, alloc: Rc<Mutex<Allocator<M>>>) -> Self {
         // Because `self.link()` is performed for no edges, this never throws an error.
-        Self::from_edges(n, []).unwrap()
+        Self::from_edges(n, [], alloc).unwrap()
     }
 
     /// Consturct the forest that its size is `size` and each vertexes are connected by `edges`.  
@@ -494,14 +533,16 @@ impl<M: MapMonoid> EulerTourTree<M> {
     fn from_edges(
         n: usize,
         edges: impl IntoIterator<Item = (usize, usize)>,
+        alloc: Rc<Mutex<Allocator<M>>>,
     ) -> Result<Self, EttLinkError> {
-        Self::from_edges_with_values(n, edges, [])
+        Self::from_edges_with_values(n, edges, [], alloc)
     }
 
     fn from_edges_with_values(
         n: usize,
         edges: impl IntoIterator<Item = (usize, usize)>,
         values: impl IntoIterator<Item = (usize, M::M)>,
+        alloc: Rc<Mutex<Allocator<M>>>,
     ) -> Result<Self, EttLinkError> {
         let mut vertex = (0..n)
             .map(|i| Node::new(i as u32, i as u32, false))
@@ -512,7 +553,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             vertex[i].update();
         }
 
-        let mut res = Self { vertex, edges: vec![HashMap::new(); n], membuf: vec![] };
+        let mut res = Self { vertex, edges: vec![HashMap::new(); n], alloc };
 
         for (u, v) in edges {
             res.link(u, v, true)?;
@@ -588,15 +629,6 @@ impl<M: MapMonoid> EulerTourTree<M> {
         })
     }
 
-    fn make_edge(&mut self, u: usize, v: usize, own_layer: bool) -> NodeRef<M> {
-        if let Some(mut p) = self.membuf.pop() {
-            p.initialize(u as u32, v as u32, own_layer);
-            p
-        } else {
-            NodeRef::new(Node::new(u as u32, v as u32, own_layer))
-        }
-    }
-
     /// Connect `u` and `v` by an edge.  
     /// Returns an error if the given edge makes a multiple edge, a self-loop, or a closed cycle.
     fn link(&mut self, u: usize, v: usize, own_layer: bool) -> Result<(), EttLinkError> {
@@ -610,7 +642,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             return Err(EttLinkError::MakeCycle);
         }
 
-        let mut uv = self.make_edge(u, v, own_layer);
+        let mut uv = self.alloc.lock().unwrap().make_edge(u, v, own_layer);
         // If reroot is performed, returned element is the root of the tree that `u` belongs to.
         // If not performed, `self.vertex[u]` is the root element because `self.vertex[u]` should be splayed at time of performed `self.are_connected(u, v)`.
         // The same applies to `v`.
@@ -618,7 +650,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
         uv.connect_right(self.reroot_inner(v).unwrap_or(self.nth_vertex(v)));
         uv.update();
 
-        let vu = self.make_edge(v, u, own_layer);
+        let vu = self.alloc.lock().unwrap().make_edge(v, u, own_layer);
         let mr = self.most_right_from(uv);
         mr.connect_right(vu);
         // `vu` has no value, so it is not necessary to call `mr.update()` here.
@@ -627,10 +659,6 @@ impl<M: MapMonoid> EulerTourTree<M> {
         self.edges[u].insert(v, uv);
         self.edges[v].insert(u, vu);
         Ok(())
-    }
-
-    fn return_edge(&mut self, edge: NodeRef<M>) {
-        self.membuf.push(edge);
     }
 
     /// Diconnect `u` and `v`.
@@ -675,8 +703,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
             (None, None) => unreachable!("The pair of a edge is not found"),
         }
 
-        self.return_edge(l);
-        self.return_edge(r);
+        self.alloc.lock().unwrap().return_edge(l);
+        self.alloc.lock().unwrap().return_edge(r);
     }
 
     /// Return the size of the tree that `u` belongs to.  
@@ -847,18 +875,6 @@ where
     }
 }
 
-impl<M: MapMonoid> Drop for EulerTourTree<M> {
-    fn drop(&mut self) {
-        self.edges.iter_mut().flatten().for_each(|e| {
-            e.1.parent = None;
-            e.1.left = None;
-            e.1.right = None;
-            e.1.drop_in_place();
-        });
-        self.membuf.iter_mut().for_each(|p| p.drop_in_place());
-    }
-}
-
 enum LayeredForest<M: MapMonoid> {
     Top(EulerTourTree<M>),
     Other(EulerTourTree<DefaultZST>),
@@ -923,14 +939,20 @@ pub struct OnlineDynamicConnectivity<M: MapMonoid> {
     size: usize,
     etts: Vec<LayeredForest<M>>,
     aux_edges: Vec<Vec<HashSet<usize>>>,
+    oalloc: Rc<Mutex<Allocator<DefaultZST>>>,
 }
 
 impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
     pub fn new(size: usize) -> Self {
+        let alloc = Rc::new(Mutex::new(Allocator::with_capacity((size - 1) * 2)));
         Self {
             size,
-            etts: vec![LayeredForest::Top(EulerTourTree::new(size))],
+            etts: vec![LayeredForest::Top(EulerTourTree::new(
+                size,
+                Rc::clone(&alloc),
+            ))],
             aux_edges: vec![vec![HashSet::new(); size]],
+            oalloc: Rc::new(Mutex::new(Allocator::with_capacity(8))),
         }
     }
 
@@ -965,13 +987,15 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
         edges: impl IntoIterator<Item = (usize, usize)>,
         values: impl IntoIterator<Item = (usize, M::M)>,
     ) -> Self {
+        let alloc = Rc::new(Mutex::new(Allocator::with_capacity((size - 1) * 2)));
         let mut res = Self {
             size,
             // Because `edges` is empty, `EulerTourTree::from_edges_with_values` never throws an error.
             etts: vec![LayeredForest::Top(
-                EulerTourTree::from_edges_with_values(size, [], values).unwrap(),
+                EulerTourTree::from_edges_with_values(size, [], values, alloc).unwrap(),
             )],
             aux_edges: vec![vec![HashSet::new(); size]],
+            oalloc: Rc::new(Mutex::new(Allocator::with_capacity(8))),
         };
 
         for (u, v) in edges {
@@ -1046,8 +1070,10 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
     }
 
     fn expand_layer(&mut self) {
-        self.etts
-            .push(LayeredForest::Other(EulerTourTree::new(self.size)));
+        self.etts.push(LayeredForest::Other(EulerTourTree::new(
+            self.size,
+            Rc::clone(&self.oalloc),
+        )));
         self.aux_edges.push(vec![HashSet::new(); self.size]);
     }
 
@@ -1415,7 +1441,8 @@ mod tests {
         }
 
         for i in 0..10000 {
-            let mut dc = EulerTourTree::<U32Add>::new(V);
+            let mut dc =
+                EulerTourTree::<U32Add>::new(V, Rc::new(Mutex::new(Allocator::with_capacity(1))));
             let mut rng = thread_rng();
             let mut g = vec![HashSet::new(); V];
             let mut val = vec![0; V];
@@ -1510,7 +1537,8 @@ mod tests {
 
     #[test]
     fn euler_tour_tree_edges_test() {
-        let mut ett = EulerTourTree::<U32Add>::new(10);
+        let mut ett =
+            EulerTourTree::<U32Add>::new(10, Rc::new(Mutex::new(Allocator::with_capacity(1))));
         ett.link(4, 8, true).ok();
         ett.link(1, 8, true).ok();
         ett.link(8, 9, true).ok();
@@ -1527,7 +1555,8 @@ mod tests {
 
     #[test]
     fn euler_tour_tree_vertexes_test() {
-        let mut ett = EulerTourTree::<U32Add>::new(10);
+        let mut ett =
+            EulerTourTree::<U32Add>::new(10, Rc::new(Mutex::new(Allocator::with_capacity(1))));
         ett.link(4, 8, true).ok();
         ett.link(1, 8, true).ok();
         ett.link(8, 9, true).ok();
