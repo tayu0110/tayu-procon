@@ -15,19 +15,26 @@ rand = "0.8.5"
 static-modint = { path = "../modint/static-modint" }
 
 [features]
-default = []
+default = ["full"]
 full = [
   "fixed-ring-queue",
   "btree-multiset",
   "double-ended-priority-queue",
   "link-cut-tree",
   "cartesian-tree",
+  "stern-brocot-tree",
+  "online-dynamic-connectivity",
 ]
 fixed-ring-queue = []
 btree-multiset = []
 double-ended-priority-queue = []
 link-cut-tree = []
 cartesian-tree = []
+stern-brocot-tree = []
+online-dynamic-connectivity = []
+
+[profile.release]
+debug = true
 
 [[test]]
 name = "ring_queue"
@@ -63,4 +70,8 @@ required-features = ["full"]
 
 [[example]]
 name = "cartesian-tree"
+required-features = ["full"]
+
+[[example]]
+name = "dynamic-graph-vertex-add-component-sum"
 required-features = ["full"]
