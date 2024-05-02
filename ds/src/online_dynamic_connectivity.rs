@@ -7,7 +7,6 @@ use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
 // Left children are sallower than self, and right children are deeper than self.
-#[derive(Debug, PartialEq)]
 struct Node<M: MapMonoid> {
     parent: Option<NodeRef<M>>,
     left: Option<NodeRef<M>>,
@@ -21,7 +20,6 @@ struct Node<M: MapMonoid> {
     /// 1-bit   : subtree has some edges
     /// 2-bit   : own layer's edge
     /// 3-bit   : own layer's edge exists on subtree
-    /// 4-bit   : is reversed
     flag: u8,
 }
 
@@ -42,6 +40,18 @@ impl<M: MapMonoid> Node<M> {
         }
     }
 
+    fn initialize(&mut self, src: u32, dest: u32, own_layer: bool) {
+        self.parent = None;
+        self.left = None;
+        self.right = None;
+        self.index = ((src as usize) << 32) | dest as usize;
+        self.val = M::e();
+        self.sum = M::e();
+        self.lazy = M::id();
+        self.size = (src == dest) as u32;
+        self.flag = ((src != dest && own_layer) as u8) << 2;
+    }
+
     const fn source(&self) -> usize {
         self.index() >> 32
     }
@@ -58,30 +68,14 @@ impl<M: MapMonoid> Node<M> {
         self.index
     }
 
-    pub const fn is_reversed(&self) -> bool {
-        self.flag & (1 << 4) != 0
-    }
-
-    pub fn toggle(&mut self) {
-        self.flag ^= 1 << 4;
-        M::reverse(&mut self.sum);
-        (self.left, self.right) = (self.right, self.left);
-    }
-
     fn propagate(&mut self) {
         if let Some(mut left) = self.left {
             left.lazy = M::composite(&left.lazy, &self.lazy);
             left.sum = M::map(&left.sum, &self.lazy);
-            if self.is_reversed() {
-                left.toggle();
-            }
         }
         if let Some(mut right) = self.right {
             right.lazy = M::composite(&right.lazy, &self.lazy);
             right.sum = M::map(&right.sum, &self.lazy);
-            if self.is_reversed() {
-                right.toggle();
-            }
         }
 
         self.lazy = M::id();
@@ -142,6 +136,32 @@ impl<M: MapMonoid> Node<M> {
 
     fn has_own_laysers_edge_on_subtree(&self) -> bool {
         self.flag & 0b1000 != 0
+    }
+}
+
+impl<M: MapMonoid> PartialEq for Node<M> {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
+}
+
+impl<M> Debug for Node<M>
+where
+    M: MapMonoid,
+    M::M: Debug,
+    M::Act: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("source", &self.source())
+            .field("destination", &self.destination())
+            .field("val", &self.val)
+            .field("sum", &self.sum)
+            .field("lazy", &self.lazy)
+            .field("parent", &self.parent.map(|p| p.index()))
+            .field("left", &self.left)
+            .field("right", &self.right)
+            .finish()
     }
 }
 
@@ -364,40 +384,32 @@ impl<M: MapMonoid> NodeRef<M> {
             grand_parent.propagate();
             parent.propagate();
             self.propagate();
-            if self.is_left_child() ^ parent.is_left_child() {
+            let sf = self.is_left_child();
+            let pf = parent.is_left_child();
+            if sf ^ pf {
                 // zig-zag step
-                if self.is_left_child() {
+                if sf {
                     parent.rotate_right();
                     grand_parent.rotate_left();
-                } else if self.is_right_child() {
+                } else {
                     parent.rotate_left();
                     grand_parent.rotate_right();
-                } else {
-                    unreachable!()
                 }
             } else {
                 // zig-zig step
-                if self.is_left_child() {
+                if sf {
                     grand_parent.rotate_right();
                     parent.rotate_right();
-                } else if self.is_right_child() {
+                } else {
                     grand_parent.rotate_left();
                     parent.rotate_left();
-                } else {
-                    unreachable!()
                 }
             }
         }
     }
 
     fn is_left_child(self) -> bool {
-        self.parent
-            .map_or(false, |p| p.left.map_or(false, |l| l.index == self.index))
-    }
-
-    fn is_right_child(self) -> bool {
-        self.parent
-            .map_or(false, |p| p.right.map_or(false, |r| r.index == self.index))
+        self.parent.map_or(false, |p| p.left == Some(self))
     }
 
     fn is_root(self) -> bool {
@@ -445,7 +457,6 @@ where
             .field("val", &self.val)
             .field("sum", &self.sum)
             .field("lazy", &self.lazy)
-            .field("rev", &self.is_reversed())
             .field("parent", &self.parent.map(|p| p.index()))
             .field("left", &self.left)
             .field("right", &self.right)
@@ -461,9 +472,12 @@ pub enum EttLinkError {
 }
 
 /// https://web.stanford.edu/class/cs166/lectures/15/Slides15.pdf
+///
+/// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
 struct EulerTourTree<M: MapMonoid> {
-    vertex: Vec<NodeRef<M>>,
+    vertex: Box<[Node<M>]>,
     edges: Vec<HashMap<usize, NodeRef<M>>>,
+    membuf: Vec<NodeRef<M>>,
 }
 
 impl<M: MapMonoid> EulerTourTree<M> {
@@ -490,15 +504,15 @@ impl<M: MapMonoid> EulerTourTree<M> {
         values: impl IntoIterator<Item = (usize, M::M)>,
     ) -> Result<Self, EttLinkError> {
         let mut vertex = (0..n)
-            .map(|i| NodeRef::new(Node::new(i as u32, i as u32, false)))
-            .collect::<Vec<_>>();
+            .map(|i| Node::new(i as u32, i as u32, false))
+            .collect::<Box<[_]>>();
 
         for (i, v) in values {
             vertex[i].val = v;
             vertex[i].update();
         }
 
-        let mut res = Self { vertex, edges: vec![HashMap::new(); n] };
+        let mut res = Self { vertex, edges: vec![HashMap::new(); n], membuf: vec![] };
 
         for (u, v) in edges {
             res.link(u, v, true)?;
@@ -507,10 +521,15 @@ impl<M: MapMonoid> EulerTourTree<M> {
         Ok(res)
     }
 
+    fn nth_vertex(&self, n: usize) -> NodeRef<M> {
+        assert!(n < self.vertex.len());
+        unsafe { NodeRef(NonNull::new_unchecked(self.vertex.as_ptr().add(n) as _)) }
+    }
+
     /// Return the most left element on the tree `u` belongs to.  
     /// It is guaranteed that returned element will be the root of the tree.
     fn most_left(&self, u: usize) -> NodeRef<M> {
-        let mut res = self.vertex[u];
+        let mut res = self.nth_vertex(u);
         res.splay();
         while let Some(left) = res.left {
             res = left;
@@ -542,10 +561,10 @@ impl<M: MapMonoid> EulerTourTree<M> {
         if u == v || self.edges[u].contains_key(&v) {
             return true;
         }
-        self.vertex[u].splay();
-        self.vertex[v].splay();
+        self.nth_vertex(u).splay();
+        self.nth_vertex(v).splay();
 
-        !self.vertex[u].is_root()
+        !self.nth_vertex(u).is_root()
     }
 
     /// Make the vertex `new_root` be this tree's root.
@@ -559,14 +578,23 @@ impl<M: MapMonoid> EulerTourTree<M> {
     /// If reroot does not perform, return `None`.
     fn reroot_inner(&mut self, new_root: usize) -> Option<NodeRef<M>> {
         self.vertex[new_root].left.is_some().then(|| {
-            self.vertex[new_root].splay();
-            let p = self.vertex[new_root].disconnect_left().unwrap();
-            self.vertex[new_root].update();
-            let mut r = self.most_right_from(self.vertex[new_root]);
+            self.nth_vertex(new_root).splay();
+            let p = self.nth_vertex(new_root).disconnect_left().unwrap();
+            self.nth_vertex(new_root).update();
+            let mut r = self.most_right_from(self.nth_vertex(new_root));
             r.connect_right(p);
             r.update();
             r
         })
+    }
+
+    fn make_edge(&mut self, u: usize, v: usize, own_layer: bool) -> NodeRef<M> {
+        if let Some(mut p) = self.membuf.pop() {
+            p.initialize(u as u32, v as u32, own_layer);
+            p
+        } else {
+            NodeRef::new(Node::new(u as u32, v as u32, own_layer))
+        }
     }
 
     /// Connect `u` and `v` by an edge.  
@@ -582,15 +610,15 @@ impl<M: MapMonoid> EulerTourTree<M> {
             return Err(EttLinkError::MakeCycle);
         }
 
-        let mut uv = NodeRef::new(Node::new(u as u32, v as u32, own_layer));
+        let mut uv = self.make_edge(u, v, own_layer);
         // If reroot is performed, returned element is the root of the tree that `u` belongs to.
         // If not performed, `self.vertex[u]` is the root element because `self.vertex[u]` should be splayed at time of performed `self.are_connected(u, v)`.
         // The same applies to `v`.
-        uv.connect_left(self.reroot_inner(u).unwrap_or(self.vertex[u]));
-        uv.connect_right(self.reroot_inner(v).unwrap_or(self.vertex[v]));
+        uv.connect_left(self.reroot_inner(u).unwrap_or(self.nth_vertex(u)));
+        uv.connect_right(self.reroot_inner(v).unwrap_or(self.nth_vertex(v)));
         uv.update();
 
-        let vu = NodeRef::new(Node::new(v as u32, u as u32, own_layer));
+        let vu = self.make_edge(v, u, own_layer);
         let mr = self.most_right_from(uv);
         mr.connect_right(vu);
         // `vu` has no value, so it is not necessary to call `mr.update()` here.
@@ -599,6 +627,10 @@ impl<M: MapMonoid> EulerTourTree<M> {
         self.edges[u].insert(v, uv);
         self.edges[v].insert(u, vu);
         Ok(())
+    }
+
+    fn return_edge(&mut self, edge: NodeRef<M>) {
+        self.membuf.push(edge);
     }
 
     /// Diconnect `u` and `v`.
@@ -643,27 +675,27 @@ impl<M: MapMonoid> EulerTourTree<M> {
             (None, None) => unreachable!("The pair of a edge is not found"),
         }
 
-        l.drop_in_place();
-        r.drop_in_place();
+        self.return_edge(l);
+        self.return_edge(r);
     }
 
     /// Return the size of the tree that `u` belongs to.  
     /// This is <strong>NOT subtree size</strong>, but <strong>whole tree size that `u` is belong to</strong>.
     fn tree_size(&self, u: usize) -> usize {
-        self.vertex[u].splay();
-        self.vertex[u].size as usize
+        self.nth_vertex(u).splay();
+        self.nth_vertex(u).size as usize
     }
 
     fn set_aux_edge(&mut self, u: usize) {
         if !self.vertex[u].has_aux_edges() {
-            self.vertex[u].splay();
+            self.nth_vertex(u).splay();
             self.vertex[u].set_aux_edge();
             self.vertex[u].update_flag();
         }
     }
 
     fn remove_aux_edge(&mut self, u: usize) {
-        self.vertex[u].splay();
+        self.nth_vertex(u).splay();
         self.vertex[u].remove_aux_edge();
         self.vertex[u].update_flag();
     }
@@ -671,7 +703,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
     /// Search a vertex that has some aux edges on the tree that `u` belongs to.  
     /// If found, return its index. If not, return `None`.
     fn find_vertex_has_aux_edge(&self, u: usize) -> Option<usize> {
-        let mut now = self.vertex[u];
+        let mut now = self.nth_vertex(u);
         // If some elements of the subtree has aux edges, it is not necessary to move `now` to the root of the tree.
         if !now.has_aux_edges() && !now.has_aux_edges_subtree() {
             now.splay();
@@ -707,7 +739,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
     /// Search an own layer's edge on the tree that `u` belongs to.  
     /// If found, return its pair of the indices. If not, return `None`.
     fn find_own_layers_edge(&self, u: usize) -> Option<(usize, usize)> {
-        let mut now = self.vertex[u];
+        let mut now = self.nth_vertex(u);
         if !now.is_own_layers_edge() && !now.has_own_laysers_edge_on_subtree() {
             now.splay();
         }
@@ -784,18 +816,18 @@ impl<M: MapMonoid> EulerTourTree<M> {
 
     /// Fold values of the vertexes of the tree that `u` belongs to.
     fn fold(&self, u: usize) -> M::M {
-        self.vertex[u].splay();
+        self.nth_vertex(u).splay();
         M::op(&M::e(), &self.vertex[u].sum)
     }
 
     fn set(&mut self, index: usize, value: M::M) {
-        self.vertex[index].splay();
+        self.nth_vertex(index).splay();
         self.vertex[index].val = value;
         self.vertex[index].update();
     }
 
     fn update_by(&mut self, index: usize, f: impl Fn(&M::M) -> M::M) {
-        self.vertex[index].splay();
+        self.nth_vertex(index).splay();
         self.vertex[index].val = f(&self.vertex[index].val);
         self.vertex[index].update();
     }
@@ -817,18 +849,13 @@ where
 
 impl<M: MapMonoid> Drop for EulerTourTree<M> {
     fn drop(&mut self) {
-        self.vertex.iter_mut().for_each(|p| {
-            p.parent = None;
-            p.left = None;
-            p.right = None;
-            p.drop_in_place()
-        });
         self.edges.iter_mut().flatten().for_each(|e| {
             e.1.parent = None;
             e.1.left = None;
             e.1.right = None;
             e.1.drop_in_place();
         });
+        self.membuf.iter_mut().for_each(|p| p.drop_in_place());
     }
 }
 
@@ -890,6 +917,8 @@ where
 }
 
 /// https://web.stanford.edu/class/cs166/lectures/16/Slides16.pdf
+///
+/// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
 pub struct OnlineDynamicConnectivity<M: MapMonoid> {
     size: usize,
     etts: Vec<LayeredForest<M>>,
