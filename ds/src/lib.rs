@@ -8,6 +8,10 @@ mod fixed_ring_queue;
 mod interval_heap;
 #[cfg(feature = "link-cut-tree")]
 mod link_cut_tree;
+#[cfg(feature = "online-dynamic-connectivity")]
+mod online_dynamic_connectivity;
+#[cfg(feature = "stern-brocot-tree")]
+mod stern_brocot_tree;
 
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
@@ -19,6 +23,10 @@ pub use fixed_ring_queue::*;
 pub use interval_heap::*;
 #[cfg(feature = "link-cut-tree")]
 pub use link_cut_tree::*;
+#[cfg(feature = "online-dynamic-connectivity")]
+pub use online_dynamic_connectivity::*;
+#[cfg(feature = "stern-brocot-tree")]
+pub use stern_brocot_tree::*;
 
 pub trait MapMonoid {
     type M;
