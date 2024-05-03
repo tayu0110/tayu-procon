@@ -650,7 +650,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
         uv.connect_right(self.reroot_inner(v).unwrap_or(self.nth_vertex(v)));
         uv.update();
 
-        let vu = self.alloc.borrow_mut().make_edge(v, u, own_layer);
+        // f one of the own_layer flags is `true`, it is possible to determine whether it is an edge of its own layer, so the other own_layer flag is always false.
+        let vu = self.alloc.borrow_mut().make_edge(v, u, false);
         let mr = self.most_right_from(uv);
         mr.connect_right(vu);
         // `vu` has no value, so it is not necessary to call `mr.update()` here.
@@ -755,18 +756,9 @@ impl<M: MapMonoid> EulerTourTree<M> {
         })
     }
 
-    fn unset_as_own_layers_edge(&mut self, u: usize, v: usize) {
-        for (u, v) in [(u, v), (v, u)] {
-            let mut now = *self.edges[u].get(&v).unwrap();
-            now.splay();
-            now.unset_as_own_layers_edge();
-            now.update_flag();
-        }
-    }
-
     /// Search an own layer's edge on the tree that `u` belongs to.  
     /// If found, return its pair of the indices. If not, return `None`.
-    fn find_own_layers_edge(&self, u: usize) -> Option<(usize, usize)> {
+    fn find_and_unset_own_layers_edge(&self, u: usize) -> Option<(usize, usize)> {
         let mut now = self.nth_vertex(u);
         if !now.is_own_layers_edge() && !now.has_own_laysers_edge_on_subtree() {
             now.splay();
@@ -784,6 +776,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
 
         now.is_own_layers_edge().then(|| {
             now.splay();
+            now.unset_as_own_layers_edge();
+            now.update_flag();
             assert!(!now.is_self_loop());
             (now.source(), now.destination())
         })
@@ -898,8 +892,7 @@ impl<M: MapMonoid> LayeredForest<M> {
     impl_layerd_forests_method!(self, {set_aux_edge(&mut self, u: usize)}, {set_aux_edge(u)});
     impl_layerd_forests_method!(self, {remove_aux_edge(&mut self, u: usize)}, {remove_aux_edge(u)});
     impl_layerd_forests_method!(self, {tree_size(&self, u: usize) -> usize}, {tree_size(u)});
-    impl_layerd_forests_method!(self, {find_own_layers_edge(&self, u: usize) -> Option<(usize, usize)>}, {find_own_layers_edge(u)});
-    impl_layerd_forests_method!(self, {unset_as_own_layers_edge(&mut self, u: usize, v: usize)}, {unset_as_own_layers_edge(u, v)});
+    impl_layerd_forests_method!(self, {find_and_unset_own_layers_edge(&self, u: usize) -> Option<(usize, usize)>}, {find_and_unset_own_layers_edge(u)});
     impl_layerd_forests_method!(self, {find_vertex_has_aux_edge(&self, u: usize) -> Option<usize>}, {find_vertex_has_aux_edge(u)});
     impl_layerd_forests_method!(self, {cut(&mut self, u: usize, v: usize)}, {cut(u, v)});
 
@@ -1201,10 +1194,8 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                     if self.etts[i].tree_size(u) > self.etts[i].tree_size(v) {
                         (u, v) = (v, u)
                     }
-                    let (head, tail) = self.etts.split_at_mut(i + 1);
-                    while let Some((a, b)) = head[i].find_own_layers_edge(u) {
-                        head[i].unset_as_own_layers_edge(a, b);
-                        tail[0].link(a, b, true).unwrap();
+                    while let Some((a, b)) = self.etts[i].find_and_unset_own_layers_edge(u) {
+                        self.etts[i + 1].link(a, b, true).unwrap();
                     }
 
                     let mut res = None;
