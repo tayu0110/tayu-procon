@@ -2,7 +2,7 @@ use crate::DefaultZST;
 
 use super::MapMonoid;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -515,7 +515,7 @@ impl<M: MapMonoid> Allocator<M> {
 /// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
 struct EulerTourTree<M: MapMonoid> {
     vertex: Box<[Node<M>]>,
-    edges: Vec<HashMap<usize, NodeRef<M>>>,
+    edges: Vec<BTreeMap<usize, NodeRef<M>>>,
     alloc: Rc<RefCell<Allocator<M>>>,
 }
 
@@ -553,7 +553,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             vertex[i].update();
         }
 
-        let mut res = Self { vertex, edges: vec![HashMap::new(); n], alloc };
+        let mut res = Self { vertex, edges: vec![BTreeMap::new(); n], alloc };
 
         for (u, v) in edges {
             res.link(u, v, true)?;
@@ -938,7 +938,7 @@ where
 pub struct OnlineDynamicConnectivity<M: MapMonoid> {
     size: usize,
     etts: Vec<LayeredForest<M>>,
-    aux_edges: Vec<Vec<HashSet<usize>>>,
+    aux_edges: Vec<Vec<BTreeSet<usize>>>,
     oalloc: Rc<RefCell<Allocator<DefaultZST>>>,
 }
 
@@ -951,7 +951,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                 size,
                 Rc::clone(&alloc),
             ))],
-            aux_edges: vec![vec![HashSet::new(); size]],
+            aux_edges: vec![vec![BTreeSet::new(); size]],
             oalloc: Rc::new(RefCell::new(Allocator::with_capacity(8))),
         }
     }
@@ -994,7 +994,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
             etts: vec![LayeredForest::Top(
                 EulerTourTree::from_edges_with_values(size, [], values, alloc).unwrap(),
             )],
-            aux_edges: vec![vec![HashSet::new(); size]],
+            aux_edges: vec![vec![BTreeSet::new(); size]],
             oalloc: Rc::new(RefCell::new(Allocator::with_capacity(8))),
         };
 
@@ -1074,7 +1074,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
             self.size,
             Rc::clone(&self.oalloc),
         )));
-        self.aux_edges.push(vec![HashSet::new(); self.size]);
+        self.aux_edges.push(vec![BTreeSet::new(); self.size]);
     }
 
     /// Check if the edge `u - v` exists in this graph.
@@ -1118,18 +1118,13 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
         Ok(())
     }
 
-    fn remove_aux_edge(&mut self, u: usize, v: usize, layer: usize) -> bool {
-        if !self.aux_edges[layer][u].remove(&v) {
-            return false;
-        }
-        self.aux_edges[layer][v].remove(&u);
+    fn remove_aux_edge(&mut self, u: usize, v: usize, layer: usize) {
         if self.aux_edges[layer][u].is_empty() {
             self.etts[layer].remove_aux_edge(u);
         }
         if self.aux_edges[layer][v].is_empty() {
             self.etts[layer].remove_aux_edge(v);
         }
-        true
     }
 
     /// Disconnect the edge `u - v`.  
@@ -1188,7 +1183,9 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
         }
 
         for i in 0..self.etts.len() {
-            if self.remove_aux_edge(u, v, i) {
+            if self.aux_edges[i][u].remove(&v) {
+                self.aux_edges[i][v].remove(&u);
+                self.remove_aux_edge(u, v, i);
                 return;
             }
         }
@@ -1212,8 +1209,8 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
 
                     let mut res = None;
                     'b: while let Some(a) = self.etts[i].find_vertex_has_aux_edge(u) {
-                        while !self.aux_edges[i][a].is_empty() {
-                            let b = self.aux_edges[i][a].iter().next().cloned().unwrap();
+                        while let Some(b) = self.aux_edges[i][a].pop_first() {
+                            self.aux_edges[i][b].remove(&a);
                             self.remove_aux_edge(a, b, i);
                             if self.etts[i].are_connected(b, v) {
                                 res = Some((a, b));
@@ -1304,6 +1301,8 @@ where
 #[cfg(test)]
 mod tests {
     use rand::{thread_rng, Rng};
+
+    use std::collections::HashSet;
 
     use super::*;
 
