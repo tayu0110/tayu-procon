@@ -1,12 +1,12 @@
 use crate::DefaultZST;
 
 use super::MapMonoid;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 use std::rc::Rc;
-use std::sync::Mutex;
 
 // Left children are sallower than self, and right children are deeper than self.
 struct Node<M: MapMonoid> {
@@ -516,12 +516,12 @@ impl<M: MapMonoid> Allocator<M> {
 struct EulerTourTree<M: MapMonoid> {
     vertex: Box<[Node<M>]>,
     edges: Vec<HashMap<usize, NodeRef<M>>>,
-    alloc: Rc<Mutex<Allocator<M>>>,
+    alloc: Rc<RefCell<Allocator<M>>>,
 }
 
 impl<M: MapMonoid> EulerTourTree<M> {
     /// Return the forest that its size is `size`.
-    fn new(n: usize, alloc: Rc<Mutex<Allocator<M>>>) -> Self {
+    fn new(n: usize, alloc: Rc<RefCell<Allocator<M>>>) -> Self {
         // Because `self.link()` is performed for no edges, this never throws an error.
         Self::from_edges(n, [], alloc).unwrap()
     }
@@ -533,7 +533,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
     fn from_edges(
         n: usize,
         edges: impl IntoIterator<Item = (usize, usize)>,
-        alloc: Rc<Mutex<Allocator<M>>>,
+        alloc: Rc<RefCell<Allocator<M>>>,
     ) -> Result<Self, EttLinkError> {
         Self::from_edges_with_values(n, edges, [], alloc)
     }
@@ -542,7 +542,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
         n: usize,
         edges: impl IntoIterator<Item = (usize, usize)>,
         values: impl IntoIterator<Item = (usize, M::M)>,
-        alloc: Rc<Mutex<Allocator<M>>>,
+        alloc: Rc<RefCell<Allocator<M>>>,
     ) -> Result<Self, EttLinkError> {
         let mut vertex = (0..n)
             .map(|i| Node::new(i as u32, i as u32, false))
@@ -642,7 +642,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             return Err(EttLinkError::MakeCycle);
         }
 
-        let mut uv = self.alloc.lock().unwrap().make_edge(u, v, own_layer);
+        let mut uv = self.alloc.borrow_mut().make_edge(u, v, own_layer);
         // If reroot is performed, returned element is the root of the tree that `u` belongs to.
         // If not performed, `self.vertex[u]` is the root element because `self.vertex[u]` should be splayed at time of performed `self.are_connected(u, v)`.
         // The same applies to `v`.
@@ -650,7 +650,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
         uv.connect_right(self.reroot_inner(v).unwrap_or(self.nth_vertex(v)));
         uv.update();
 
-        let vu = self.alloc.lock().unwrap().make_edge(v, u, own_layer);
+        let vu = self.alloc.borrow_mut().make_edge(v, u, own_layer);
         let mr = self.most_right_from(uv);
         mr.connect_right(vu);
         // `vu` has no value, so it is not necessary to call `mr.update()` here.
@@ -703,8 +703,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
             (None, None) => unreachable!("The pair of a edge is not found"),
         }
 
-        self.alloc.lock().unwrap().return_edge(l);
-        self.alloc.lock().unwrap().return_edge(r);
+        self.alloc.borrow_mut().return_edge(l);
+        self.alloc.borrow_mut().return_edge(r);
     }
 
     /// Return the size of the tree that `u` belongs to.  
@@ -939,12 +939,12 @@ pub struct OnlineDynamicConnectivity<M: MapMonoid> {
     size: usize,
     etts: Vec<LayeredForest<M>>,
     aux_edges: Vec<Vec<HashSet<usize>>>,
-    oalloc: Rc<Mutex<Allocator<DefaultZST>>>,
+    oalloc: Rc<RefCell<Allocator<DefaultZST>>>,
 }
 
 impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
     pub fn new(size: usize) -> Self {
-        let alloc = Rc::new(Mutex::new(Allocator::with_capacity((size - 1) * 2)));
+        let alloc = Rc::new(RefCell::new(Allocator::with_capacity((size - 1) * 2)));
         Self {
             size,
             etts: vec![LayeredForest::Top(EulerTourTree::new(
@@ -952,7 +952,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                 Rc::clone(&alloc),
             ))],
             aux_edges: vec![vec![HashSet::new(); size]],
-            oalloc: Rc::new(Mutex::new(Allocator::with_capacity(8))),
+            oalloc: Rc::new(RefCell::new(Allocator::with_capacity(8))),
         }
     }
 
@@ -987,7 +987,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
         edges: impl IntoIterator<Item = (usize, usize)>,
         values: impl IntoIterator<Item = (usize, M::M)>,
     ) -> Self {
-        let alloc = Rc::new(Mutex::new(Allocator::with_capacity((size - 1) * 2)));
+        let alloc = Rc::new(RefCell::new(Allocator::with_capacity((size - 1) * 2)));
         let mut res = Self {
             size,
             // Because `edges` is empty, `EulerTourTree::from_edges_with_values` never throws an error.
@@ -995,7 +995,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                 EulerTourTree::from_edges_with_values(size, [], values, alloc).unwrap(),
             )],
             aux_edges: vec![vec![HashSet::new(); size]],
-            oalloc: Rc::new(Mutex::new(Allocator::with_capacity(8))),
+            oalloc: Rc::new(RefCell::new(Allocator::with_capacity(8))),
         };
 
         for (u, v) in edges {
@@ -1442,7 +1442,7 @@ mod tests {
 
         for i in 0..10000 {
             let mut dc =
-                EulerTourTree::<U32Add>::new(V, Rc::new(Mutex::new(Allocator::with_capacity(1))));
+                EulerTourTree::<U32Add>::new(V, Rc::new(RefCell::new(Allocator::with_capacity(1))));
             let mut rng = thread_rng();
             let mut g = vec![HashSet::new(); V];
             let mut val = vec![0; V];
@@ -1538,7 +1538,7 @@ mod tests {
     #[test]
     fn euler_tour_tree_edges_test() {
         let mut ett =
-            EulerTourTree::<U32Add>::new(10, Rc::new(Mutex::new(Allocator::with_capacity(1))));
+            EulerTourTree::<U32Add>::new(10, Rc::new(RefCell::new(Allocator::with_capacity(1))));
         ett.link(4, 8, true).ok();
         ett.link(1, 8, true).ok();
         ett.link(8, 9, true).ok();
@@ -1556,7 +1556,7 @@ mod tests {
     #[test]
     fn euler_tour_tree_vertexes_test() {
         let mut ett =
-            EulerTourTree::<U32Add>::new(10, Rc::new(Mutex::new(Allocator::with_capacity(1))));
+            EulerTourTree::<U32Add>::new(10, Rc::new(RefCell::new(Allocator::with_capacity(1))));
         ett.link(4, 8, true).ok();
         ett.link(1, 8, true).ok();
         ett.link(8, 9, true).ok();
