@@ -12,9 +12,8 @@ mod interval_heap;
 mod link_cut_tree;
 #[cfg(feature = "online-dynamic-connectivity")]
 mod online_dynamic_connectivity;
-#[cfg(feature = "stern-brocot-tree")]
-mod stern_brocot_tree;
-
+// #[cfg(feature = "stern-brocot-tree")]
+// mod stern_brocot_tree;
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
 #[cfg(feature = "cartesian-tree")]
@@ -29,8 +28,8 @@ pub use interval_heap::*;
 pub use link_cut_tree::*;
 #[cfg(feature = "online-dynamic-connectivity")]
 pub use online_dynamic_connectivity::*;
-#[cfg(feature = "stern-brocot-tree")]
-pub use stern_brocot_tree::*;
+// #[cfg(feature = "stern-brocot-tree")]
+// pub use stern_brocot_tree::*;
 
 pub trait MapMonoid {
     type M;
