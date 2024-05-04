@@ -23,19 +23,23 @@ fn multiset_test() {
     assert!(multiset.contains(&2));
     assert!(!multiset.contains(&3));
 
-    let mut iter = multiset.iter();
-    assert_eq!(iter.next(), Some(&0));
-    assert_eq!(iter.next(), Some(&0));
-    assert_eq!(iter.next(), Some(&1));
-    assert_eq!(iter.next(), Some(&2));
-    assert_eq!(iter.next(), Some(&10));
-    assert_eq!(iter.next(), None);
+    {
+        let mut iter = multiset.iter();
+        assert_eq!(iter.next(), Some(&0));
+        assert_eq!(iter.next(), Some(&0));
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&10));
+        assert_eq!(iter.next(), None);
+    }
 
-    let mut range = multiset.range(1..);
-    assert_eq!(range.next(), Some(&1));
-    assert_eq!(range.next(), Some(&2));
-    assert_eq!(range.next(), Some(&10));
-    assert_eq!(range.next(), None);
+    {
+        let mut range = multiset.range(1..);
+        assert_eq!(range.next(), Some(&1));
+        assert_eq!(range.next(), Some(&2));
+        assert_eq!(range.next(), Some(&10));
+        assert_eq!(range.next(), None);
+    }
 
     multiset.remove_all(&0);
     assert!(!multiset.contains(&0));

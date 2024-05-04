@@ -70,14 +70,31 @@ impl<'a, K: Ord + Debug + Clone> BTreeMultiSet<K> {
     pub fn last(&self) -> Option<&K> {
         self.inner.iter().next_back().map(|(k, _)| k)
     }
+    /// Generate an iterator of `self`
+    ///
+    /// # Examples
+    /// ```rust
+    /// use ds::BTreeMultiSet;
+    ///
+    /// let mut st = BTreeMultiSet::new();
+    /// st.insert(0);
+    /// st.insert(1);
+    /// st.insert(1);
+    /// st.insert(2);
+    /// let v = st.iter().copied().collect::<Vec<_>>();
+    /// assert_eq!(v, vec![0, 1, 1, 2]);
+    /// ```
     #[inline]
-    pub fn iter(&'a self) -> impl DoubleEndedIterator + 'a {
+    pub fn iter(&'a self) -> impl DoubleEndedIterator<Item = &'a K> + 'a {
         self.inner
             .iter()
             .flat_map(|(k, &cnt)| (0..cnt).map(move |_| k))
     }
     #[inline]
-    pub fn range<R: RangeBounds<K>>(&'a self, range: R) -> impl DoubleEndedIterator + 'a {
+    pub fn range<R: RangeBounds<K>>(
+        &'a self,
+        range: R,
+    ) -> impl DoubleEndedIterator<Item = &'a K> + 'a {
         self.inner
             .range(range)
             .flat_map(|(k, &cnt)| (0..cnt).map(move |_| k))
