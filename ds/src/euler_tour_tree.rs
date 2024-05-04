@@ -1,3 +1,6 @@
+#[cfg(feature = "rustc-hash")]
+use rustc_hash::FxHasher;
+
 use crate::DefaultZST;
 
 use super::MapMonoid;
@@ -5,6 +8,10 @@ use super::MapMonoid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
+#[cfg(feature = "rustc-hash")]
+use std::hash::BuildHasherDefault;
+#[cfg(not(feature = "rustc-hash"))]
+use std::hash::RandomState;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 use std::rc::Rc;
@@ -513,12 +520,25 @@ impl<M: MapMonoid> EttNodeAllocator<M> {
     }
 }
 
+type EdgesMap<M, S> = HashMap<(usize, usize), (NodeRef<M>, NodeRef<M>), S>;
+
 /// https://web.stanford.edu/class/cs166/lectures/15/Slides15.pdf
 ///
 /// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
-pub struct EulerTourTree<M: MapMonoid> {
+#[cfg(not(feature = "rustc-hash"))]
+pub struct EulerTourTree<M: MapMonoid, S = RandomState> {
     vertex: Box<[Node<M>]>,
-    edges: HashMap<(usize, usize), (NodeRef<M>, NodeRef<M>)>,
+    edges: EdgesMap<M, S>,
+    alloc: Rc<RefCell<EttNodeAllocator<M>>>,
+}
+
+/// https://web.stanford.edu/class/cs166/lectures/15/Slides15.pdf
+///
+/// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
+#[cfg(feature = "rustc-hash")]
+pub struct EulerTourTree<M: MapMonoid, S = BuildHasherDefault<FxHasher>> {
+    vertex: Box<[Node<M>]>,
+    edges: EdgesMap<M, S>,
     alloc: Rc<RefCell<EttNodeAllocator<M>>>,
 }
 
@@ -580,7 +600,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             vertex[i].update();
         }
 
-        let mut res = Self { vertex, edges: HashMap::new(), alloc };
+        let mut res = Self { vertex, edges: HashMap::default(), alloc };
 
         for (u, v) in edges {
             res.link(u, v)?;
