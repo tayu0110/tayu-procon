@@ -3,7 +3,7 @@ use crate::DefaultZST;
 use super::MapMonoid;
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -518,7 +518,7 @@ impl<M: MapMonoid> EttNodeAllocator<M> {
 /// There is no procedure that uses MapMonoid::reverse, so it is meaningless to implement it.
 pub struct EulerTourTree<M: MapMonoid> {
     vertex: Box<[Node<M>]>,
-    edges: Vec<BTreeMap<usize, NodeRef<M>>>,
+    edges: HashMap<(usize, usize), (NodeRef<M>, NodeRef<M>)>,
     alloc: Rc<RefCell<EttNodeAllocator<M>>>,
 }
 
@@ -580,7 +580,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
             vertex[i].update();
         }
 
-        let mut res = Self { vertex, edges: vec![BTreeMap::new(); n], alloc };
+        let mut res = Self { vertex, edges: HashMap::new(), alloc };
 
         for (u, v) in edges {
             res.link(u, v)?;
@@ -618,7 +618,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
     /// Check if `u` and `v` belong to the same tree.  
     /// If `u == v`, return true.
     pub fn are_connected(&self, u: usize, v: usize) -> bool {
-        if u == v || self.edges[u].contains_key(&v) {
+        if u == v || self.edges.contains_key(&(u.min(v), u.max(v))) {
             return true;
         }
         self.nth_vertex(u).splay();
@@ -671,6 +671,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
             return Err(EttLinkError::MakeCycle);
         }
 
+        let (u, v) = (u.min(v), u.max(v));
+
         let mut uv = self.alloc.borrow_mut().make_edge(u, v, own_layer);
         // If reroot is performed, returned element is the root of the tree that `u` belongs to.
         // If not performed, `self.vertex[u]` is the root element because `self.vertex[u]` should be splayed at time of performed `self.are_connected(u, v)`.
@@ -686,8 +688,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
         // `vu` has no value, so it is not necessary to call `mr.update()` here.
         vu.splay();
 
-        self.edges[u].insert(v, uv);
-        self.edges[v].insert(u, vu);
+        self.edges.insert((u, v), (uv, vu));
         Ok(())
     }
 
@@ -697,10 +698,9 @@ impl<M: MapMonoid> EulerTourTree<M> {
             return;
         }
 
-        let Some(l) = self.edges[u].remove(&v) else {
+        let Some((l, r)) = self.edges.remove(&(u.min(v), u.max(v))) else {
             return;
         };
-        let r = self.edges[v].remove(&u).unwrap();
 
         l.splay();
         match (l.disconnect_left(), l.disconnect_right()) {
@@ -864,7 +864,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
     /// Check if this tree has the edge `u - v`.  
     /// This structure does not allow any self-loop, so if `u == v`, return `false`.
     pub fn has_edge(&self, u: usize, v: usize) -> bool {
-        u != v && self.edges[u].contains_key(&v)
+        u != v && self.edges.contains_key(&(u.min(v), u.max(v)))
     }
 
     /// Fold values of the vertexes of the tree that `u` belongs to.
@@ -912,8 +912,10 @@ impl<M: MapMonoid> EulerTourTree<M> {
     ///
     /// If `self.has_edge(u, parent)` is `false`, return `None`.
     pub fn fold_subtree(&self, u: usize, parent: usize) -> Option<M::M> {
-        let &l = self.edges[parent].get(&u)?;
-        let &r = self.edges[u].get(&parent).unwrap();
+        let &(mut l, mut r) = self.edges.get(&(u.min(parent), u.max(parent)))?;
+        if u < parent {
+            (l, r) = (r, l);
+        }
 
         l.splay();
         let (lc, rc) = (l.disconnect_left(), l.disconnect_right());
