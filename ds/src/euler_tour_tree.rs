@@ -74,10 +74,12 @@ impl<M: MapMonoid> Node<M> {
     fn propagate(&mut self) {
         if let Some(mut left) = self.left {
             left.lazy = M::composite(&left.lazy, &self.lazy);
+            left.val = M::map(&left.val, &self.lazy);
             left.sum = M::map(&left.sum, &self.lazy);
         }
         if let Some(mut right) = self.right {
             right.lazy = M::composite(&right.lazy, &self.lazy);
+            right.val = M::map(&right.val, &self.lazy);
             right.sum = M::map(&right.sum, &self.lazy);
         }
 
@@ -161,7 +163,7 @@ where
             .field("val", &self.val)
             .field("sum", &self.sum)
             .field("lazy", &self.lazy)
-            .field("parent", &self.parent.map(|p| p.index()))
+            .field("parent", &format!("{:?}", self.parent.map(|p| p.index())))
             .field("left", &self.left)
             .field("right", &self.right)
             .finish()
@@ -451,7 +453,7 @@ where
             .field("val", &self.val)
             .field("sum", &self.sum)
             .field("lazy", &self.lazy)
-            .field("parent", &self.parent.map(|p| p.index()))
+            .field("parent", &format!("{:?}", self.parent.map(|p| p.index())))
             .field("left", &self.left)
             .field("right", &self.right)
             .finish()
@@ -883,6 +885,29 @@ impl<M: MapMonoid> EulerTourTree<M> {
         self.vertex[index].update();
     }
 
+    /// Apply the action `act` to the tree that `u` belongs to.
+    pub fn apply(&mut self, u: usize, act: &M::Act) {
+        self.nth_vertex(u).splay();
+        self.vertex[u].val = M::map(&self.vertex[u].val, act);
+        self.vertex[u].lazy = M::composite(&self.vertex[u].lazy, act);
+        self.vertex[u].propagate();
+        self.vertex[u].update();
+    }
+
+    /// Apply the action `act` to the tree that `u` belongs to.  
+    /// The action affects only the subtree of `u` whose parent is `parent`.
+    ///
+    /// # Panics
+    /// - `self.has_edge(u, parent)` must be `true`.
+    pub fn apply_subtree(&mut self, u: usize, parent: usize, act: &M::Act) {
+        if !self.has_edge(u, parent) {
+            panic!("There is no link between `{u}` and `{parent}`.");
+        }
+        self.cut(u, parent);
+        self.apply(u, act);
+        self.link(u, parent).unwrap();
+    }
+
     /// Returns the aggregate value of the subtree whose root is u when `parent` is the parent.
     ///
     /// If `self.has_edge(u, parent)` is `false`, return `None`.
@@ -891,32 +916,27 @@ impl<M: MapMonoid> EulerTourTree<M> {
         let &r = self.edges[u].get(&parent).unwrap();
 
         l.splay();
-        Some(match (l.disconnect_left(), l.disconnect_right()) {
+        let (lc, rc) = (l.disconnect_left(), l.disconnect_right());
+        r.splay();
+        Some(match (lc, rc) {
             (Some(lc), Some(rc)) => {
-                r.splay();
                 if !lc.is_root() || lc == r {
-                    let res = M::op(&rc.sum, &r.left.unwrap().sum);
                     l.connect_left(r);
                     l.connect_right(rc);
-                    res
+                    M::op(&rc.sum, &r.left.unwrap().sum)
                 } else {
-                    let res = M::op(&M::e(), &r.left.unwrap().sum);
                     l.connect_left(lc);
                     l.connect_right(r);
-                    res
+                    M::op(&M::e(), &r.left.unwrap().sum)
                 }
             }
             (Some(_), _) => {
-                r.splay();
-                let res = M::op(&M::e(), &r.left.unwrap().sum);
                 l.connect_left(r);
-                res
+                M::op(&M::e(), &r.left.unwrap().sum)
             }
             (_, Some(_)) => {
-                r.splay();
-                let res = M::op(&M::e(), &r.left.unwrap().sum);
                 l.connect_right(r);
-                res
+                M::op(&M::e(), &r.left.unwrap().sum)
             }
             _ => unreachable!(),
         })
