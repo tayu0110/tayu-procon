@@ -2,6 +2,8 @@
 mod btree_multiset;
 #[cfg(feature = "cartesian-tree")]
 mod cartesian_tree;
+#[cfg(feature = "euler-tour-tree")]
+mod euler_tour_tree;
 #[cfg(feature = "fixed-ring-queue")]
 mod fixed_ring_queue;
 #[cfg(feature = "double-ended-priority-queue")]
@@ -17,6 +19,8 @@ mod stern_brocot_tree;
 pub use btree_multiset::*;
 #[cfg(feature = "cartesian-tree")]
 pub use cartesian_tree::*;
+#[cfg(feature = "euler-tour-tree")]
+pub use euler_tour_tree::*;
 #[cfg(feature = "fixed-ring-queue")]
 pub use fixed_ring_queue::*;
 #[cfg(feature = "double-ended-priority-queue")]

@@ -17,21 +17,23 @@ static-modint = { path = "../modint/static-modint" }
 [features]
 default = ["full"]
 full = [
-  "fixed-ring-queue",
   "btree-multiset",
-  "double-ended-priority-queue",
-  "link-cut-tree",
   "cartesian-tree",
-  "stern-brocot-tree",
+  "double-ended-priority-queue",
+  "euler-tour-tree",
+  "fixed-ring-queue",
+  "link-cut-tree",
   "online-dynamic-connectivity",
+  "stern-brocot-tree",
 ]
-fixed-ring-queue = []
 btree-multiset = []
-double-ended-priority-queue = []
-link-cut-tree = []
 cartesian-tree = []
-stern-brocot-tree = []
+double-ended-priority-queue = []
+euler-tour-tree = []
+fixed-ring-queue = []
+link-cut-tree = []
 online-dynamic-connectivity = []
+stern-brocot-tree = []
 
 [profile.release]
 debug = true
