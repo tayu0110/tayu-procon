@@ -6,12 +6,12 @@ use crate::DefaultZST;
 use super::MapMonoid;
 
 use std::cell::RefCell;
+#[cfg(not(feature = "rustc-hash"))]
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::fmt::Debug;
 #[cfg(feature = "rustc-hash")]
 use std::hash::BuildHasherDefault;
-#[cfg(not(feature = "rustc-hash"))]
-use std::hash::RandomState;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 use std::rc::Rc;
