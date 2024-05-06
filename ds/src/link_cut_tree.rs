@@ -750,24 +750,14 @@ where
 pub struct DefaultZST;
 
 impl MapMonoid for DefaultZST {
-    type M = DefaultZST;
-    type Act = DefaultZST;
+    type M = ();
+    type Act = ();
 
-    fn e() -> Self::M {
-        DefaultZST
-    }
-    fn op(_: &Self::M, _: &Self::M) -> Self::M {
-        DefaultZST
-    }
-    fn map(_: &Self::M, _: &Self::Act) -> Self::M {
-        DefaultZST
-    }
-    fn id() -> Self::Act {
-        DefaultZST
-    }
-    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {
-        DefaultZST
-    }
+    fn e() -> Self::M {}
+    fn op(_: &Self::M, _: &Self::M) -> Self::M {}
+    fn map(_: &Self::M, _: &Self::Act) -> Self::M {}
+    fn id() -> Self::Act {}
+    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
 }
 
 #[cfg(test)]
