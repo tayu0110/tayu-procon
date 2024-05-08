@@ -16,24 +16,28 @@ rand = "0.8.5"
 static-modint = { path = "../modint/static-modint" }
 
 [features]
-default = ["full", "rustc-hash"]
+default = ["full"]
 full = [
   "btree-multiset",
   "cartesian-tree",
   "double-ended-priority-queue",
+  "dynamic-sequence",
   "euler-tour-tree",
   "fixed-ring-queue",
   "link-cut-tree",
   "online-dynamic-connectivity",
+  "splay-tree",
   "stern-brocot-tree",
 ]
 btree-multiset = []
 cartesian-tree = []
 double-ended-priority-queue = []
+dynamic-sequence = ["splay-tree"]
 euler-tour-tree = []
 fixed-ring-queue = []
 link-cut-tree = []
 online-dynamic-connectivity = []
+splay-tree = []
 stern-brocot-tree = []
 rustc-hash = ["dep:rustc-hash"]
 

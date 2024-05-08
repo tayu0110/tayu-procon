@@ -2,6 +2,8 @@
 mod btree_multiset;
 #[cfg(feature = "cartesian-tree")]
 mod cartesian_tree;
+#[cfg(feature = "dynamic-sequence")]
+mod dynamic_sequence;
 #[cfg(feature = "euler-tour-tree")]
 mod euler_tour_tree;
 #[cfg(feature = "fixed-ring-queue")]
@@ -12,12 +14,15 @@ mod interval_heap;
 mod link_cut_tree;
 #[cfg(feature = "online-dynamic-connectivity")]
 mod online_dynamic_connectivity;
-// #[cfg(feature = "stern-brocot-tree")]
-// mod stern_brocot_tree;
+#[cfg(feature = "splay-tree")]
+mod splay_tree;
+
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
 #[cfg(feature = "cartesian-tree")]
 pub use cartesian_tree::*;
+#[cfg(feature = "dynamic-sequence")]
+pub use dynamic_sequence::*;
 #[cfg(feature = "euler-tour-tree")]
 pub use euler_tour_tree::*;
 #[cfg(feature = "fixed-ring-queue")]
@@ -28,8 +33,6 @@ pub use interval_heap::*;
 pub use link_cut_tree::*;
 #[cfg(feature = "online-dynamic-connectivity")]
 pub use online_dynamic_connectivity::*;
-// #[cfg(feature = "stern-brocot-tree")]
-// pub use stern_brocot_tree::*;
 
 pub trait MapMonoid {
     type M;
