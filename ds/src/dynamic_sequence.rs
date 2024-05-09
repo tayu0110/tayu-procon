@@ -1,10 +1,12 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
 use std::ops::{Bound, Range, RangeBounds};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::splay_tree::NodeAllocator;
 use crate::{
-    splay_tree::{Node, NodeData, NodeRef},
+    splay_tree::{NodeData, NodeRef},
     DefaultZST, MapMonoid,
 };
 
@@ -128,6 +130,12 @@ where
     }
 }
 
+impl<M: MapMonoid> Default for DSData<M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<M: MapMonoid> NodeRef<DSData<M>> {
     fn toggle(mut self) {
         self.data.index ^= 1 << 63;
@@ -138,6 +146,7 @@ impl<M: MapMonoid> NodeRef<DSData<M>> {
 
 pub struct DynamicSequence<M: MapMonoid = DefaultZST> {
     root: Cell<Option<NodeRef<DSData<M>>>>,
+    alloc: Rc<RefCell<NodeAllocator<DSData<M>>>>,
 }
 
 impl<M: MapMonoid> DynamicSequence<M> {
@@ -213,10 +222,13 @@ impl<M: MapMonoid> DynamicSequence<M> {
     /// it should be exposed externally as a variable method, so the method is split.
     fn split_off_inner(&self, at: usize) -> DynamicSequence<M> {
         if at == 0 {
-            return Self { root: Cell::new(self.root.take()) };
+            return Self {
+                root: Cell::new(self.root.take()),
+                alloc: Rc::clone(&self.alloc),
+            };
         }
         if at == self.len() {
-            return Self::default();
+            return Self { root: Cell::new(None), alloc: Rc::clone(&self.alloc) };
         }
 
         let mut back = self
@@ -226,7 +238,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
         let front = back.disconnect_left();
         back.update();
         self.root.set(front);
-        Self { root: Cell::new(Some(back)) }
+        Self { root: Cell::new(Some(back)), alloc: Rc::clone(&self.alloc) }
     }
 
     /// Split and Return the partition after the `at`th of the sequence.  
@@ -316,8 +328,8 @@ impl<M: MapMonoid> DynamicSequence<M> {
     pub fn insert(&mut self, at: usize, element: M::M) {
         assert!(at <= self.len());
 
-        let new = NodeRef::leak(DSData::with_value(element));
-        let mid = Self { root: Cell::new(Some(new)) };
+        let new = self.alloc.borrow_mut().alloc(DSData::with_value(element));
+        let mid = Self { root: Cell::new(Some(new)), alloc: Rc::clone(&self.alloc) };
         let back = self.split_off(at);
         self.extend(mid);
         self.extend(back);
@@ -371,9 +383,10 @@ impl<M: MapMonoid> DynamicSequence<M> {
     /// assert_eq!(dc.pop_first(), None);
     /// ```
     pub fn pop_first(&mut self) -> Option<M::M> {
-        let root = self.first_node()?;
+        let mut root = self.first_node()?;
         self.root.set(root.disconnect_right());
-        let Node { data, .. } = *unsafe { Box::from_raw(root.as_ptr()) };
+        let data = std::mem::take(&mut root.data);
+        self.alloc.borrow_mut().dealloc(root);
         Some(data.val)
     }
 
@@ -403,9 +416,10 @@ impl<M: MapMonoid> DynamicSequence<M> {
     /// assert_eq!(dc.pop_last(), None);
     /// ```
     pub fn pop_last(&mut self) -> Option<M::M> {
-        let root = self.last_node()?;
+        let mut root = self.last_node()?;
         self.root.set(root.disconnect_left());
-        let Node { data, .. } = *unsafe { Box::from_raw(root.as_ptr()) };
+        let data = std::mem::take(&mut root.data);
+        self.alloc.borrow_mut().dealloc(root);
         Some(data.val)
     }
 
@@ -570,22 +584,33 @@ where
 
 impl<M: MapMonoid> Default for DynamicSequence<M> {
     fn default() -> Self {
-        Self { root: Cell::new(None) }
+        Self {
+            root: Cell::new(None),
+            alloc: Rc::new(RefCell::new(NodeAllocator::default())),
+        }
+    }
+}
+
+impl<M: MapMonoid> Drop for DynamicSequence<M> {
+    fn drop(&mut self) {
+        while self.pop_first().is_some() {}
     }
 }
 
 impl<M: MapMonoid> FromIterator<M::M> for DynamicSequence<M> {
     fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
+        let mut alloc = NodeAllocator::default();
         Self {
             root: Cell::new(
                 iter.into_iter()
-                    .map(|val| NodeRef::leak(DSData::with_value(val)))
+                    .map(|val| alloc.alloc(DSData::with_value(val)))
                     .reduce(|s, mut v| {
                         v.connect_left(s);
                         v.update();
                         v
                     }),
             ),
+            alloc: Rc::new(RefCell::new(alloc)),
         }
     }
 }

@@ -22,6 +22,13 @@ impl<D: NodeData> Node<D> {
         Self { parent: None, left: None, right: None, data }
     }
 
+    pub(crate) fn initialize(&mut self, data: D) {
+        self.parent = None;
+        self.left = None;
+        self.right = None;
+        self.data = data;
+    }
+
     pub(crate) fn propagate(&mut self) {
         self.data.propagate(self.left, self.right);
     }
@@ -60,13 +67,13 @@ impl<D: NodeData> NodeRef<D> {
         NodeRef(NonNull::new_unchecked(ptr))
     }
 
-    pub(crate) fn leak(data: D) -> Self {
-        unsafe { NodeRef::from_raw_unchecked(Box::leak(Box::new(Node::new(data)))) }
-    }
+    // pub(crate) fn leak(data: D) -> Self {
+    //     unsafe { NodeRef::from_raw_unchecked(Box::leak(Box::new(Node::new(data)))) }
+    // }
 
-    pub(crate) fn as_ptr(self) -> *mut Node<D> {
-        self.0.as_ptr()
-    }
+    // pub(crate) fn as_ptr(self) -> *mut Node<D> {
+    //     self.0.as_ptr()
+    // }
 
     pub(crate) fn connect_left(mut self, mut child: Self) {
         self.left = Some(child);
@@ -334,5 +341,57 @@ impl<D: NodeData + Debug> Debug for NodeRef<D> {
             .field("left", &self.left)
             .field("right", &self.right)
             .finish()
+    }
+}
+
+pub(crate) struct NodeAllocator<D: NodeData + Default> {
+    cnt: usize,
+    nodes: Vec<Box<[Node<D>]>>,
+    ptr: Vec<NodeRef<D>>,
+}
+
+impl<D: NodeData + Default> NodeAllocator<D> {
+    pub(crate) fn with_capacity(cap: usize) -> Self {
+        let nodes = (0..cap.max(1)).map(|_| Node::new(D::default())).collect();
+        Self { cnt: 0, nodes: vec![nodes], ptr: vec![] }
+    }
+
+    pub(crate) fn alloc(&mut self, data: D) -> NodeRef<D> {
+        if let Some(mut p) = self.ptr.pop() {
+            p.initialize(data);
+            p
+        } else {
+            if self.cnt < self.nodes.last().unwrap().len() {
+                self.cnt += 1;
+                let mut res = unsafe {
+                    NodeRef::from_raw_unchecked(
+                        self.nodes
+                            .last_mut()
+                            .unwrap()
+                            .as_mut_ptr()
+                            .add(self.cnt - 1),
+                    )
+                };
+                res.initialize(data);
+                return res;
+            }
+
+            self.cnt = 0;
+            let newlen = self.nodes.last().unwrap().len() * 2;
+            self.nodes
+                .push((0..newlen).map(|_| Node::new(D::default())).collect());
+
+            self.alloc(data)
+        }
+    }
+
+    pub(crate) fn dealloc(&mut self, p: NodeRef<D>) {
+        self.ptr.push(p);
+    }
+}
+
+impl<D: NodeData + Default> Default for NodeAllocator<D> {
+    fn default() -> Self {
+        NodeAllocator::with_capacity(0)
     }
 }
