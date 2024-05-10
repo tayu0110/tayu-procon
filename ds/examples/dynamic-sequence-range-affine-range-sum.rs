@@ -20,18 +20,28 @@ impl MapMonoid for M32Affine {
         (Modint::one(), Modint::zero())
     }
     fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
-        (
-            r.0 * l.0,
-            Modint::new(r.0.val() as u64 * l.1.val() as u64 + r.1.val() as u64),
-        )
+        if l == &Self::id() {
+            *r
+        } else if r == &Self::id() {
+            *l
+        } else {
+            (
+                r.0 * l.0,
+                Modint::new(r.0.val() as u64 * l.1.val() as u64 + r.1.val() as u64),
+            )
+        }
     }
     fn map(m: &Self::M, act: &Self::Act) -> Self::M {
-        (
-            Modint::new(
-                act.0.val() as u64 * m.0.val() as u64 + act.1.val() as u64 * m.1.val() as u64,
-            ),
-            m.1,
-        )
+        if act == &Self::id() {
+            *m
+        } else {
+            (
+                Modint::new(
+                    act.0.val() as u64 * m.0.val() as u64 + act.1.val() as u64 * m.1.val() as u64,
+                ),
+                m.1,
+            )
+        }
     }
 }
 

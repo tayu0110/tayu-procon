@@ -1,6 +1,7 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, RefCell, RefMut};
 use std::fmt::Debug;
 use std::ops::{Bound, Range, RangeBounds};
+use std::ptr::copy;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -27,7 +28,8 @@ fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
 }
 
 struct DSData<M: MapMonoid> {
-    // 63-bit is reverse flag
+    // 62-bit   : has lazy flag
+    // 63-bit   : reverse flag
     index: usize,
     size: usize,
     val: M::M,
@@ -38,7 +40,7 @@ struct DSData<M: MapMonoid> {
 impl<M: MapMonoid> DSData<M> {
     fn new() -> Self {
         let index = DATA_INDEX.fetch_add(1, Ordering::Relaxed);
-        assert!(index < 1 << 63);
+        assert!(index < 1 << 62);
         Self { index, size: 1, val: M::e(), sum: M::e(), lazy: M::id() }
     }
 
@@ -52,58 +54,74 @@ impl<M: MapMonoid> DSData<M> {
     const fn is_reversed(&self) -> bool {
         self.index >= 1 << 63
     }
+
+    const fn has_lazy(&self) -> bool {
+        // also return true if `is reverse` flag is true
+        self.index >= 1 << 62
+    }
+
+    fn set_lazy(&mut self, act: &M::Act) {
+        if self.has_lazy() {
+            self.lazy = M::composite(&self.lazy, act);
+        } else {
+            self.index |= 1 << 62;
+            unsafe { copy(act as _, &mut self.lazy as _, 1) }
+        }
+    }
 }
 
 impl<M: MapMonoid> NodeData for DSData<M> {
     fn index(&self) -> usize {
-        self.index & !(1 << 63)
+        self.index & !(0b11 << 62)
     }
 
     fn propagate(&mut self, left: Option<NodeRef<Self>>, right: Option<NodeRef<Self>>) {
-        if let Some(mut left) = left {
-            left.data.val = M::map(&left.data.val, &self.lazy);
-            left.data.sum = M::map(&left.data.sum, &self.lazy);
-            left.data.lazy = M::composite(&left.data.lazy, &self.lazy);
-            if self.is_reversed() {
-                left.toggle();
+        if self.has_lazy() {
+            if let Some(mut left) = left {
+                left.data.val = M::map(&left.data.val, &self.lazy);
+                left.data.sum = M::map(&left.data.sum, &self.lazy);
+                left.data.set_lazy(&self.lazy);
+                if self.is_reversed() {
+                    left.toggle();
+                }
             }
-        }
-        if let Some(mut right) = right {
-            right.data.val = M::map(&right.data.val, &self.lazy);
-            right.data.sum = M::map(&right.data.sum, &self.lazy);
-            right.data.lazy = M::composite(&right.data.lazy, &self.lazy);
-            if self.is_reversed() {
-                right.toggle();
+            if let Some(mut right) = right {
+                right.data.val = M::map(&right.data.val, &self.lazy);
+                right.data.sum = M::map(&right.data.sum, &self.lazy);
+                right.data.set_lazy(&self.lazy);
+                if self.is_reversed() {
+                    right.toggle();
+                }
             }
+            self.lazy = M::id();
+            self.index = self.index();
         }
-        self.lazy = M::id();
-        self.index = self.index();
     }
 
     fn update(&mut self, left: Option<NodeRef<Self>>, right: Option<NodeRef<Self>>) {
-        self.sum = match (left, right) {
+        match (left, right) {
             (Some(l), Some(r)) => {
                 self.size = l.data.size + r.data.size + 1;
-                M::op(&M::op(&l.data.sum, &self.val), &r.data.sum)
+                self.sum = M::op(&M::op(&l.data.sum, &self.val), &r.data.sum)
             }
             (Some(l), _) => {
                 self.size = l.data.size + 1;
-                M::op(&l.data.sum, &self.val)
+                self.sum = M::op(&l.data.sum, &self.val)
             }
             (_, Some(r)) => {
                 self.size = r.data.size + 1;
-                M::op(&self.val, &r.data.sum)
+                self.sum = M::op(&self.val, &r.data.sum)
             }
             _ => {
                 self.size = 1;
-                M::op(&self.val, &M::e())
+                unsafe { copy(&self.val as _, &mut self.sum as _, 1) }
             }
         };
     }
 
     fn aggrmove(&mut self, source: NodeRef<Self>) {
         self.size = source.data.size;
-        self.sum = M::op(&M::e(), &source.data.sum);
+        unsafe { copy(&source.data.sum as _, &mut self.sum as _, 1) }
     }
 }
 
@@ -193,7 +211,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
         let mut node = self.root.get()?;
         (n < node.data.size).then(|| {
             let mut rem = n + 1;
-            while rem > 0 {
+            loop {
                 node.propagate();
                 if let Some(left) = node.left {
                     if left.data.size >= rem {
@@ -204,17 +222,16 @@ impl<M: MapMonoid> DynamicSequence<M> {
                     rem -= left.data.size;
                 }
 
-                rem -= 1;
-                if rem == 0 {
-                    break;
+                if rem == 1 {
+                    node.splay();
+                    debug_assert_eq!(node.left.map_or(0, |l| l.data.size), n);
+                    self.root.set(Some(node));
+                    break node;
                 }
 
+                rem -= 1;
                 node = node.right.expect("Inconsistent node size");
             }
-            node.splay();
-            assert_eq!(node.left.map_or(0, |l| l.data.size), n);
-            self.root.set(Some(node));
-            node
         })
     }
 
@@ -234,7 +251,6 @@ impl<M: MapMonoid> DynamicSequence<M> {
         let mut back = self
             .nth_node(at)
             .unwrap_or_else(|| panic!("`self.len()` is {}, but `at` is {at}", self.len()));
-        back.splay();
         let front = back.disconnect_left();
         back.update();
         self.root.set(front);
@@ -530,13 +546,17 @@ impl<M: MapMonoid> DynamicSequence<M> {
         if range.is_empty() {
             return;
         }
+        if range.len() == 1 {
+            self.update_by(range.start, |m| M::map(m, act));
+            return;
+        }
 
         let back = self.split_off(range.end);
         let mid = self.split_off(range.start);
         let mut root = mid.root.get().unwrap();
         root.data.val = M::map(&root.data.val, act);
         root.data.sum = M::map(&root.data.sum, act);
-        root.data.lazy = M::composite(&root.data.lazy, act);
+        root.data.set_lazy(act);
         root.propagate();
         self.extend(mid);
         self.extend(back);
@@ -593,7 +613,19 @@ impl<M: MapMonoid> Default for DynamicSequence<M> {
 
 impl<M: MapMonoid> Drop for DynamicSequence<M> {
     fn drop(&mut self) {
-        while self.pop_first().is_some() {}
+        fn dealloc_recursive<M: MapMonoid>(
+            node: Option<NodeRef<DSData<M>>>,
+            alloc: &mut RefMut<NodeAllocator<DSData<M>>>,
+        ) -> Option<()> {
+            let node = node?;
+            dealloc_recursive(node.left, alloc);
+            dealloc_recursive(node.right, alloc);
+            alloc.dealloc(node);
+            Some(())
+        }
+        if Rc::strong_count(&self.alloc) > 1 {
+            dealloc_recursive(self.root.take(), &mut self.alloc.borrow_mut());
+        }
     }
 }
 
