@@ -6,35 +6,48 @@ pub(crate) trait NodeData: PartialEq + Sized {
     fn update(&mut self, left: Option<NodeRef<Self>>, right: Option<NodeRef<Self>>);
     fn propagate(&mut self, left: Option<NodeRef<Self>>, right: Option<NodeRef<Self>>);
     fn aggrmove(&mut self, source: NodeRef<Self>);
+    fn toggle(&mut self) {}
     fn index(&self) -> usize;
 }
 
 // Left children are sallower than self, and right children are deeper than self.
 pub(crate) struct Node<D: NodeData> {
     parent: Option<NodeRef<D>>,
-    pub(crate) left: Option<NodeRef<D>>,
-    pub(crate) right: Option<NodeRef<D>>,
+    // 0: left, 1: right
+    child: [Option<NodeRef<D>>; 2],
     pub(crate) data: D,
 }
 
 impl<D: NodeData> Node<D> {
     pub(crate) fn new(data: D) -> Self {
-        Self { parent: None, left: None, right: None, data }
+        Self { parent: None, child: [None; 2], data }
     }
 
     pub(crate) fn initialize(&mut self, data: D) {
         self.parent = None;
-        self.left = None;
-        self.right = None;
+        self.child = [None; 2];
         self.data = data;
     }
 
     pub(crate) fn propagate(&mut self) {
-        self.data.propagate(self.left, self.right);
+        self.data.propagate(self.left(), self.right());
     }
 
     pub(crate) fn update(&mut self) {
-        self.data.update(self.left, self.right);
+        self.data.update(self.left(), self.right());
+    }
+
+    pub(crate) fn toggle(&mut self) {
+        self.data.toggle();
+        self.child.swap(0, 1);
+    }
+
+    pub(crate) const fn left(&self) -> Option<NodeRef<D>> {
+        self.child[0]
+    }
+
+    pub(crate) const fn right(&self) -> Option<NodeRef<D>> {
+        self.child[1]
     }
 }
 
@@ -49,8 +62,8 @@ impl<D: NodeData + Debug> Debug for Node<D> {
         f.debug_struct("Node")
             .field("data", &self.data)
             .field("parent", &self.parent.map(|p| p.data.index()))
-            .field("left", &self.left)
-            .field("right", &self.right)
+            .field("left", &self.left())
+            .field("right", &self.right())
             .finish()
     }
 }
@@ -75,129 +88,45 @@ impl<D: NodeData> NodeRef<D> {
     //     self.0.as_ptr()
     // }
 
-    pub(crate) fn connect_left(mut self, mut child: Self) {
-        self.left = Some(child);
+    fn connect(mut self, mut child: Self, right: bool) {
+        self.child[right as usize] = Some(child);
         child.parent = Some(self);
     }
 
-    pub(crate) fn connect_right(mut self, mut child: Self) {
-        self.right = Some(child);
-        child.parent = Some(self);
+    pub(crate) fn connect_left(self, child: Self) {
+        self.connect(child, false);
     }
 
-    pub(crate) fn disconnect_left(mut self) -> Option<Self> {
-        let mut left = self.left.take()?;
-        left.parent = None;
-        Some(left)
+    pub(crate) fn connect_right(self, child: Self) {
+        self.connect(child, true);
     }
 
-    pub(crate) fn disconnect_right(mut self) -> Option<Self> {
-        let mut right = self.right.take()?;
-        right.parent = None;
-        Some(right)
+    fn disconnect(mut self, right: bool) -> Option<Self> {
+        let mut child = self.child[right as usize].take()?;
+        child.parent = None;
+        Some(child)
     }
 
-    fn disconnect_parent(mut self) -> Option<Self> {
+    pub(crate) fn disconnect_left(self) -> Option<Self> {
+        self.disconnect(false)
+    }
+
+    pub(crate) fn disconnect_right(self) -> Option<Self> {
+        self.disconnect(true)
+    }
+
+    // Returned boolean value is `is self right child`
+    fn disconnect_parent(mut self) -> Option<(Self, bool)> {
         let mut parent = self.parent.take()?;
-        if parent.left == Some(self) {
-            parent.left = None;
-        } else if parent.right == Some(self) {
-            parent.right = None;
-        } else {
-            unreachable!("There is not connection between the parent and self.");
-        }
-
-        Some(parent)
+        let is_right_child = parent.child[0] != Some(self);
+        parent.child[is_right_child as usize] = None;
+        Some((parent, is_right_child))
     }
 
-    /// Rotate the subtree whose root is `target` to the left and return new root of this subtree.
-    /// Specifically, it is equivalent to the following pseudo code
-    ///
-    /// `right = self.right_child`  <br/>
-    /// `target.right_child = right.left_child` <br/>
-    /// `right.left_child = target`
-    //           |                  |
-    //           a                  c
-    //          / \                / \
-    //         b   c      ->      a   e
-    //            / \            / \
-    //           d   e          b   d
-    fn rotate_left(mut self) -> Self {
-        // If self has right-child, disconnect it.
-        //      |
-        //      a
-        //     /
-        //    b   c
-        //       / \
-        //      d   e
-        // If not, it is not necessary to do anything.
-        let Some(mut right) = self.disconnect_right() else {
-            return self;
-        };
-
-        // If right has left-child, disconnect it
-        //      |
-        //      a
-        //     /
-        //    b   c
-        //         \
-        //      d   e
-        if let Some(right_left) = right.disconnect_left() {
-            // and connect to self as right-child
-            //     |
-            //     a     c
-            //    / \     \
-            //   b   d     e
-            self.connect_right(right_left);
-        }
-
-        right.data.aggrmove(self);
-        self.update();
-
-        let self_is_shallow = self.is_left_child();
-        let par = self.disconnect_parent();
-        // connect self to right as left-child
-        //      c
-        //     / \
-        //    a   e
-        //   / \
-        //  b   d
-        right.connect_left(self);
-
-        // If self has a parent, disconnect it
-        //        a       c
-        //       / \       \
-        //      b   d       e
-        if let Some(par) = par {
-            // and connect it to right as a parent
-            //           |
-            //    a      c
-            //   / \      \
-            //  b   d      e
-            if self_is_shallow {
-                par.connect_left(right);
-            } else {
-                par.connect_right(right);
-            }
-        }
-
-        // return new root of the original subtree.
-        right
-    }
-
-    /// Rotate the subtree whose root is `target` to the right and return new root of this subtree.
-    /// Specifically, it is equivalent to the following pseudo code
-    ///
-    /// `left = self.left_child`  <br/>
-    /// `target.left_child = left.right_child` <br/>
-    /// `left.right_child = target`
-    //         |              |
-    //         a              b
-    //        / \            / \
-    //       b   c   ->     d   a
-    //      / \                / \
-    //     d   e              e   c
-    fn rotate_right(mut self) -> Self {
+    fn rotate(mut self, right: bool) -> Self {
+        // The following comments are made when `right` is `true`.
+        // When `right` is `false`, left and right are reversed.
+        let left = !right;
         // If self has left-child, disconnect it.
         //      |
         //      a
@@ -206,7 +135,7 @@ impl<D: NodeData> NodeRef<D> {
         //   / \
         //  d   e
         // If not, it is not necessary to do anything.
-        let Some(mut left) = self.disconnect_left() else {
+        let Some(mut child) = self.disconnect(left) else {
             return self;
         };
 
@@ -217,88 +146,61 @@ impl<D: NodeData> NodeRef<D> {
         //    b   c
         //   /
         //  d   e
-        if let Some(left_right) = left.disconnect_right() {
+        if let Some(grand_child) = child.disconnect(right) {
             // and connect it to self as left-child
             //     |
             //     a         b
             //    / \       /
             //   e   c     d
-            self.connect_left(left_right);
+            self.connect(grand_child, left);
         }
 
-        left.data.aggrmove(self);
+        child.data.aggrmove(self);
         self.update();
 
-        let self_is_shallow = self.is_left_child();
-        let par = self.disconnect_parent();
+        // If self has a parent, disconnect it
+        //        a       b
+        //       / \     /
+        //      e   c   d
+        if let Some((par, is_right_child)) = self.disconnect_parent() {
+            // and connect it to left as a parent
+            par.connect(child, is_right_child);
+        }
         // connect self to left as right-child
         //      b
         //     / \
         //    d   a
         //       / \
         //      e   c
-        left.connect_right(self);
-        // If self has a parent, disconnect it
-        //        a       b
-        //       / \     /
-        //      e   c   d
-        if let Some(par) = par {
-            // and connect it to left as a parent
-            if self_is_shallow {
-                par.connect_left(left);
-            } else {
-                par.connect_right(left);
-            }
-        }
+        child.connect(self, right);
 
         // return new root of the original subtree
-        left
+        child
     }
 
     /// # Constraint
     /// - The ancestor of `self` should have no action to propagate.
     pub(crate) fn splay(mut self) {
         self.propagate();
-        while !self.is_root() {
-            let parent = self.parent.unwrap();
-
-            if parent.is_root() {
+        while let Some(parent) = self.parent {
+            let Some(grand_parent) = parent.parent else {
                 // zig step
-                if self.is_left_child() {
-                    parent.rotate_right();
-                } else {
-                    parent.rotate_left();
-                }
+                parent.rotate(parent.left() == Some(self));
                 return;
-            }
+            };
 
-            let grand_parent = parent.parent.unwrap();
-            let sf = self.is_left_child();
-            let pf = parent.is_left_child();
+            let sf = parent.left() == Some(self);
+            let pf = grand_parent.left() == Some(parent);
             if sf ^ pf {
                 // zig-zag step
-                if sf {
-                    parent.rotate_right();
-                    grand_parent.rotate_left();
-                } else {
-                    parent.rotate_left();
-                    grand_parent.rotate_right();
-                }
+                parent.rotate(sf);
+                grand_parent.rotate(!sf);
             } else {
                 // zig-zig step
-                if sf {
-                    grand_parent.rotate_right();
-                    parent.rotate_right();
-                } else {
-                    grand_parent.rotate_left();
-                    parent.rotate_left();
-                }
+                grand_parent.rotate(sf);
+                parent.rotate(sf);
             }
         }
-    }
-
-    fn is_left_child(self) -> bool {
-        self.parent.map_or(false, |p| p.left == Some(self))
     }
 
     pub(crate) fn is_root(self) -> bool {
@@ -320,6 +222,20 @@ impl<D: NodeData> PartialEq for NodeRef<D> {
     }
 }
 
+impl<D: NodeData> Eq for NodeRef<D> {}
+
+impl<D: NodeData> PartialOrd for NodeRef<D> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<D: NodeData> Ord for NodeRef<D> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
 impl<D: NodeData> Deref for NodeRef<D> {
     type Target = Node<D>;
     fn deref(&self) -> &Self::Target {
@@ -338,32 +254,39 @@ impl<D: NodeData + Debug> Debug for NodeRef<D> {
         f.debug_struct("NodeRef")
             .field("data", &self.data)
             .field("parent", &self.parent.map(|p| p.data.index()))
-            .field("left", &self.left)
-            .field("right", &self.right)
+            .field("left", &self.left())
+            .field("right", &self.right())
             .finish()
     }
 }
 
 pub(crate) struct NodeAllocator<D: NodeData + Default> {
     cnt: usize,
+    cap: usize,
     nodes: Vec<Box<[Node<D>]>>,
     ptr: Vec<NodeRef<D>>,
 }
 
 impl<D: NodeData + Default> NodeAllocator<D> {
     pub(crate) fn with_capacity(cap: usize) -> Self {
-        let nodes = (0..cap.max(1)).map(|_| Node::new(D::default())).collect();
-        Self { cnt: 0, nodes: vec![nodes], ptr: vec![] }
+        let cap = cap.max(1);
+        let nodes = vec![(0..cap).map(|_| Node::new(D::default())).collect()];
+        Self { cnt: 0, cap, nodes, ptr: vec![] }
     }
 
-    pub(crate) fn alloc(&mut self, data: D) -> NodeRef<D> {
-        if let Some(mut p) = self.ptr.pop() {
-            p.initialize(data);
-            p
-        } else {
+    pub(crate) fn from_buffer(buf: Box<[Node<D>]>) -> Self {
+        if buf.is_empty() {
+            return Self::default();
+        }
+        let nodes = vec![buf];
+        Self { cnt: 0, cap: nodes[0].len(), nodes, ptr: vec![] }
+    }
+
+    pub(crate) fn alloc_uninitialized(&mut self) -> NodeRef<D> {
+        self.ptr.pop().unwrap_or_else(|| {
             if self.cnt < self.nodes.last().unwrap().len() {
                 self.cnt += 1;
-                let mut res = unsafe {
+                let res = unsafe {
                     NodeRef::from_raw_unchecked(
                         self.nodes
                             .last_mut()
@@ -372,17 +295,22 @@ impl<D: NodeData + Default> NodeAllocator<D> {
                             .add(self.cnt - 1),
                     )
                 };
-                res.initialize(data);
                 return res;
             }
 
             self.cnt = 0;
-            let newlen = self.nodes.last().unwrap().len() * 2;
             self.nodes
-                .push((0..newlen).map(|_| Node::new(D::default())).collect());
+                .push((0..self.cap).map(|_| Node::new(D::default())).collect());
+            self.cap <<= 1;
 
-            self.alloc(data)
-        }
+            self.alloc_uninitialized()
+        })
+    }
+
+    pub(crate) fn alloc(&mut self, data: D) -> NodeRef<D> {
+        let mut res = self.alloc_uninitialized();
+        res.initialize(data);
+        res
     }
 
     pub(crate) fn dealloc(&mut self, p: NodeRef<D>) {

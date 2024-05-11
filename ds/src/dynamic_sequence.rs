@@ -5,7 +5,7 @@ use std::ptr::copy;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::splay_tree::NodeAllocator;
+use crate::splay_tree::{Node, NodeAllocator};
 use crate::{
     splay_tree::{NodeData, NodeRef},
     DefaultZST, MapMonoid,
@@ -47,7 +47,7 @@ impl<M: MapMonoid> DSData<M> {
     fn with_value(val: M::M) -> Self {
         let mut res = Self::new();
         res.val = val;
-        res.update(None, None);
+        unsafe { copy(&res.val as _, &mut res.sum as _, 1) };
         res
     }
 
@@ -123,6 +123,11 @@ impl<M: MapMonoid> NodeData for DSData<M> {
         self.size = source.data.size;
         unsafe { copy(&source.data.sum as _, &mut self.sum as _, 1) }
     }
+
+    fn toggle(&mut self) {
+        self.index ^= 1 << 63;
+        M::reverse(&mut self.sum);
+    }
 }
 
 impl<M: MapMonoid> PartialEq for DSData<M> {
@@ -151,14 +156,6 @@ where
 impl<M: MapMonoid> Default for DSData<M> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<M: MapMonoid> NodeRef<DSData<M>> {
-    fn toggle(mut self) {
-        self.data.index ^= 1 << 63;
-        M::reverse(&mut self.data.sum);
-        (self.left, self.right) = (self.right, self.left);
     }
 }
 
@@ -213,7 +210,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
             let mut rem = n + 1;
             loop {
                 node.propagate();
-                if let Some(left) = node.left {
+                if let Some(left) = node.left() {
                     if left.data.size >= rem {
                         node = left;
                         continue;
@@ -224,13 +221,13 @@ impl<M: MapMonoid> DynamicSequence<M> {
 
                 if rem == 1 {
                     node.splay();
-                    debug_assert_eq!(node.left.map_or(0, |l| l.data.size), n);
+                    debug_assert_eq!(node.left().map_or(0, |l| l.data.size), n);
                     self.root.set(Some(node));
                     break node;
                 }
 
                 rem -= 1;
-                node = node.right.expect("Inconsistent node size");
+                node = node.right().expect("Inconsistent node size");
             }
         })
     }
@@ -354,7 +351,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
     fn first_node(&self) -> Option<NodeRef<DSData<M>>> {
         let mut node = self.root.get()?;
         node.propagate();
-        while let Some(left) = node.left {
+        while let Some(left) = node.left() {
             node = left;
             node.propagate();
         }
@@ -365,7 +362,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
     fn last_node(&self) -> Option<NodeRef<DSData<M>>> {
         let mut node = self.root.get()?;
         node.propagate();
-        while let Some(right) = node.right {
+        while let Some(right) = node.right() {
             node = right;
             node.propagate();
         }
@@ -618,8 +615,8 @@ impl<M: MapMonoid> Drop for DynamicSequence<M> {
             alloc: &mut RefMut<NodeAllocator<DSData<M>>>,
         ) -> Option<()> {
             let node = node?;
-            dealloc_recursive(node.left, alloc);
-            dealloc_recursive(node.right, alloc);
+            dealloc_recursive(node.left(), alloc);
+            dealloc_recursive(node.right(), alloc);
             alloc.dealloc(node);
             Some(())
         }
@@ -631,11 +628,16 @@ impl<M: MapMonoid> Drop for DynamicSequence<M> {
 
 impl<M: MapMonoid> FromIterator<M::M> for DynamicSequence<M> {
     fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
-        let mut alloc = NodeAllocator::default();
+        let buf = iter
+            .into_iter()
+            .map(|val| Node::new(DSData::with_value(val)))
+            .collect::<Box<[Node<DSData<M>>]>>();
+        let len = buf.len();
+        let mut alloc = NodeAllocator::from_buffer(buf);
         Self {
             root: Cell::new(
-                iter.into_iter()
-                    .map(|val| alloc.alloc(DSData::with_value(val)))
+                (0..len)
+                    .map(|_| alloc.alloc_uninitialized())
                     .reduce(|s, mut v| {
                         v.connect_left(s);
                         v.update();
@@ -660,10 +662,10 @@ impl<'a, M: MapMonoid> Iterator for Iter<'a, M> {
             node.splay();
         }
         let res = M::op(&M::e(), &node.data.val);
-        if let Some(mut next) = node.right {
+        if let Some(mut next) = node.right() {
             node.propagate();
             next.propagate();
-            while let Some(n) = next.left {
+            while let Some(n) = next.left() {
                 next = n;
                 next.propagate();
             }
