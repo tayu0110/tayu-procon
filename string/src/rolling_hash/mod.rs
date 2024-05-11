@@ -104,7 +104,7 @@ impl Index<usize> for PowCache {
 
 static POW_CACHE: Mutex<PowCache> = Mutex::new(PowCache::new());
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HashValue {
     len: usize,
     hash: u64,
@@ -150,6 +150,10 @@ impl HashValue {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn raw_value(&self) -> u64 {
+        self.hash
     }
 }
 
