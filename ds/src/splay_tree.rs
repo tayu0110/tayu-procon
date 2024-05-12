@@ -206,6 +206,13 @@ impl<D: NodeData> NodeRef<D> {
     pub(crate) fn is_root(self) -> bool {
         self.parent.is_none()
     }
+
+    pub(crate) fn propagate_all(mut self) {
+        if let Some(parent) = self.parent {
+            parent.propagate_all();
+        }
+        self.propagate();
+    }
 }
 
 impl<D: NodeData> Clone for NodeRef<D> {

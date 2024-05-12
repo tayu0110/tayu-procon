@@ -1,6 +1,6 @@
-use crate::{DefaultZST, EttLinkError, EttNodeAllocator, EulerTourTree};
+use crate::splay_tree::NodeAllocator;
+use crate::{DefaultZST, EttData, EttLinkError, EulerTourTree, MapMonoid};
 
-use super::MapMonoid;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -69,14 +69,12 @@ pub struct OnlineDynamicConnectivity<M: MapMonoid> {
     size: usize,
     etts: Vec<LayeredForest<M>>,
     aux_edges: Vec<Vec<BTreeSet<usize>>>,
-    oalloc: Rc<RefCell<EttNodeAllocator<DefaultZST>>>,
+    oalloc: Rc<RefCell<NodeAllocator<EttData<DefaultZST>>>>,
 }
 
 impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
     pub fn new(size: usize) -> Self {
-        let alloc = Rc::new(RefCell::new(EttNodeAllocator::with_capacity(
-            (size - 1) * 2,
-        )));
+        let alloc = Rc::new(RefCell::new(NodeAllocator::with_capacity((size - 1) * 2)));
         Self {
             size,
             etts: vec![LayeredForest::Top(EulerTourTree::new_in(
@@ -84,7 +82,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                 Rc::clone(&alloc),
             ))],
             aux_edges: vec![vec![BTreeSet::new(); size]],
-            oalloc: Rc::new(RefCell::new(EttNodeAllocator::with_capacity(8))),
+            oalloc: Rc::new(RefCell::new(NodeAllocator::with_capacity(8))),
         }
     }
 
@@ -119,9 +117,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
         edges: impl IntoIterator<Item = (usize, usize)>,
         values: impl IntoIterator<Item = (usize, M::M)>,
     ) -> Self {
-        let alloc = Rc::new(RefCell::new(EttNodeAllocator::with_capacity(
-            (size - 1) * 2,
-        )));
+        let alloc = Rc::new(RefCell::new(NodeAllocator::with_capacity((size - 1) * 2)));
         let mut res = Self {
             size,
             // Because `edges` is empty, `EulerTourTree::from_edges_with_values` never throws an error.
@@ -129,7 +125,7 @@ impl<M: MapMonoid> OnlineDynamicConnectivity<M> {
                 EulerTourTree::from_edges_with_values_in(size, [], values, alloc).unwrap(),
             )],
             aux_edges: vec![vec![BTreeSet::new(); size]],
-            oalloc: Rc::new(RefCell::new(EttNodeAllocator::with_capacity(8))),
+            oalloc: Rc::new(RefCell::new(NodeAllocator::with_capacity(8))),
         };
 
         for (u, v) in edges {
