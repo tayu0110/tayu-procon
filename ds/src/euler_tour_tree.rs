@@ -455,14 +455,12 @@ impl<M: MapMonoid> EulerTourTree<M> {
         if !self.nth_vertex(u).has_aux_edges() {
             self.nth_vertex(u).splay_with_propagate();
             self.nth_vertex(u).set_aux_edge();
-            // self.nth_vertex(u).update_flag();
         }
     }
 
     pub(crate) fn remove_aux_edge(&mut self, u: usize) {
         self.nth_vertex(u).splay_with_propagate();
         self.nth_vertex(u).remove_aux_edge();
-        // self.nth_vertex(u).update_flag();
     }
 
     /// Search a vertex that has some aux edges on the tree that `u` belongs to.  
@@ -514,7 +512,6 @@ impl<M: MapMonoid> EulerTourTree<M> {
         now.is_own_layers_edge().then(|| {
             now.splay_with_propagate();
             now.unset_as_own_layers_edge();
-            // now.update_flag();
             assert!(!now.data.is_self_loop());
             (now.data.source(), now.data.destination())
         })
