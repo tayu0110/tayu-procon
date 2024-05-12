@@ -309,6 +309,17 @@ impl<M: MapMonoid> EulerTourTree<M> {
         res
     }
 
+    /// Return the most left element on the subtree that `u` is root.
+    fn most_left_from(&self, mut r: NodeRef<EttData<M>>) -> NodeRef<EttData<M>> {
+        r.propagate();
+        while let Some(nr) = r.left() {
+            r = nr;
+            r.propagate();
+        }
+        r.splay();
+        r
+    }
+
     /// Return the most right element on the subtree that `u` is root.
     fn most_right_from(&self, mut r: NodeRef<EttData<M>>) -> NodeRef<EttData<M>> {
         r.propagate();
@@ -421,12 +432,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
                 } else {
                     r.disconnect_left();
                     if let Some(mut rr) = r.disconnect_right() {
-                        rr.propagate();
-                        while let Some(l) = rr.left() {
-                            rr = l;
-                            rr.propagate();
-                        }
-                        rr.splay();
+                        rr = self.most_left_from(rr);
                         rr.connect_left(lc);
                         rr.update();
                     }
@@ -524,11 +530,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
             let n = m.take()?;
             n.splay_with_propagate();
 
-            if let Some(mut next) = n.right() {
-                while let Some(l) = next.left() {
-                    next = l;
-                }
-                m = Some(next);
+            if let Some(next) = n.right() {
+                m = Some(self.most_left_from(next));
             }
 
             Some((n.data.source(), n.data.destination()))
@@ -553,11 +556,8 @@ impl<M: MapMonoid> EulerTourTree<M> {
             let n = m.take()?;
             n.splay_with_propagate();
 
-            if let Some(mut next) = n.right() {
-                while let Some(l) = next.left() {
-                    next = l;
-                }
-                m = Some(next);
+            if let Some(next) = n.right() {
+                m = Some(self.most_left_from(next));
             }
 
             if n.data.is_self_loop() {
