@@ -1,9 +1,3 @@
-#![allow(
-    clippy::collapsible_else_if,
-    clippy::comparison_chain,
-    clippy::non_canonical_clone_impl
-)]
-
 use super::MapMonoid;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
@@ -388,7 +382,7 @@ impl<M: MapMonoid> NodeRef<M> {
 
 impl<M: MapMonoid> Clone for NodeRef<M> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
@@ -420,11 +414,16 @@ where
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "NodeRef {{ index: {:?}, val: {:?}, sum: {:?}, lazy: {:?}, rev: {:?}, parent: {:?}, left: {:?}, right: {:?} }}",
-            self.index(), self.val, self.sum, self.lazy, self.is_reversed(), self.parent.map(|p| p.index()), self.left, self.right
-        )
+        f.debug_struct("NodeRef")
+            .field("index", &self.index())
+            .field("val", &self.val)
+            .field("sum", &self.sum)
+            .field("lazy", &self.lazy)
+            .field("rev", &self.is_reversed())
+            .field("parent", &self.parent.map(|p| p.index()))
+            .field("left", &self.left)
+            .field("right", &self.right)
+            .finish()
     }
 }
 
@@ -741,7 +740,9 @@ where
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "LinkCutTree {{ nodes: {:?} }}", self.nodes)
+        f.debug_struct("LinkCutTree")
+            .field("nodes", &self.nodes)
+            .finish()
     }
 }
 
