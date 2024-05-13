@@ -25,7 +25,6 @@ rational = { path = "./rational" }
 segtree = { path = "./segtree" }
 simple-rand = { path = "./simple-rand" }
 string = { path = "./string" }
-suffix-array = { path = "./suffix-array" }
 trie = { path = "./trie" }
 unionfind = { path = "./unionfind" }
 utility = { path = "./utility" }
