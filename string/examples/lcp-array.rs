@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/practice2/tasks/practice2_i
 use iolib::{putln, scan};
-use suffix_array::SuffixArray;
+use string::SuffixArray;
 
 fn main() {
     scan!(s: String);

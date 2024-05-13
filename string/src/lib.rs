@@ -1,8 +1,10 @@
 mod palindrome;
 mod rolling_hash;
+mod suffix_array;
 
 pub use palindrome::*;
 pub use rolling_hash::*;
+pub use suffix_array::*;
 
 /// For given string S, return an array that records as the i-th element the longest common prefix of S and the substring starting from the i-th element of S.
 // https://atcoder.jp/contests/abc135/submissions/34695512

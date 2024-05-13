@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/suffixarray
 use iolib::{putitln, scan};
-use suffix_array::SuffixArray;
+use string::SuffixArray;
 
 fn main() {
     scan!(s: String);
