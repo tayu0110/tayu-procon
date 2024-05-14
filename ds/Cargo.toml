@@ -27,7 +27,6 @@ full = [
   "link-cut-tree",
   "online-dynamic-connectivity",
   "splay-tree",
-  "stern-brocot-tree",
 ]
 btree-multiset = []
 cartesian-tree = []
@@ -38,7 +37,6 @@ fixed-ring-queue = []
 link-cut-tree = []
 online-dynamic-connectivity = ["euler-tour-tree"]
 splay-tree = []
-stern-brocot-tree = []
 rustc-hash = ["dep:rustc-hash"]
 
 [profile.release]
