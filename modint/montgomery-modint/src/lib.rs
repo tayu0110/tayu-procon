@@ -1,6 +1,5 @@
 mod simd;
 
-use std::convert::From;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::num::ParseIntError;

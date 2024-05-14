@@ -5,7 +5,6 @@
 /////////////////////////////////////////////////////////////////////////////
 use numeric::float::Float;
 use numeric::{One, Zero};
-use std::convert::From;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
@@ -16,64 +15,92 @@ pub struct Complex<T: Float = f64> {
 
 impl<T: Float> One for Complex<T> {
     #[inline]
-    fn one() -> Self { Self::one() }
+    fn one() -> Self {
+        Self::one()
+    }
 }
 
 impl<T: Float> Zero for Complex<T> {
     #[inline]
-    fn zero() -> Self { Self::zero() }
+    fn zero() -> Self {
+        Self::zero()
+    }
 }
 
 impl<T: Float> Complex<T> {
     #[inline]
-    pub fn new(re: T, im: T) -> Self { Self { re, im } }
-
-    #[inline]
-    pub fn zero() -> Self { Self { re: T::zero(), im: T::zero() } }
-
-    #[inline]
-    pub fn one() -> Self { Self { re: T::one(), im: T::zero() } }
-
-    #[inline]
-    pub fn real(&self) -> T { self.re }
-
-    #[inline]
-    pub fn imag(&self) -> T { self.im }
-
-    #[inline]
-    pub fn norm_sq(&self) -> T { self.re * self.re + self.im * self.im }
-
-    #[inline]
-    pub fn norm(&self) -> T { self.norm_sq().sqrt() }
-
-    #[inline]
-    pub fn arg(&self) -> T { self.im.atan2(self.re) }
-
-    #[inline]
-    pub fn from_polar(norm: T, arg: T) -> Self {
-        Self {
-            re: norm * arg.cos(),
-            im: norm * arg.sin(),
-        }
+    pub fn new(re: T, im: T) -> Self {
+        Self { re, im }
     }
 
     #[inline]
-    pub fn conjugate(&self) -> Self { Self { re: self.re, im: -self.im } }
+    pub fn zero() -> Self {
+        Self { re: T::zero(), im: T::zero() }
+    }
+
+    #[inline]
+    pub fn one() -> Self {
+        Self { re: T::one(), im: T::zero() }
+    }
+
+    #[inline]
+    pub fn real(&self) -> T {
+        self.re
+    }
+
+    #[inline]
+    pub fn imag(&self) -> T {
+        self.im
+    }
+
+    #[inline]
+    pub fn norm_sq(&self) -> T {
+        self.re * self.re + self.im * self.im
+    }
+
+    #[inline]
+    pub fn norm(&self) -> T {
+        self.norm_sq().sqrt()
+    }
+
+    #[inline]
+    pub fn arg(&self) -> T {
+        self.im.atan2(self.re)
+    }
+
+    #[inline]
+    pub fn from_polar(norm: T, arg: T) -> Self {
+        Self { re: norm * arg.cos(), im: norm * arg.sin() }
+    }
+
+    #[inline]
+    pub fn conjugate(&self) -> Self {
+        Self { re: self.re, im: -self.im }
+    }
 }
 
 impl<T: Float> Add for Complex<T> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self::new(self.re + rhs.re, self.im + rhs.im) }
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.re + rhs.re, self.im + rhs.im)
+    }
 }
 
 impl<T: Float> Sub for Complex<T> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { Self::new(self.re - rhs.re, self.im - rhs.im) }
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.re - rhs.re, self.im - rhs.im)
+    }
 }
 
 impl<T: Float> Mul for Complex<T> {
     type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output { Self::new(self.re * rhs.re - self.im * rhs.im, self.re * rhs.im + self.im * rhs.re) }
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::new(
+            self.re * rhs.re - self.im * rhs.im,
+            self.re * rhs.im + self.im * rhs.re,
+        )
+    }
 }
 
 impl<T: Float> Div for Complex<T> {
@@ -86,23 +113,33 @@ impl<T: Float> Div for Complex<T> {
 }
 
 impl<T: Float> AddAssign for Complex<T> {
-    fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
 }
 
 impl<T: Float> SubAssign for Complex<T> {
-    fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
 }
 
 impl<T: Float> MulAssign for Complex<T> {
-    fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
 }
 
 impl<T: Float> DivAssign for Complex<T> {
-    fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
 }
 
 impl<T: Float> From<T> for Complex<T> {
-    fn from(from: T) -> Self { Self::new(from, T::zero()) }
+    fn from(from: T) -> Self {
+        Self::new(from, T::zero())
+    }
 }
 
 impl std::fmt::Debug for Complex<f64> {
@@ -178,7 +215,9 @@ impl_basic_operation_with_float_number!(f32);
 mod tests {
     use super::Complex;
 
-    fn abs_diff(a: &Complex, b: &Complex) -> (f64, f64) { ((a.real() - b.real()).abs(), (a.imag() - b.imag()).abs()) }
+    fn abs_diff(a: &Complex, b: &Complex) -> (f64, f64) {
+        ((a.real() - b.real()).abs(), (a.imag() - b.imag()).abs())
+    }
 
     #[test]
     fn complex_basic_operation_test() {
