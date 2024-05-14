@@ -16,7 +16,6 @@ pub use rational;
 pub use segtree;
 pub use simple_rand;
 pub use string;
-pub use suffix_array;
 pub use trie;
 pub use unionfind;
 pub use utility;
