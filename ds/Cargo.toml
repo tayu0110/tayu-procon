@@ -27,6 +27,7 @@ full = [
   "link-cut-tree",
   "online-dynamic-connectivity",
   "splay-tree",
+  "wavelet-matrix",
 ]
 btree-multiset = []
 cartesian-tree = []
@@ -38,6 +39,7 @@ link-cut-tree = []
 online-dynamic-connectivity = ["euler-tour-tree"]
 splay-tree = []
 rustc-hash = ["dep:rustc-hash"]
+wavelet-matrix = []
 
 [profile.release]
 debug = true

@@ -16,6 +16,9 @@ mod link_cut_tree;
 mod online_dynamic_connectivity;
 #[cfg(feature = "splay-tree")]
 mod splay_tree;
+mod wavelet_matrix;
+
+use std::ops::{Bound, Range, RangeBounds};
 
 #[cfg(feature = "btree-multiset")]
 pub use btree_multiset::*;
@@ -33,6 +36,7 @@ pub use interval_heap::*;
 pub use link_cut_tree::*;
 #[cfg(feature = "online-dynamic-connectivity")]
 pub use online_dynamic_connectivity::*;
+pub use wavelet_matrix::*;
 
 pub trait MapMonoid {
     type M;
@@ -47,4 +51,18 @@ pub trait MapMonoid {
     fn reverse(m: &mut Self::M) {
         let _ = m;
     }
+}
+
+fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
+    let start = match range.start_bound() {
+        Bound::Included(l) => *l,
+        Bound::Unbounded => 0,
+        _ => unreachable!(),
+    };
+    let end = match range.end_bound() {
+        Bound::Included(r) => r + 1,
+        Bound::Excluded(r) => *r,
+        Bound::Unbounded => len,
+    };
+    Range { start, end }
 }

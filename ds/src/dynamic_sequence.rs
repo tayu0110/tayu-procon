@@ -1,10 +1,11 @@
 use std::cell::{Cell, RefCell, RefMut};
 use std::fmt::Debug;
-use std::ops::{Bound, Range, RangeBounds};
+use std::ops::{Range, RangeBounds};
 use std::ptr::copy;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::convert_range;
 use crate::splay_tree::{Node, NodeAllocator};
 use crate::{
     splay_tree::{NodeData, NodeRef},
@@ -12,20 +13,6 @@ use crate::{
 };
 
 static DATA_INDEX: AtomicUsize = AtomicUsize::new(0);
-
-fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
-    let start = match range.start_bound() {
-        Bound::Included(l) => *l,
-        Bound::Unbounded => 0,
-        _ => unreachable!(),
-    };
-    let end = match range.end_bound() {
-        Bound::Included(r) => r + 1,
-        Bound::Excluded(r) => *r,
-        Bound::Unbounded => len,
-    };
-    Range { start, end }
-}
 
 struct DSData<M: MapMonoid> {
     // 62-bit   : has lazy flag
