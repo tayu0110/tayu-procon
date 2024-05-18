@@ -24,8 +24,9 @@ struct BitVector {
 
 impl BitVector {
     fn new(data: Box<[BitBlock]>) -> Self {
+        let l = LARGE_WIDTH / BitBlock::BITS as usize;
         let (mut large, mut small) = (
-            Vec::with_capacity(data.len().div_ceil(LARGE_WIDTH / BitBlock::BITS as usize)),
+            Vec::with_capacity((data.len() + l - 1) / l),
             Vec::with_capacity(data.len()),
         );
         small.push(0);
@@ -255,7 +256,7 @@ impl From<Vec<u64>> for WaveletMatrix<u64> {
         };
 
         if max == 0 {
-            let len = value.len().div_ceil(BitBlock::BITS as usize);
+            let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
             return Self {
                 len: value.len(),
                 bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
