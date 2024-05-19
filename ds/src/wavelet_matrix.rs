@@ -1,10 +1,5 @@
-//! This module has not yes tested.  
-//! There may be many bugs.
-
-use std::{
-    collections::{BinaryHeap, HashMap},
-    ops::{Range, RangeBounds},
-};
+use std::collections::{BinaryHeap, HashMap};
+use std::ops::{Range, RangeBounds};
 
 use crate::convert_range;
 
@@ -16,6 +11,7 @@ const SMALL_WIDTH: usize = 16;
 type BitBlock = u16;
 
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/15/155638
+#[derive(Debug, PartialEq)]
 struct BitVector {
     large: Box<[u32]>,
     small: Box<[u16]>,
@@ -49,17 +45,22 @@ impl BitVector {
     #[doc(alias = "rank")]
     fn count<const B: u8>(&self, to: usize) -> usize {
         assert!(B < 2);
-        let l = to / LARGE_WIDTH;
-        let s = to / SMALL_WIDTH;
+        if to == 0 {
+            return 0;
+        }
+        let l = (to - 1) / LARGE_WIDTH;
+        let s = (to - 1) / SMALL_WIDTH;
 
         let mut res = self.large[l] as usize + self.small[s] as usize;
 
         let rem = to - s * SMALL_WIDTH;
         if rem > 0 {
-            res += self.data[s].wrapping_shl(rem as u32).count_ones() as usize;
+            res += self.data[s]
+                .wrapping_shl(BitBlock::BITS - rem as u32)
+                .count_ones() as usize;
         }
 
-        if B == 1 {
+        if B == 0 {
             res = to - res;
         }
 
@@ -79,16 +80,16 @@ impl BitVector {
     fn position_of<const B: u8>(&self, nth: usize) -> usize {
         assert!(B < 2);
 
-        let (mut l, mut r) = (0, self.data.len() * BitBlock::BITS as usize);
+        let (mut l, mut r) = (-1, self.data.len() as i32 * BitBlock::BITS as i32);
         while r - l > 1 {
             let m = (r + l) / 2;
-            if self.count::<B>(m) < nth {
+            if self.count::<B>(m as usize) <= nth {
                 l = m;
             } else {
                 r = m;
             }
         }
-        r
+        l as usize
     }
 }
 
@@ -110,20 +111,22 @@ impl WaveletMatrix<u64> {
     }
 
     #[doc(alias = "access")]
-    pub fn get(&self, at: usize) -> u64 {
-        let mut res = 0;
-        let mut now = at;
-        for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
-            let bit = bitvec.access(now) as u64;
-            res = (res << 1) | bit;
-            if bit == 0 {
-                now = bitvec.count::<0>(now);
-            } else {
-                now = bound + bitvec.count::<1>(now);
+    pub fn get(&self, at: usize) -> Option<u64> {
+        (at < self.len()).then(|| {
+            let mut res = 0;
+            let mut now = at;
+            for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
+                let bit = bitvec.access(now) as u64;
+                res = (res << 1) | bit;
+                if bit == 0 {
+                    now = bitvec.count::<0>(now);
+                } else {
+                    now = bound + bitvec.count::<1>(now);
+                }
             }
-        }
 
-        res
+            res
+        })
     }
 
     #[doc(alias = "rank")]
@@ -145,7 +148,7 @@ impl WaveletMatrix<u64> {
             }
         }
 
-        now + 1 - start as usize
+        now - start as usize
     }
 
     #[doc(alias = "select")]
@@ -272,7 +275,7 @@ impl From<Vec<u64>> for WaveletMatrix<u64> {
             bitvec.push(BitVector::new(
                 value
                     .chunks(BitBlock::BITS as usize)
-                    .map(|v| v.iter().fold(0, |s, v| (s << 1) | ((v >> r) & 1)) as u16)
+                    .map(|v| v.iter().rev().fold(0, |s, v| (s << 1) | ((v >> r) & 1)) as u16)
                     .collect(),
             ));
 
@@ -284,11 +287,95 @@ impl From<Vec<u64>> for WaveletMatrix<u64> {
         for (i, v) in value
             .windows(2)
             .enumerate()
-            .filter_map(|(i, v)| (v[0] != v[1]).then_some((i, v[1])))
+            .filter_map(|(i, v)| (v[0] != v[1]).then_some((i + 1, v[1])))
         {
             first.insert(v, i as u32);
         }
 
         Self { len: value.len(), bitvec, bound, first }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{thread_rng, Rng};
+
+    use super::*;
+
+    #[test]
+    fn bit_vector_test() {
+        const S: usize = 4096;
+        const Q: usize = 10;
+        let mut rng = thread_rng();
+
+        for _ in 0..Q {
+            let t = (0..S).map(|_| rng.gen()).collect::<Box<[BitBlock]>>();
+            let bitvec = BitVector::new(t.clone());
+
+            let mut cnt = [0; 2];
+            for i in 0..S {
+                for j in 0..BitBlock::BITS as usize {
+                    let idx = i * BitBlock::BITS as usize + j;
+                    let bit = (t[i] >> j) & 1;
+                    eprintln!("i: {i}, j: {j}, idx: {idx}, bit: {bit}");
+                    assert_eq!(bitvec.access(idx), bit);
+
+                    if bit == 0 {
+                        assert_eq!(bitvec.position_of::<0>(cnt[0]), idx);
+                    } else {
+                        assert_eq!(bitvec.position_of::<1>(cnt[1]), idx);
+                    }
+
+                    assert_eq!(bitvec.count::<0>(idx), cnt[0]);
+                    assert_eq!(bitvec.count::<1>(idx), cnt[1]);
+
+                    cnt[bit as usize] += 1;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wavelet_matrix_simple_queries_test() {
+        let wm = WaveletMatrix::from(vec![5, 4, 5, 5, 2, 1, 5, 6, 1, 3, 5, 0]);
+
+        assert_eq!(
+            wm.bitvec,
+            vec![
+                BitVector::new(vec![0b010011001111].into_boxed_slice()),
+                BitVector::new(vec![0b010000001001].into_boxed_slice()),
+                BitVector::new(vec![0b010111101011].into_boxed_slice()),
+            ]
+        );
+        assert_eq!(wm.bound, vec![5, 9, 4]);
+        assert_eq!(
+            wm.first,
+            HashMap::from([(0, 0), (4, 1), (2, 2), (6, 3), (1, 4), (5, 6), (3, 11)])
+        );
+
+        assert_eq!(wm.countk(9, 5), 4);
+        assert_eq!(wm.countk(12, 5), 5);
+        assert_eq!(wm.countk(10, 5), 4);
+        assert_eq!(wm.countk(12, 9), 0);
+
+        assert_eq!(wm.nth_smallest(7, 1..11), 5);
+        assert_eq!(wm.nth_smallest(0, 1..3), 4);
+        assert_eq!(wm.nth_smallest(1, 8..12), 1);
+
+        assert_eq!(
+            wm.top_of_mode(..).take(2).collect::<Vec<_>>(),
+            vec![(5, 5), (1, 2)]
+        );
+    }
+
+    #[test]
+    fn wavelet_matrix_access_test() {
+        let wm = WaveletMatrix::from(vec![1, 4, 0, 1, 3]);
+
+        assert_eq!(wm.get(0), Some(1));
+        assert_eq!(wm.get(1), Some(4));
+        assert_eq!(wm.get(2), Some(0));
+        assert_eq!(wm.get(3), Some(1));
+        assert_eq!(wm.get(4), Some(3));
     }
 }
