@@ -8,6 +8,6 @@ fn main() {
     let wm = WaveletMatrix::from(a);
     for _ in 0..q {
         scan!(l: usize, r: usize, x: u64);
-        putln!(wm.countk(r, x) - wm.countk(l, x));
+        putln!(wm.countk(x, l..r));
     }
 }

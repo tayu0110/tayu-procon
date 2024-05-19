@@ -10,6 +10,12 @@ const SMALL_WIDTH: usize = 16;
 
 type BitBlock = u16;
 
+const __BLOCK_WIDTH_CONSTRAINT: () = {
+    assert!(1 << LARGE_WIDTH.trailing_zeros() == LARGE_WIDTH);
+    assert!(1 << SMALL_WIDTH.trailing_zeros() == SMALL_WIDTH);
+    assert!(SMALL_WIDTH == BitBlock::BITS as usize);
+};
+
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/15/155638
 #[derive(Debug, PartialEq)]
 struct BitVector {
@@ -20,13 +26,13 @@ struct BitVector {
 
 impl BitVector {
     fn new(data: Box<[BitBlock]>) -> Self {
-        let l = LARGE_WIDTH / BitBlock::BITS as usize;
+        const L: usize = LARGE_WIDTH / BitBlock::BITS as usize;
         let (mut large, mut small) = (
-            Vec::with_capacity((data.len() + l - 1) / l),
+            Vec::with_capacity((data.len() + L - 1) / L),
             Vec::with_capacity(data.len()),
         );
         small.push(0);
-        for large_block in data.chunks(LARGE_WIDTH / BitBlock::BITS as usize) {
+        for large_block in data.chunks(L) {
             large.push(large.last().unwrap_or(&0) + *small.last().unwrap() as u32);
             *small.last_mut().unwrap() = 0;
             for small_block in large_block {
@@ -80,16 +86,16 @@ impl BitVector {
     fn position_of<const B: u8>(&self, nth: usize) -> usize {
         assert!(B < 2);
 
-        let (mut l, mut r) = (-1, self.data.len() as i32 * BitBlock::BITS as i32);
+        let (mut l, mut r) = (0, self.data.len() * BitBlock::BITS as usize);
         while r - l > 1 {
             let m = (r + l) / 2;
-            if self.count::<B>(m as usize) <= nth {
+            if self.count::<B>(m) <= nth {
                 l = m;
             } else {
                 r = m;
             }
         }
-        l as usize
+        l
     }
 }
 
@@ -130,13 +136,17 @@ impl WaveletMatrix<u64> {
     }
 
     #[doc(alias = "rank")]
-    pub fn countk(&self, to: usize, k: u64) -> usize {
+    pub fn countk(&self, k: u64, range: impl RangeBounds<usize>) -> usize {
+        let Range { start, end } = convert_range(self.len, range);
+        if start > 0 {
+            return self.countk(k, ..end) - self.countk(k, ..start);
+        }
         let Some(&start) = self.first.get(&k) else {
             return 0;
         };
 
         let mut b = self.bitvec.len();
-        let mut now = to;
+        let mut now = end;
         for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
             b -= 1;
 
@@ -154,7 +164,7 @@ impl WaveletMatrix<u64> {
     #[doc(alias = "select")]
     pub fn position_of_nth_k(&self, nth: usize, mut k: u64) -> Option<usize> {
         let start = *self.first.get(&k)? as usize;
-        (nth < self.countk(self.len(), k)).then(|| {
+        (nth < self.countk(k, ..self.len())).then(|| {
             let mut now = start + nth;
             for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()).rev() {
                 let bit = k & 1;
@@ -197,6 +207,7 @@ impl WaveletMatrix<u64> {
         res
     }
 
+    #[doc(alias = "topk")]
     pub fn top_of_mode(
         &self,
         range: impl RangeBounds<usize>,
@@ -231,15 +242,6 @@ impl WaveletMatrix<u64> {
 
             None
         })
-    }
-
-    #[doc(alias = "topk")]
-    pub fn topk_of_mode(
-        &self,
-        k: usize,
-        range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (u64, usize)> + '_ {
-        self.top_of_mode(range).take(k)
     }
 
     pub fn sum(&self, range: impl RangeBounds<usize>) -> u64 {
@@ -353,10 +355,10 @@ mod tests {
             HashMap::from([(0, 0), (4, 1), (2, 2), (6, 3), (1, 4), (5, 6), (3, 11)])
         );
 
-        assert_eq!(wm.countk(9, 5), 4);
-        assert_eq!(wm.countk(12, 5), 5);
-        assert_eq!(wm.countk(10, 5), 4);
-        assert_eq!(wm.countk(12, 9), 0);
+        assert_eq!(wm.countk(5, ..9), 4);
+        assert_eq!(wm.countk(5, ..12), 5);
+        assert_eq!(wm.countk(5, ..10), 4);
+        assert_eq!(wm.countk(9, ..12), 0);
 
         assert_eq!(wm.nth_smallest(7, 1..11), 5);
         assert_eq!(wm.nth_smallest(0, 1..3), 4);
