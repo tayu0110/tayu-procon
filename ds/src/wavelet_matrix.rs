@@ -17,7 +17,7 @@ const __BLOCK_WIDTH_CONSTRAINT: () = {
 };
 
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/15/155638
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct BitVector {
     large: Box<[u32]>,
     small: Box<[u16]>,
@@ -104,6 +104,7 @@ impl BitVector {
 }
 
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/28/152259
+#[derive(Debug, Clone)]
 pub struct WaveletMatrix<T> {
     len: usize,
     bitvec: Vec<BitVector>,
@@ -452,6 +453,12 @@ impl From<&[u64]> for WaveletMatrix<u64> {
 impl<const N: usize> From<[u64; N]> for WaveletMatrix<u64> {
     fn from(value: [u64; N]) -> Self {
         Self::from(&value[..])
+    }
+}
+
+impl FromIterator<u64> for WaveletMatrix<u64> {
+    fn from_iter<T: IntoIterator<Item = u64>>(iter: T) -> Self {
+        Self::from(iter.into_iter().collect::<Vec<u64>>())
     }
 }
 
