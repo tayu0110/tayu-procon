@@ -52,7 +52,8 @@ impl BitVector {
 
     /// Count `B` between 0 to `to`. `to` is exclusive.
     #[doc(alias = "rank")]
-    fn count<const B: u8>(&self, to: usize) -> usize {
+    #[target_feature(enable = "popcnt")]
+    unsafe fn count<const B: u8>(&self, to: usize) -> usize {
         assert!(B < 2);
         if to == 0 {
             return 0;
@@ -92,7 +93,7 @@ impl BitVector {
         let (mut l, mut r) = (0, self.data.len() * BitBlock::BITS as usize);
         while r - l > 1 {
             let m = (r + l) / 2;
-            if self.count::<B>(m) <= nth {
+            if unsafe { self.count::<B>(m) } <= nth {
                 l = m;
             } else {
                 r = m;
@@ -128,9 +129,9 @@ impl WaveletMatrix<u64> {
                 let bit = bitvec.access(now) as u64;
                 res = (res << 1) | bit;
                 if bit == 0 {
-                    now = bitvec.count::<0>(now);
+                    now = unsafe { bitvec.count::<0>(now) };
                 } else {
-                    now = bound + bitvec.count::<1>(now);
+                    now = bound + unsafe { bitvec.count::<1>(now) };
                 }
             }
 
@@ -145,9 +146,9 @@ impl WaveletMatrix<u64> {
             b -= 1;
 
             if (k >> b) & 1 == 0 {
-                now = bitvec.count::<0>(now);
+                now = unsafe { bitvec.count::<0>(now) };
             } else {
-                now = bound + bitvec.count::<1>(now);
+                now = bound + unsafe { bitvec.count::<1>(now) };
             }
         }
 
@@ -195,8 +196,8 @@ impl WaveletMatrix<u64> {
         (start < end && nth < end - start).then(|| {
             let mut res = 0;
             for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
-                let zeros_until_end = bitvec.count::<0>(end);
-                let zeros_until_start = bitvec.count::<0>(start);
+                let zeros_until_end = unsafe { bitvec.count::<0>(end) };
+                let zeros_until_start = unsafe { bitvec.count::<0>(start) };
                 let zeros = zeros_until_end - zeros_until_start;
 
                 res <<= 1;
@@ -239,8 +240,8 @@ impl WaveletMatrix<u64> {
 
                 let end = width + start;
                 let bitvec = &self.bitvec[level];
-                let zeros_until_end = bitvec.count::<0>(end);
-                let zeros_until_start = bitvec.count::<0>(start);
+                let zeros_until_end = unsafe { bitvec.count::<0>(end) };
+                let zeros_until_start = unsafe { bitvec.count::<0>(start) };
                 let zeros = zeros_until_end - zeros_until_start;
                 if zeros > 0 {
                     nt.push((zeros, zeros_until_start, value << 1, level + 1));
@@ -297,7 +298,7 @@ impl From<Vec<u64>> for WaveletMatrix<u64> {
                     .collect(),
             );
 
-            bound.push(bv.count::<0>(value.len()));
+            bound.push(unsafe { bv.count::<0>(value.len()) });
             let (mut zeros, mut ones) = (0, *bound.last().unwrap());
             for &v in &value {
                 if (v >> r) & 1 == 0 {
@@ -366,23 +367,29 @@ mod tests {
                         assert_eq!(bitvec.position_of::<1>(cnt[1]), idx);
                     }
 
-                    assert_eq!(bitvec.count::<0>(idx), cnt[0]);
-                    assert_eq!(bitvec.count::<1>(idx), cnt[1]);
+                    assert_eq!(unsafe { bitvec.count::<0>(idx) }, cnt[0]);
+                    assert_eq!(unsafe { bitvec.count::<1>(idx) }, cnt[1]);
 
                     cnt[bit as usize] += 1;
                 }
             }
 
-            assert_eq!(bitvec.count::<0>(S * BitBlock::BITS as usize), cnt[0]);
-            assert_eq!(bitvec.count::<1>(S * BitBlock::BITS as usize), cnt[1]);
+            assert_eq!(
+                unsafe { bitvec.count::<0>(S * BitBlock::BITS as usize) },
+                cnt[0]
+            );
+            assert_eq!(
+                unsafe { bitvec.count::<1>(S * BitBlock::BITS as usize) },
+                cnt[1]
+            );
         }
     }
 
     #[test]
     fn bit_vector_rank_test() {
         let bitvec = BitVector::new(vec![0b0000000001111001].into_boxed_slice());
-        assert_eq!(bitvec.count::<0>(16), 11);
-        assert_eq!(bitvec.count::<1>(16), 5);
+        assert_eq!(unsafe { bitvec.count::<0>(16) }, 11);
+        assert_eq!(unsafe { bitvec.count::<1>(16) }, 5);
     }
 
     #[test]
