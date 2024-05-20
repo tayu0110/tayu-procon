@@ -8,6 +8,6 @@ fn main() {
     let wm = WaveletMatrix::<u64>::from(a);
 
     for (l, r, k) in p {
-        putln!(wm.nth_smallest(k, l..r));
+        putln!(wm.nth_smallest(k, l..r).unwrap());
     }
 }
