@@ -112,355 +112,363 @@ pub struct WaveletMatrix<T> {
     first: HashMap<T, u32>,
 }
 
-impl WaveletMatrix<u64> {
-    /// Return the length of an original sequence.
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Check `self.len() == 0`
-    pub const fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Get the `at`-th element of an original sequence.  
-    /// If `at >= self.len()` is satisfied, return `None`.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 2, 3, 4]);
-    /// assert_eq!(wm.get(0), Some(0));
-    /// assert_eq!(wm.get(3), Some(3));
-    /// // index out of range
-    /// assert!(wm.get(5).is_none());
-    /// ```
-    #[doc(alias = "access")]
-    pub fn get(&self, at: usize) -> Option<u64> {
-        (at < self.len()).then(|| {
-            let mut res = 0;
-            let mut now = at;
-            for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
-                let bit = bitvec.access(now) as u64;
-                res = (res << 1) | bit;
-                if bit == 0 {
-                    now = unsafe { bitvec.count::<0>(now) };
-                } else {
-                    now = bound + unsafe { bitvec.count::<1>(now) };
+macro_rules! impl_wavelet_matrix {
+    ( $( $t:ty ),* ) => {
+        $(
+            impl WaveletMatrix<$t> {
+                /// Return the length of an original sequence.
+                pub const fn len(&self) -> usize {
+                    self.len
+                }
+            
+                /// Check `self.len() == 0`
+                pub const fn is_empty(&self) -> bool {
+                    self.len() == 0
+                }
+            
+                /// Get the `at`-th element of an original sequence.  
+                /// If `at >= self.len()` is satisfied, return `None`.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 2, 3, 4]);
+                /// assert_eq!(wm.get(0), Some(0));
+                /// assert_eq!(wm.get(3), Some(3));
+                /// // index out of range
+                /// assert!(wm.get(5).is_none());
+                /// ```
+                #[doc(alias = "access")]
+                pub fn get(&self, at: usize) -> Option<$t> {
+                    (at < self.len()).then(|| {
+                        let mut res = 0;
+                        let mut now = at;
+                        for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
+                            let bit = bitvec.access(now) as $t;
+                            res = (res << 1) | bit;
+                            if bit == 0 {
+                                now = unsafe { bitvec.count::<0>(now) };
+                            } else {
+                                now = bound + unsafe { bitvec.count::<1>(now) };
+                            }
+                        }
+            
+                        res
+                    })
+                }
+            
+                fn countk_to(&self, k: $t, first: usize, to: usize) -> usize {
+                    let mut b = self.bitvec.len();
+                    let mut now = to;
+                    for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
+                        b -= 1;
+            
+                        if (k >> b) & 1 == 0 {
+                            now = unsafe { bitvec.count::<0>(now) };
+                        } else {
+                            now = bound + unsafe { bitvec.count::<1>(now) };
+                        }
+                    }
+            
+                    now - first
+                }
+            
+                /// Count the number of `k` that exists within `range`.
+                ///
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.countk(0, 0..6), 2);
+                /// assert_eq!(wm.countk(0, 0..2), 1);
+                /// assert_eq!(wm.countk(1, 2..6), 2);
+                /// assert_eq!(wm.countk(5, 0..6), 0);
+                /// ```
+                #[doc(alias = "rank")]
+                pub fn countk(&self, k: $t, range: impl RangeBounds<usize>) -> usize {
+                    let Some(&first) = self.first.get(&k) else {
+                        return 0;
+                    };
+                    let Range { start, end } = convert_range(self.len(), range);
+                    assert!(end <= self.len());
+            
+                    let mut res = self.countk_to(k, first as usize, end);
+                    if start > 0 {
+                        res -= self.countk_to(k, first as usize, start);
+                    }
+            
+                    res
+                }
+            
+                /// Get `nth`-th `k` in an original sequence.  
+                /// If such an element is not found, return `None`.
+                ///
+                /// `nth` is 0-index.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.position_of(0, 0), Some(0));
+                /// assert_eq!(wm.position_of(0, 1), Some(2));
+                /// assert_eq!(wm.position_of(0, 2), None);
+                /// assert_eq!(wm.position_of(1, 2), Some(5));
+                /// assert_eq!(wm.position_of(5, 0), None);
+                /// ```
+                #[doc(alias = "select")]
+                pub fn position_of(&self, mut k: $t, nth: usize) -> Option<usize> {
+                    let start = *self.first.get(&k)? as usize;
+                    (nth < self.countk(k, ..self.len())).then(|| {
+                        let mut now = start + nth;
+                        for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()).rev() {
+                            let bit = k & 1;
+                            k >>= 1;
+            
+                            if bit == 0 {
+                                now = bitvec.position_of::<0>(now);
+                            } else {
+                                now = bitvec.position_of::<1>(now - bound);
+                            }
+                        }
+            
+                        now
+                    })
+                }
+            
+                /// Get `nth`-th smallest element that exists within `range`.  
+                /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
+                ///
+                /// `nth` is 0-index.
+                ///
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.nth_smallest(0, 0..6), Some(0));
+                /// assert_eq!(wm.nth_smallest(0, 3..6), Some(1));
+                /// assert_eq!(wm.nth_smallest(7, 0..6), None);
+                /// ```
+                #[doc(alias = "quantile")]
+                pub fn nth_smallest(&self, mut nth: usize, range: impl RangeBounds<usize>) -> Option<$t> {
+                    let Range { mut start, mut end } = convert_range(self.len(), range);
+                    assert!(end <= self.len());
+                    (start < end && nth < end - start).then(|| {
+                        let mut res = 0;
+                        for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
+                            let zeros_until_end = unsafe { bitvec.count::<0>(end) };
+                            let zeros_until_start = unsafe { bitvec.count::<0>(start) };
+                            let zeros = zeros_until_end - zeros_until_start;
+            
+                            res <<= 1;
+                            if nth < zeros {
+                                (start, end) = (zeros_until_start, zeros_until_end);
+                            } else {
+                                res |= 1;
+                                nth -= zeros;
+                                (start, end) = (
+                                    bound + start - zeros_until_start,
+                                    bound + end - zeros_until_end,
+                                );
+                            }
+                        }
+            
+                        res
+                    })
+                }
+            
+                /// Get `nth`-th smallest element that exists within `range`.  
+                /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
+                ///
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.nth_largest(0, 0..6), Some(2));
+                /// assert_eq!(wm.nth_largest(0, 3..6), Some(2));
+                /// assert_eq!(wm.nth_largest(7, 0..6), None);
+                /// ```
+                pub fn nth_largest(&self, nth: usize, range: impl RangeBounds<usize>) -> Option<$t> {
+                    let range = convert_range(self.len(), range);
+                    (!range.is_empty() && nth < range.len())
+                        .then(|| self.nth_smallest(range.len() - 1 - nth, range).unwrap())
+                }
+            
+                /// Return elements and frequencies within the range indicated by `range` in descending order of frequency.  
+                /// Returned tuples represents `(element, frequency)`.
+                ///
+                /// This method should in some cases result in very poor performance and should be used with care.
+                ///
+                /// If there are elements with the same frequency, the order of occurrence is *not defined*.
+                ///
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// let mut iter = wm.top_of_mode(..);
+                /// assert_eq!(iter.next(), Some((1, 3)));
+                /// assert_eq!(iter.next(), Some((0, 2)));
+                /// assert_eq!(iter.next(), Some((2, 1)));
+                /// assert_eq!(iter.next(), None);
+                /// ```
+                #[doc(alias = "topk")]
+                pub fn top_of_mode(
+                    &self,
+                    range: impl RangeBounds<usize>,
+                ) -> impl Iterator<Item = ($t, usize)> + '_ {
+                    let Range { start, end } = convert_range(self.len(), range);
+                    assert!(end <= self.len());
+            
+                    let mut nt = BinaryHeap::new();
+                    nt.push((end - start, start, 0, 0));
+                    std::iter::from_fn(move || {
+                        while let Some((width, start, value, level)) = nt.pop() {
+                            if level == self.bitvec.len() {
+                                return Some((value, width));
+                            }
+            
+                            let end = width + start;
+                            let bitvec = &self.bitvec[level];
+                            let zeros_until_end = unsafe { bitvec.count::<0>(end) };
+                            let zeros_until_start = unsafe { bitvec.count::<0>(start) };
+                            let zeros = zeros_until_end - zeros_until_start;
+                            if zeros > 0 {
+                                nt.push((zeros, zeros_until_start, value << 1, level + 1));
+                            }
+                            if width - zeros > 0 {
+                                nt.push((
+                                    width - zeros,
+                                    self.bound[level] + start - zeros_until_start,
+                                    (value << 1) | 1,
+                                    level + 1,
+                                ));
+                            }
+                        }
+            
+                        None
+                    })
+                }
+            
+                /// Return the sum of elements that exists within `range`.
+                ///
+                /// Note that performance is worse when most of the elements in the range are distinct.
+                ///
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                ///
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                ///
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.sum(..), 5);
+                /// assert_eq!(wm.sum(2..), 4);
+                /// assert_eq!(wm.sum(..4), 3);
+                /// ```
+                pub fn sum(&self, range: impl RangeBounds<usize>) -> $t {
+                    self.top_of_mode(range).map(|(v, cnt)| v * cnt as $t).sum()
                 }
             }
-
-            res
-        })
-    }
-
-    fn countk_to(&self, k: u64, first: usize, to: usize) -> usize {
-        let mut b = self.bitvec.len();
-        let mut now = to;
-        for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
-            b -= 1;
-
-            if (k >> b) & 1 == 0 {
-                now = unsafe { bitvec.count::<0>(now) };
-            } else {
-                now = bound + unsafe { bitvec.count::<1>(now) };
-            }
-        }
-
-        now - first
-    }
-
-    /// Count the number of `k` that exists within `range`.
-    ///
-    /// # Panics
-    /// - `range` must specify the range within an original sequence.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// assert_eq!(wm.countk(0, 0..6), 2);
-    /// assert_eq!(wm.countk(0, 0..2), 1);
-    /// assert_eq!(wm.countk(1, 2..6), 2);
-    /// assert_eq!(wm.countk(5, 0..6), 0);
-    /// ```
-    #[doc(alias = "rank")]
-    pub fn countk(&self, k: u64, range: impl RangeBounds<usize>) -> usize {
-        let Some(&first) = self.first.get(&k) else {
-            return 0;
-        };
-        let Range { start, end } = convert_range(self.len(), range);
-        assert!(end <= self.len());
-
-        let mut res = self.countk_to(k, first as usize, end);
-        if start > 0 {
-            res -= self.countk_to(k, first as usize, start);
-        }
-
-        res
-    }
-
-    /// Get `nth`-th `k` in an original sequence.  
-    /// If such an element is not found, return `None`.
-    ///
-    /// `nth` is 0-index.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// assert_eq!(wm.position_of(0, 0), Some(0));
-    /// assert_eq!(wm.position_of(0, 1), Some(2));
-    /// assert_eq!(wm.position_of(0, 2), None);
-    /// assert_eq!(wm.position_of(1, 2), Some(5));
-    /// assert_eq!(wm.position_of(5, 0), None);
-    /// ```
-    #[doc(alias = "select")]
-    pub fn position_of(&self, mut k: u64, nth: usize) -> Option<usize> {
-        let start = *self.first.get(&k)? as usize;
-        (nth < self.countk(k, ..self.len())).then(|| {
-            let mut now = start + nth;
-            for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()).rev() {
-                let bit = k & 1;
-                k >>= 1;
-
-                if bit == 0 {
-                    now = bitvec.position_of::<0>(now);
-                } else {
-                    now = bitvec.position_of::<1>(now - bound);
-                }
-            }
-
-            now
-        })
-    }
-
-    /// Get `nth`-th smallest element that exists within `range`.  
-    /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
-    ///
-    /// `nth` is 0-index.
-    ///
-    /// # Panics
-    /// - `range` must specify the range within an original sequence.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// assert_eq!(wm.nth_smallest(0, 0..6), Some(0));
-    /// assert_eq!(wm.nth_smallest(0, 3..6), Some(1));
-    /// assert_eq!(wm.nth_smallest(7, 0..6), None);
-    /// ```
-    #[doc(alias = "quantile")]
-    pub fn nth_smallest(&self, mut nth: usize, range: impl RangeBounds<usize>) -> Option<u64> {
-        let Range { mut start, mut end } = convert_range(self.len(), range);
-        assert!(end <= self.len());
-        (start < end && nth < end - start).then(|| {
-            let mut res = 0;
-            for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
-                let zeros_until_end = unsafe { bitvec.count::<0>(end) };
-                let zeros_until_start = unsafe { bitvec.count::<0>(start) };
-                let zeros = zeros_until_end - zeros_until_start;
-
-                res <<= 1;
-                if nth < zeros {
-                    (start, end) = (zeros_until_start, zeros_until_end);
-                } else {
-                    res |= 1;
-                    nth -= zeros;
-                    (start, end) = (
-                        bound + start - zeros_until_start,
-                        bound + end - zeros_until_end,
+            
+            impl From<Vec<$t>> for WaveletMatrix<$t> {
+                fn from(mut value: Vec<$t>) -> Self {
+                    let Some(&max) = value.iter().max() else {
+                        return Self {
+                            len: value.len(),
+                            bitvec: vec![],
+                            bound: vec![],
+                            first: HashMap::new(),
+                        };
+                    };
+            
+                    if max == 0 {
+                        let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
+                        return Self {
+                            len: value.len(),
+                            bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
+                            bound: vec![value.len()],
+                            first: HashMap::from([(0, 0)]),
+                        };
+                    }
+            
+                    let width = <$t>::BITS - max.leading_zeros();
+                    let mut bitvec = vec![];
+                    let mut bound = vec![];
+                    let mut working = vec![0; value.len()];
+                    for r in (0..width).rev() {
+                        let bv = BitVector::new(
+                            value
+                                .chunks(BitBlock::BITS as usize)
+                                .map(|v| v.iter().rev().fold(0u16, |s, v| (s << 1) | ((v >> r) as u16 & 1)))
+                                .collect(),
+                        );
+            
+                        bound.push(unsafe { bv.count::<0>(value.len()) });
+                        let (mut zeros, mut ones) = (0, *bound.last().unwrap());
+                        for &v in &value {
+                            if (v >> r) & 1 == 0 {
+                                working[zeros] = v;
+                                zeros += 1;
+                            } else {
+                                working[ones] = v;
+                                ones += 1;
+                            }
+                        }
+                        (value, working) = (working, value);
+                        bitvec.push(bv);
+                    }
+            
+                    let mut first = HashMap::from([(value[0], 0)]);
+                    first.extend(
+                        value
+                            .windows(2)
+                            .enumerate()
+                            .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
                     );
+            
+                    Self { len: value.len(), bitvec, bound, first }
                 }
             }
-
-            res
-        })
-    }
-
-    /// Get `nth`-th smallest element that exists within `range`.  
-    /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
-    ///
-    /// # Panics
-    /// - `range` must specify the range within an original sequence.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// assert_eq!(wm.nth_largest(0, 0..6), Some(2));
-    /// assert_eq!(wm.nth_largest(0, 3..6), Some(2));
-    /// assert_eq!(wm.nth_largest(7, 0..6), None);
-    /// ```
-    pub fn nth_largest(&self, nth: usize, range: impl RangeBounds<usize>) -> Option<u64> {
-        let range = convert_range(self.len(), range);
-        (!range.is_empty() && nth < range.len())
-            .then(|| self.nth_smallest(range.len() - 1 - nth, range).unwrap())
-    }
-
-    /// Return elements and frequencies within the range indicated by `range` in descending order of frequency.  
-    /// Returned tuples represents `(element, frequency)`.
-    ///
-    /// This method should in some cases result in very poor performance and should be used with care.
-    ///
-    /// If there are elements with the same frequency, the order of occurrence is *not defined*.
-    ///
-    /// # Panics
-    /// - `range` must specify the range within an original sequence.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// let mut iter = wm.top_of_mode(..);
-    /// assert_eq!(iter.next(), Some((1, 3)));
-    /// assert_eq!(iter.next(), Some((0, 2)));
-    /// assert_eq!(iter.next(), Some((2, 1)));
-    /// assert_eq!(iter.next(), None);
-    /// ```
-    #[doc(alias = "topk")]
-    pub fn top_of_mode(
-        &self,
-        range: impl RangeBounds<usize>,
-    ) -> impl Iterator<Item = (u64, usize)> + '_ {
-        let Range { start, end } = convert_range(self.len(), range);
-        assert!(end <= self.len());
-
-        let mut nt = BinaryHeap::new();
-        nt.push((end - start, start, 0, 0));
-        std::iter::from_fn(move || {
-            while let Some((width, start, value, level)) = nt.pop() {
-                if level == self.bitvec.len() {
-                    return Some((value, width));
-                }
-
-                let end = width + start;
-                let bitvec = &self.bitvec[level];
-                let zeros_until_end = unsafe { bitvec.count::<0>(end) };
-                let zeros_until_start = unsafe { bitvec.count::<0>(start) };
-                let zeros = zeros_until_end - zeros_until_start;
-                if zeros > 0 {
-                    nt.push((zeros, zeros_until_start, value << 1, level + 1));
-                }
-                if width - zeros > 0 {
-                    nt.push((
-                        width - zeros,
-                        self.bound[level] + start - zeros_until_start,
-                        (value << 1) | 1,
-                        level + 1,
-                    ));
+            
+            impl From<&[$t]> for WaveletMatrix<$t> {
+                fn from(value: &[$t]) -> Self {
+                    Self::from(value.to_vec())
                 }
             }
-
-            None
-        })
-    }
-
-    /// Return the sum of elements that exists within `range`.
-    ///
-    /// Note that performance is worse when most of the elements in the range are distinct.
-    ///
-    /// # Panics
-    /// - `range` must specify the range within an original sequence.
-    ///
-    /// # Examples
-    /// ```rust
-    /// use ds::WaveletMatrix;
-    ///
-    /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
-    /// assert_eq!(wm.sum(..), 5);
-    /// assert_eq!(wm.sum(2..), 4);
-    /// assert_eq!(wm.sum(..4), 3);
-    /// ```
-    pub fn sum(&self, range: impl RangeBounds<usize>) -> u64 {
-        self.top_of_mode(range).map(|(v, cnt)| v * cnt as u64).sum()
-    }
-}
-
-impl From<Vec<u64>> for WaveletMatrix<u64> {
-    fn from(mut value: Vec<u64>) -> Self {
-        let Some(&max) = value.iter().max() else {
-            return Self {
-                len: value.len(),
-                bitvec: vec![],
-                bound: vec![],
-                first: HashMap::new(),
-            };
-        };
-
-        if max == 0 {
-            let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
-            return Self {
-                len: value.len(),
-                bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
-                bound: vec![value.len()],
-                first: HashMap::from([(0, 0)]),
-            };
-        }
-
-        let width = u64::BITS - max.leading_zeros();
-        let mut bitvec = vec![];
-        let mut bound = vec![];
-        let mut working = vec![0; value.len()];
-        for r in (0..width).rev() {
-            let bv = BitVector::new(
-                value
-                    .chunks(BitBlock::BITS as usize)
-                    .map(|v| v.iter().rev().fold(0, |s, v| (s << 1) | ((v >> r) & 1)) as u16)
-                    .collect(),
-            );
-
-            bound.push(unsafe { bv.count::<0>(value.len()) });
-            let (mut zeros, mut ones) = (0, *bound.last().unwrap());
-            for &v in &value {
-                if (v >> r) & 1 == 0 {
-                    working[zeros] = v;
-                    zeros += 1;
-                } else {
-                    working[ones] = v;
-                    ones += 1;
+            
+            impl<const N: usize> From<[$t; N]> for WaveletMatrix<$t> {
+                fn from(value: [$t; N]) -> Self {
+                    Self::from(&value[..])
                 }
             }
-            (value, working) = (working, value);
-            bitvec.push(bv);
-        }
-
-        let mut first = HashMap::from([(value[0], 0)]);
-        first.extend(
-            value
-                .windows(2)
-                .enumerate()
-                .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
-        );
-
-        Self { len: value.len(), bitvec, bound, first }
-    }
+            
+            impl FromIterator<$t> for WaveletMatrix<$t> {
+                fn from_iter<T: IntoIterator<Item = $t>>(iter: T) -> Self {
+                    Self::from(iter.into_iter().collect::<Vec<$t>>())
+                }
+            }
+        )*
+    };
 }
 
-impl From<&[u64]> for WaveletMatrix<u64> {
-    fn from(value: &[u64]) -> Self {
-        Self::from(value.to_vec())
-    }
-}
-
-impl<const N: usize> From<[u64; N]> for WaveletMatrix<u64> {
-    fn from(value: [u64; N]) -> Self {
-        Self::from(&value[..])
-    }
-}
-
-impl FromIterator<u64> for WaveletMatrix<u64> {
-    fn from_iter<T: IntoIterator<Item = u64>>(iter: T) -> Self {
-        Self::from(iter.into_iter().collect::<Vec<u64>>())
-    }
-}
+impl_wavelet_matrix!(u8, u16, u32, u64, u128);
 
 #[cfg(test)]
 mod tests {
@@ -519,7 +527,7 @@ mod tests {
 
     #[test]
     fn wavelet_matrix_simple_queries_test() {
-        let wm = WaveletMatrix::from(vec![5, 4, 5, 5, 2, 1, 5, 6, 1, 3, 5, 0]);
+        let wm = WaveletMatrix::from(vec![5u8, 4, 5, 5, 2, 1, 5, 6, 1, 3, 5, 0]);
 
         assert_eq!(
             wm.bitvec,
@@ -552,7 +560,7 @@ mod tests {
 
     #[test]
     fn wavelet_matrix_access_test() {
-        let wm = WaveletMatrix::from(vec![1, 4, 0, 1, 3]);
+        let wm = WaveletMatrix::from([1u8, 4, 0, 1, 3]);
 
         assert_eq!(wm.get(0), Some(1));
         assert_eq!(wm.get(1), Some(4));

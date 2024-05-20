@@ -3,11 +3,11 @@ use ds::WaveletMatrix;
 use iolib::{putln, scan};
 
 fn main() {
-    scan!(n: usize, q: usize, a: [u64; n]);
+    scan!(n: usize, q: usize, a: [u32; n]);
 
     let wm = WaveletMatrix::from(a);
     for _ in 0..q {
-        scan!(l: usize, r: usize, x: u64);
+        scan!(l: usize, r: usize, x: u32);
         putln!(wm.countk(x, l..r));
     }
 }
