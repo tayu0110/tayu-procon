@@ -1,5 +1,5 @@
 use std::collections::{BinaryHeap, HashMap};
-use std::ops::{Range, RangeBounds};
+use std::ops::{Range, RangeBounds, Bound};
 
 use crate::convert_range;
 
@@ -204,7 +204,68 @@ macro_rules! impl_wavelet_matrix {
             
                     res
                 }
-            
+
+                fn count_less_than(&self, upper: $t, range: impl RangeBounds<usize>) -> usize {
+                    let Range { mut start, mut end } = convert_range(self.len(), range);
+                    assert!(start <= end && end <= self.len());
+                    if <$t>::MAX >> (<$t>::BITS as usize - self.bitvec.len()) < upper {
+                        return end - start;
+                    }
+                    if <$t>::MIN == upper {
+                        return 0;
+                    }
+
+                    let mut b = self.bitvec.len();
+                    let mut res = 0;
+                    for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
+                        b -= 1;
+
+
+                        let (s, e) = unsafe { (bitvec.count::<0>(start), bitvec.count::<0>(end)) };
+                        if (upper >> b) & 1 == 0 {
+                            (start, end) = (s, e);
+                        } else {
+                            res += e - s;
+                            (start, end) = (bound + start - s, bound + end - e);
+                        }
+                    }
+                    res
+                }
+
+                /// Count the number of numbers contained `within` the range of the `range` of the number sequence.
+                /// 
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                /// 
+                /// # Examples
+                /// ```rust
+                /// use ds::WaveletMatrix;
+                /// 
+                /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
+                /// assert_eq!(wm.count_within(.., ..), 6);
+                /// assert_eq!(wm.count_within(0..2, ..), 5);
+                /// assert_eq!(wm.count_within(1.., ..), 4);
+                /// assert_eq!(wm.count_within(1..=1, ..), wm.countk(1, ..));
+                /// ```
+                pub fn count_within(&self, within: impl RangeBounds<$t>, range: impl RangeBounds<usize>) -> usize {
+                    let range = convert_range(self.len(), range);
+                    if range.is_empty() {
+                        return 0;
+                    }
+                    let s = match within.start_bound() {
+                        Bound::Included(l) => self.count_less_than(*l, range.clone()),
+                        Bound::Excluded(l) if *l == <$t>::MAX => return 0,
+                        Bound::Excluded(l) => self.count_less_than(l + 1, range.clone()),
+                        Bound::Unbounded => 0,
+                    };
+                    (match within.end_bound() {
+                        Bound::Included(r) if *r == <$t>::MAX => range.len(),
+                        Bound::Included(r) => self.count_less_than(r + 1, range),
+                        Bound::Excluded(r) => self.count_less_than(*r, range),
+                        Bound::Unbounded => range.len(),
+                    }) - s
+                }
+
                 /// Get `nth`-th `k` in an original sequence.  
                 /// If such an element is not found, return `None`.
                 ///
