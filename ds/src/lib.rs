@@ -70,7 +70,7 @@ fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
 }
 
 /// If the Link-Cut Tree does not require any operations, this type can be used as a dummy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DefaultZST;
 
 impl MapMonoid for DefaultZST {

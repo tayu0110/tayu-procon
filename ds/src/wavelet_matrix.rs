@@ -1,7 +1,8 @@
 use std::collections::{BinaryHeap, HashMap};
-use std::ops::{Range, RangeBounds, Bound};
+use std::marker::PhantomData;
+use std::ops::{Add, Bound, Range, RangeBounds, Sub};
 
-use crate::convert_range;
+use crate::{convert_range, DefaultZST};
 
 // Assuming the size of `BitVector` is up to u32::MAX, determine LARGE_WIDTH as (lg N)^2
 const LARGE_WIDTH: usize = 1024;
@@ -105,17 +106,19 @@ impl BitVector {
 
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/28/152259
 #[derive(Debug, Clone)]
-pub struct WaveletMatrix<T> {
+pub struct WaveletMatrix<T, W = DefaultZST, C: = DefaultZST> {
     len: usize,
     bitvec: Vec<BitVector>,
     bound: Vec<usize>,
     first: HashMap<T, u32>,
+    cumsum: Vec<C>,
+    _phantom: PhantomData<W>,
 }
 
 macro_rules! impl_wavelet_matrix {
     ( $( $t:ty ),* ) => {
         $(
-            impl WaveletMatrix<$t> {
+            impl<W, C> WaveletMatrix<$t, W, C> {
                 /// Return the length of an original sequence.
                 pub const fn len(&self) -> usize {
                     self.len
@@ -219,7 +222,6 @@ macro_rules! impl_wavelet_matrix {
                     let mut res = 0;
                     for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
                         b -= 1;
-
 
                         let (s, e) = unsafe { (bitvec.count::<0>(start), bitvec.count::<0>(end)) };
                         if (upper >> b) & 1 == 0 {
@@ -447,16 +449,83 @@ macro_rules! impl_wavelet_matrix {
                     self.top_of_mode(range).map(|(v, cnt)| v * cnt as $t).sum()
                 }
             }
+
+            impl<W, C: StaticRangeSum<W>> WaveletMatrix<$t, W, C>
+            where W: Clone + Copy + Default + Add<W, Output = W> + Sub<W, Output = W>
+            {
+                fn sum_of_weight_less_than(&self, upper: $t, range: Range<usize>) -> W {
+                    let Range { mut start, mut end } = range;
+                    assert!(end <= self.len());
+                    if <$t>::MAX >> (<$t>::BITS as usize - self.bitvec.len()) < upper {
+                        return self.cumsum[0].range_sum(start..end);
+                    }
+                    if <$t>::MIN == upper {
+                        return W::default();
+                    }
+
+                    let mut b = self.bitvec.len();
+                    let mut res = W::default();
+                    for (bitvec, (bound, weights)) in self.bitvec.iter().zip(self.bound.iter().zip(self.cumsum.iter().skip(1))) {
+                        b -= 1;
+
+                        let (s, e) = unsafe { (bitvec.count::<0>(start), bitvec.count::<0>(end)) };
+                        if (upper >> b) & 1 == 0 {
+                            (start, end) = (s, e);
+                        } else {
+                            res = res + weights.range_sum(s..e);
+                            (start, end) = (bound + start - s, bound + end - e);
+                        }
+                    }
+                    res
+                }
+
+                /// Returns the sum of the weights of the points
+                /// whose values are in the `within` range of the `range` of the original sequence.
+                /// 
+                /// In other words, this method returns the sum of the weights of the points inside the square
+                /// in the value range `within` and definition range `range`,  
+                /// with the index of the number sequence as horizontal axis and the value as vertical axis.
+                /// 
+                /// # Panics
+                /// - `range` must specify the range within an original sequence.
+                /// 
+                /// # Examples
+                /// ```rust
+                /// // This is the alias of `WaveletMatrix<T, W, CumSum<W>>`.
+                /// // `CumSum` can process static range sum queries.
+                /// use ds::StaticRectangleSum;
+                /// 
+                /// let wm = StaticRectangleSum::from([(0u64, 1u64), (1, 2), (0, 3), (2, 4), (1, 5), (1, 6)]);
+                /// assert_eq!(wm.sum_of_weight(.., ..), 21);
+                /// assert_eq!(wm.sum_of_weight(1.., ..), 17);
+                /// assert_eq!(wm.sum_of_weight(1.., ..3), 2);
+                /// assert_eq!(wm.sum_of_weight(..1, ..), 4);
+                /// ```
+                pub fn sum_of_weight(&self, within: impl RangeBounds<$t>, range: impl RangeBounds<usize>) -> W {
+                    let range = convert_range(self.len(), range);
+                    if range.is_empty() {
+                        return W::default();
+                    }
+
+                    let s = match within.start_bound() {
+                        Bound::Included(l) => self.sum_of_weight_less_than(*l, range.clone()),
+                        Bound::Excluded(l) if *l == <$t>::MAX => return W::default(),
+                        Bound::Excluded(l) => self.sum_of_weight_less_than(l + 1, range.clone()),
+                        Bound::Unbounded => W::default(),
+                    };
+                    (match within.end_bound() {
+                        Bound::Included(r) if *r == <$t>::MAX => self.cumsum[0].range_sum(range),
+                        Bound::Included(r) => self.sum_of_weight_less_than(r + 1, range),
+                        Bound::Excluded(r) => self.sum_of_weight_less_than(*r, range),
+                        Bound::Unbounded => self.cumsum[0].range_sum(range),
+                    }) - s
+                }
+            }
             
             impl From<Vec<$t>> for WaveletMatrix<$t> {
                 fn from(mut value: Vec<$t>) -> Self {
                     let Some(&max) = value.iter().max() else {
-                        return Self {
-                            len: value.len(),
-                            bitvec: vec![],
-                            bound: vec![],
-                            first: HashMap::new(),
-                        };
+                        return Self::default();
                     };
             
                     if max == 0 {
@@ -466,6 +535,8 @@ macro_rules! impl_wavelet_matrix {
                             bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
                             bound: vec![value.len()],
                             first: HashMap::from([(0, 0)]),
+                            cumsum: vec![DefaultZST],
+                            _phantom: PhantomData,
                         };
                     }
             
@@ -504,7 +575,14 @@ macro_rules! impl_wavelet_matrix {
                             .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
                     );
             
-                    Self { len: value.len(), bitvec, bound, first }
+                    Self {
+                        len: value.len(),
+                        bitvec,
+                        bound,
+                        first,
+                        cumsum: vec![DefaultZST; width as usize],
+                        _phantom: PhantomData,
+                    }
                 }
             }
             
@@ -525,11 +603,162 @@ macro_rules! impl_wavelet_matrix {
                     Self::from(iter.into_iter().collect::<Vec<$t>>())
                 }
             }
+
+            impl<W: Clone, C: StaticRangeSum<W>> From<(Vec<$t>, Vec<W>)> for WaveletMatrix<$t, W, C> {
+                fn from(value: (Vec<$t>, Vec<W>)) -> Self {
+                    let (mut value, mut weights) = value;
+                    let Some(&max) = value.iter().max() else {
+                        return Self::default();
+                    };
+            
+                    if max == 0 {
+                        let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
+                        return Self {
+                            len: value.len(),
+                            bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
+                            bound: vec![value.len()],
+                            first: HashMap::from([(0, 0)]),
+                            cumsum: vec![C::new(&weights[..]); 2],
+                            _phantom: PhantomData,
+                        };
+                    }
+            
+                    let width = <$t>::BITS - max.leading_zeros();
+                    let mut bitvec = vec![];
+                    let mut cumsum = vec![C::new(&weights[..])];
+                    let mut bound = vec![];
+                    let mut working = vec![0; value.len()];
+                    let mut working_weights = weights.clone();
+                    for r in (0..width).rev() {
+                        let bv = BitVector::new(
+                            value
+                                .chunks(BitBlock::BITS as usize)
+                                .map(|v| v.iter().rev().fold(0u16, |s, v| (s << 1) | ((v >> r) as u16 & 1)))
+                                .collect(),
+                        );
+                        
+                        bound.push(unsafe { bv.count::<0>(value.len()) });
+                        let (mut zeros, mut ones) = (0, *bound.last().unwrap());
+                        for (v, w) in value.iter().zip(weights.iter()) {
+                            if (v >> r) & 1 == 0 {
+                                working[zeros] = *v;
+                                working_weights[zeros] = w.clone();
+                                zeros += 1;
+                            } else {
+                                working[ones] = *v;
+                                working_weights[ones] = w.clone();
+                                ones += 1;
+                            }
+                        }
+                        (value, working) = (working, value);
+                        (weights, working_weights) = (working_weights, weights);
+                        cumsum.push(C::new(&weights[..]));
+                        bitvec.push(bv);
+                    }
+            
+                    let mut first = HashMap::from([(value[0], 0)]);
+                    first.extend(
+                        value
+                            .windows(2)
+                            .enumerate()
+                            .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
+                    );
+            
+                    Self {
+                        len: value.len(),
+                        bitvec,
+                        bound,
+                        first,
+                        cumsum,
+                        _phantom: PhantomData,
+                    }
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>> From<Vec<($t, W)>> for WaveletMatrix<$t, W, C> {
+                fn from(value: Vec<($t, W)>) -> Self {
+                    let (elements, weights) = value.into_iter().unzip::<$t, W, Vec<$t>, Vec<W>>();
+                    Self::from((elements, weights))
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>> From<&[($t, W)]> for WaveletMatrix<$t, W, C> {
+                fn from(value: &[($t, W)]) -> Self {
+                    Self::from(value.into_iter().cloned().unzip::<$t, W, Vec<$t>, Vec<W>>())
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>> From<(&[$t], &[W])> for WaveletMatrix<$t, W, C> {
+                fn from(value: (&[$t], &[W])) -> Self {
+                    Self::from((value.0.to_vec(), value.1.to_vec()))
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>, const N: usize> From<[($t, W); N]> for WaveletMatrix<$t, W, C> {
+                fn from(value: [($t, W); N]) -> Self {
+                    Self::from(value.into_iter().unzip::<$t, W, Vec<$t>, Vec<W>>())
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>, const N: usize> From<([$t; N], [W; N])> for WaveletMatrix<$t, W, C> {
+                fn from(value: ([$t; N], [W; N])) -> Self {
+                    Self::from((Vec::from(value.0), Vec::from(value.1)))
+                }
+            }
+
+            impl<W: Clone, C: StaticRangeSum<W>> FromIterator<($t, W)> for WaveletMatrix<$t, W, C> {
+                fn from_iter<T: IntoIterator<Item = ($t, W)>>(iter: T) -> Self {
+                    Self::from(iter.into_iter().unzip::<$t, W, Vec<$t>, Vec<W>>())
+                }
+            }
+
+            impl<W: Clone, C> Default for WaveletMatrix<$t, W, C> {
+                fn default() -> Self {
+                    return Self {
+                        len: 0,
+                        bitvec: vec![],
+                        bound: vec![],
+                        first: HashMap::new(),
+                        cumsum: vec![],
+                        _phantom: PhantomData,
+                    };
+                }
+            }
         )*
     };
 }
 
-impl_wavelet_matrix!(u8, u16, u32, u64, u128);
+impl_wavelet_matrix!(u8, u16, u32, u64, u128, usize);
+
+#[derive(Debug, Clone, Default)]
+pub struct CumSum<W>
+where W: Clone + Copy + Add + Sub {
+    cum: Vec<W>,
+}
+
+pub trait StaticRangeSum<W>: Clone + Default {
+    fn new(slice: &[W]) -> Self;
+    fn range_sum(&self, range: Range<usize>) -> W;
+}
+
+impl<W> StaticRangeSum<W> for CumSum<W>
+where W: Clone + Copy + Default + Add<W, Output = W> + Sub<W, Output = W> {
+    fn new(slice: &[W]) -> Self {
+        let mut cum = vec![W::default()];
+        cum.extend(slice);
+        for i in 1..cum.len() {
+            cum[i] = cum[i] + cum[i - 1];
+        }
+        Self { cum }
+    }
+
+    fn range_sum(&self, range: Range<usize>) -> W {
+        assert!(range.end <= self.cum.len());
+        self.cum[range.end] - self.cum[range.start]
+    }
+}
+
+pub type StaticRectangleSum<T, W> = WaveletMatrix<T, W, CumSum<W>>;
 
 #[cfg(test)]
 mod tests {
