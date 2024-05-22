@@ -66,3 +66,18 @@ fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
     };
     Range { start, end }
 }
+
+/// If the Link-Cut Tree does not require any operations, this type can be used as a dummy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultZST;
+
+impl MapMonoid for DefaultZST {
+    type M = ();
+    type Act = ();
+
+    fn e() -> Self::M {}
+    fn op(_: &Self::M, _: &Self::M) -> Self::M {}
+    fn map(_: &Self::M, _: &Self::Act) -> Self::M {}
+    fn id() -> Self::Act {}
+    fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
+}
