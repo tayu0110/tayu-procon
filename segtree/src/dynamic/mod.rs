@@ -1,9 +1,9 @@
+mod dynamic_segtree;
 mod li_chao;
-mod segtree;
 
 use super::Monoid;
+pub use dynamic_segtree::*;
 pub use li_chao::*;
-pub use segtree::*;
 
 struct Node<T, L> {
     left: u32,
