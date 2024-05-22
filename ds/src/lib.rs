@@ -19,6 +19,7 @@ mod splay_tree;
 #[cfg(feature = "wavelet-matrix")]
 mod wavelet_matrix;
 
+#[cfg(any(feature = "dynamic-sequence", feature = "wavelet-matrix"))]
 use std::ops::{Bound, Range, RangeBounds};
 
 #[cfg(feature = "btree-multiset")]
@@ -55,6 +56,7 @@ pub trait MapMonoid {
     }
 }
 
+#[cfg(any(feature = "dynamic-sequence", feature = "wavelet-matrix"))]
 fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
     let start = match range.start_bound() {
         Bound::Included(l) => *l,
