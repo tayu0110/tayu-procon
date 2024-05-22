@@ -16,6 +16,7 @@ mod link_cut_tree;
 mod online_dynamic_connectivity;
 #[cfg(feature = "splay-tree")]
 mod splay_tree;
+#[cfg(feature = "wavelet-matrix")]
 mod wavelet_matrix;
 
 use std::ops::{Bound, Range, RangeBounds};
@@ -36,6 +37,7 @@ pub use interval_heap::*;
 pub use link_cut_tree::*;
 #[cfg(feature = "online-dynamic-connectivity")]
 pub use online_dynamic_connectivity::*;
+#[cfg(feature = "wavelet-matrix")]
 pub use wavelet_matrix::*;
 
 pub trait MapMonoid {
