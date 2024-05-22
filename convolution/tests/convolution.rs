@@ -1,7 +1,3 @@
-#![feature(test)]
-
-extern crate test;
-
 use convolution::{convolution, convolution_mod_2_64};
 use montgomery_modint::{Mod4194304001, Mod998244353};
 
