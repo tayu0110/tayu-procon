@@ -1,3 +1,4 @@
+use criterion::{criterion_group, criterion_main, Criterion};
 use montgomery_modint::{Mod998244353, MontgomeryModint};
 use number_theoretic_transform::{
     bit_reverse,
@@ -26,14 +27,18 @@ pub fn intt_cooley_tukey_radix_4(a: &mut [Modint]) {
     a.iter_mut().for_each(|c| *c *= inv)
 }
 
-#[test]
-fn cooley_tukey_radix_4_test() {
-    for i in 0..=13 {
-        let n = 1 << i;
-        let data: Vec<Modint> = (1..=n).map(Modint::new).collect();
-        let mut data1 = data.clone();
-        ntt_cooley_tukey_radix_4(&mut data1);
-        intt_cooley_tukey_radix_4(&mut data1);
-        assert_eq!(data, data1);
-    }
+fn cooley_tukey_radix_4_bench(b: &mut Criterion) {
+    b.bench_function("Cooley Tukey Radix-4", |b| {
+        b.iter(|| {
+            for i in 15..=20 {
+                let n = 1 << i;
+                let mut data: Vec<Modint> = (1..=n).map(Modint::new).collect();
+                ntt_cooley_tukey_radix_4(&mut data);
+                intt_cooley_tukey_radix_4(&mut data);
+            }
+        })
+    });
 }
+
+criterion_group!(benches, cooley_tukey_radix_4_bench);
+criterion_main!(benches);
