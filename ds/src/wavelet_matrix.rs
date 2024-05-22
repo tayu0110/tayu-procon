@@ -523,66 +523,8 @@ macro_rules! impl_wavelet_matrix {
             }
             
             impl From<Vec<$t>> for WaveletMatrix<$t> {
-                fn from(mut value: Vec<$t>) -> Self {
-                    let Some(&max) = value.iter().max() else {
-                        return Self::default();
-                    };
-            
-                    if max == 0 {
-                        let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
-                        return Self {
-                            len: value.len(),
-                            bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
-                            bound: vec![value.len()],
-                            first: HashMap::from([(0, 0)]),
-                            cumsum: vec![DefaultZST],
-                            _phantom: PhantomData,
-                        };
-                    }
-            
-                    let width = <$t>::BITS - max.leading_zeros();
-                    let mut bitvec = vec![];
-                    let mut bound = vec![];
-                    let mut working = vec![0; value.len()];
-                    for r in (0..width).rev() {
-                        let bv = BitVector::new(
-                            value
-                                .chunks(BitBlock::BITS as usize)
-                                .map(|v| v.iter().rev().fold(0u16, |s, v| (s << 1) | ((v >> r) as u16 & 1)))
-                                .collect(),
-                        );
-            
-                        bound.push(unsafe { bv.count::<0>(value.len()) });
-                        let (mut zeros, mut ones) = (0, *bound.last().unwrap());
-                        for &v in &value {
-                            if (v >> r) & 1 == 0 {
-                                working[zeros] = v;
-                                zeros += 1;
-                            } else {
-                                working[ones] = v;
-                                ones += 1;
-                            }
-                        }
-                        (value, working) = (working, value);
-                        bitvec.push(bv);
-                    }
-            
-                    let mut first = HashMap::from([(value[0], 0)]);
-                    first.extend(
-                        value
-                            .windows(2)
-                            .enumerate()
-                            .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
-                    );
-            
-                    Self {
-                        len: value.len(),
-                        bitvec,
-                        bound,
-                        first,
-                        cumsum: vec![DefaultZST; width as usize],
-                        _phantom: PhantomData,
-                    }
+                fn from(value: Vec<$t>) -> Self {
+                    value.into_iter().map(|v| (v, DefaultZST)).collect::<Self>()
                 }
             }
             
@@ -755,6 +697,17 @@ where W: Clone + Copy + Default + Add<W, Output = W> + Sub<W, Output = W> {
     fn range_sum(&self, range: Range<usize>) -> W {
         assert!(range.end <= self.cum.len());
         self.cum[range.end] - self.cum[range.start]
+    }
+}
+
+impl StaticRangeSum<DefaultZST> for DefaultZST {
+    fn new(_: &[DefaultZST]) -> Self {
+        DefaultZST
+    }
+    // Dummy implementation
+    // This method does not return a meaningful value
+    fn range_sum(&self, _: Range<usize>) -> DefaultZST {
+        DefaultZST
     }
 }
 
