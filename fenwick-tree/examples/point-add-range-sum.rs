@@ -1,18 +1,11 @@
 // https://judge.yosupo.jp/problem/point_add_range_sum
-use fenwick_tree::FenwickTree;
-use iolib::scan;
+use fenwick_tree::{Addition, FenwickTree};
+use iolib::{putln, scan};
 
 fn main() {
-    use std::io::Write;
-    let stdout = std::io::stdout();
-    let mut stdout = std::io::BufWriter::new(stdout.lock());
-
     scan!(n: usize, q: usize, a: [usize; n]);
 
-    let mut ft = FenwickTree::new(n, 0);
-    for (i, a) in a.into_iter().enumerate() {
-        ft.add(i, a);
-    }
+    let mut ft = FenwickTree::<Addition<usize>>::from(a);
 
     for _ in 0..q {
         scan!(t: usize);
@@ -22,7 +15,7 @@ fn main() {
             ft.add(p, x);
         } else {
             scan!(l: usize, r: usize);
-            writeln!(stdout, "{}", ft.get_sum(l, r)).unwrap();
+            putln!(ft.fold(l..r));
         }
     }
 }

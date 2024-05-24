@@ -1,5 +1,5 @@
 // https://judge.yosupo.jp/problem/vertex_add_path_sum
-use fenwick_tree::FenwickTree;
+use fenwick_tree::{Addition, FenwickTree};
 use graph::{HeavyLightDecomposition, PathVertex};
 use iolib::{putln, scan};
 
@@ -13,7 +13,7 @@ fn main() {
 
     let hld = HeavyLightDecomposition::from_edges(n, e);
 
-    let mut ft = FenwickTree::new(n, 0);
+    let mut ft = FenwickTree::<Addition<usize>>::new(n);
     for (i, a) in a.into_iter().enumerate() {
         ft.add(hld.index(i), a);
     }
@@ -31,7 +31,7 @@ fn main() {
             for path in hld.path_vertex_ranges(u, v) {
                 match path {
                     PathVertex::Range { from, to } => {
-                        sum += ft.get_sum(from.min(to), from.max(to) + 1);
+                        sum += ft.fold(from.min(to)..from.max(to) + 1);
                     }
                     _ => unreachable!(),
                 }
