@@ -106,18 +106,18 @@ macro_rules! putv {
         $crate::get_output_source().store_vec(&$t, $delim);
     };
     ( $t:expr ) => {
-        $crate::putv!($t, sep='\n');
+        $crate::putv!($t, sep = '\n');
     };
 }
 
 #[macro_export]
 macro_rules! putvln {
     ( $t:expr, sep=$delim:expr) => {
-        $crate::putv!($t, sep=$delim);
+        $crate::putv!($t, sep = $delim);
         $crate::putln!();
     };
     ( $t: expr ) => {
-        $crate::putvln!($t, sep='\n');
+        $crate::putvln!($t, sep = '\n');
     };
 }
 
@@ -127,17 +127,17 @@ macro_rules! putit {
         $crate::get_output_source().store_iter($t, $delim);
     };
     ( $t:expr ) => {
-        $crate::putit!($t, sep='\n');
+        $crate::putit!($t, sep = '\n');
     };
 }
 
 #[macro_export]
 macro_rules! putitln {
     ( $t:expr, sep=$delim:expr) => {
-        $crate::putit!($t, sep=$delim);
+        $crate::putit!($t, sep = $delim);
         $crate::putln!();
     };
     ( $t: expr ) => {
-        $crate::putitln!($t, sep='\n');
+        $crate::putitln!($t, sep = '\n');
     };
 }
