@@ -91,13 +91,13 @@ macro_rules! read_value {
 #[macro_export]
 macro_rules! put {
     ( $arg:expr $( , $args:expr )* , @sep = $sep:expr) => {
-        $crate::put!($arg);
+        $crate::Display::fmt(& $arg, $crate::get_buffer(), $sep);
         $crate::put!(@tail, $( $args ),* , @sep = $sep);
     };
     ( @tail, $( $args:expr ),* , @sep = $sep:expr) => {
         $(
             $crate::Display::fmt(& $sep, $crate::get_buffer(), "");
-            $crate::Display::fmt(& $args, $crate::get_buffer(), "");
+            $crate::Display::fmt(& $args, $crate::get_buffer(), $sep);
         )*
     };
     ( $arg:expr ) => {
