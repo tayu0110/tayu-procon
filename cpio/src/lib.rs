@@ -90,7 +90,7 @@ macro_rules! read_value {
 
 #[macro_export]
 macro_rules! put {
-    ( $arg:expr, $( $args:expr ),* , @sep = $sep:expr) => {
+    ( $arg:expr $( , $args:expr )* , @sep = $sep:expr) => {
         $crate::put!($arg);
         $crate::put!(@tail, $( $args ),* , @sep = $sep);
     };
