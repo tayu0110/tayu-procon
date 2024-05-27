@@ -11,6 +11,7 @@ montgomery-modint = { version = "0.1.0", path = "../modint/montgomery-modint" }
 number-theoretic-transform = { version = "0.1.0", path = "../number-theoretic-transform" }
 
 [dev-dependencies]
+cpio = { package = "cpio", version = "0.1.0", git = "https://github.com/tayu0110/tayu-procon.git" }
 iolib = { package = "iolib", path = "../iolib" }
 proconio = { version = "0.4.3", features = ["derive"] }
 
