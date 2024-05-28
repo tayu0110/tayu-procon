@@ -39,7 +39,7 @@ macro_rules! scan {
 #[macro_export]
 macro_rules! read_value {
     ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:ident], @ty[$( $t:tt )*]) => {
-        let $( $mut )? $v = unsafe { $crate::read_value!(@src $src, @ty[$( $t )*]) };
+        let $( $mut )? $v = $crate::read_value!(@src $src, @ty[$( $t )*]);
     };
 
     // array or Vec
@@ -54,9 +54,7 @@ macro_rules! read_value {
     }};
     ( @arr @src $src:ident, @ty[$( $ty:tt )*], @rest ; $( $len:tt )*) => {{
         let len = ( $($len)* );
-        let mut res = Vec::with_capacity(len);
-        res.extend((0..len).map(|_| $crate::read_value!(@src $src, @ty[$( $ty )*])));
-        res
+        (0..len).map(|_| $crate::read_value!(@src $src, @ty[$( $ty )*])).collect::<Vec<_>>()
     }};
     ( @arr @src $src:ident, @ty[$( $ty:tt )*], @rest $t:tt $( $rest:tt )* ) => {
         $crate::read_value!(@arr @src $src, @ty[$( $ty )* $t], @rest $( $rest )*)
@@ -80,8 +78,7 @@ macro_rules! read_value {
     };
 
     ( @src $src:ident, @ty[ $t:ty ] ) => {{
-        let token = $src.next_token();
-        <$t as $crate::FromBytes>::from_bytes(token)
+        <$t as $crate::FromBytes>::from_bytes($src.next_token())
     }};
     ( @src $src:ident, @ty[] ) => {
         ::std::compile_error!("Failed to parse macro");
