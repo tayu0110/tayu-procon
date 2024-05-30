@@ -808,11 +808,7 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
         let (na, nb, np) = (a / g, b / g, p / g);
         let inv = na.inverse_mod(np)?;
         let inv = inv.rem_euclid(np);
-        if let Some(res) = mod_log(a, nb * inv, np) {
-            return Some(res + 1);
-        } else {
-            return None;
-        }
+        return mod_log(a, nb * inv, np).map(|res| res + 1);
     }
 
     let m = (p as f64).sqrt().ceil() as i64;
@@ -820,7 +816,7 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
     let mut now = 1;
     // If there is no lower bound constraint, it is sufficient to have only the smallest index,
     // but if there is a lower bound constraint, there may be a constraint boundary, so all the indices are kept in Vec.
-    let mut map = std::collections::HashMap::new();
+    let mut map = HashMap::new();
     for j in 0..m {
         map.entry(now).or_insert(vec![]).push(j);
         now = (now as i128 * a as i128 % p as i128) as i64;
@@ -835,10 +831,9 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
 
         if let Some(v) = map.get(&r) {
             for j in v {
-                if i * m + j < lower {
-                    continue;
+                if i * m + j >= lower {
+                    return Some(i * m + j);
                 }
-                return Some(i * m + j);
             }
         }
 
@@ -931,23 +926,19 @@ pub fn garner_prechecked(a: &[i64], p: &[i64], modulo: i64) -> Option<(i64, i64)
                 return None;
             }
 
-            p[i] /= g;
-            p[j] /= g;
+            (p[i], p[j]) = (p[i] / g, p[j] / g);
 
             let mut gi = p[i].gcd(g);
             let mut gj = g / gi;
 
-            g = gi.gcd(gj);
-            gi *= g;
-            gj /= g;
-            while g != 1 {
+            while {
                 g = gi.gcd(gj);
                 gi *= g;
                 gj /= g;
-            }
+                g != 1
+            } {}
 
-            p[i] *= gi;
-            p[j] *= gj;
+            (p[i], p[j]) = (p[i] * gi, p[j] * gj);
         }
     }
 
