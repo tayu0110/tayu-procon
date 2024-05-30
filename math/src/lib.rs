@@ -2,7 +2,7 @@
 mod const_methods;
 mod montgomery;
 
-use std::{collections::HashMap, ops::Index};
+use std::{collections::HashMap, iter::once, ops::Index};
 
 #[cfg(feature = "const_methods")]
 pub use const_methods::*;
@@ -1096,35 +1096,67 @@ impl Index<usize> for Sieve {
 ///
 /// It does not have information about prime factors, only whether a given natural number is prime or not.
 pub struct CompactSieve {
-    block: Vec<u8>,
+    size: usize,
+    block: Vec<u64>,
 }
 
 impl CompactSieve {
+    const B: usize = u64::BITS as usize;
+    const B2: usize = Self::B * 2;
+    const T: usize = Self::B.trailing_zeros() as usize;
+    const T2: usize = Self::T + 1;
+
     /// Construct a sieve in the range `0..size`.
     pub fn new(size: usize) -> Self {
-        let len = (size + 7) >> 3;
-        let mut block = vec![0b10101010; len];
-        block[0] = 0b10101100;
-        for i in (3..size).step_by(2) {
-            if (block[i >> 3] >> (i & 7)) & 1 != 0 {
+        let len = (size + Self::B2 - 1) >> Self::T2;
+        let mut block = vec![u64::MAX; len];
+        let mut i = 3;
+        while i < size {
+            if block[i >> Self::T2] == 0 {
+                i += Self::B2;
+                continue;
+            }
+
+            if (block[i >> Self::T2] >> ((i >> 1) & (Self::B - 1))) & 1 != 0 {
                 for j in (3..)
                     .step_by(2)
-                    .map(|j| j * i)
-                    .take_while(|&k| k < len << 3)
+                    .map(|j| i * j)
+                    .take_while(|&j| j < len << Self::T2)
+                    .map(|j| j >> 1)
                 {
-                    block[j >> 3] &= !(1 << (j & 7));
+                    block[j >> Self::T] &= !(1 << (j & (Self::B - 1)));
                 }
             }
+
+            i += 2;
         }
 
-        Self { block }
+        Self { size, block }
     }
 
     /// Enumerate prime numbers in the range of `0..size`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::CompactSieve;
+    ///
+    /// let sieve = CompactSieve::new(50);
+    /// assert_eq!(sieve.primes().collect::<Vec<_>>(), vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]);
+    /// ```
     pub fn primes(&self) -> impl Iterator<Item = usize> + '_ {
-        self.block.iter().enumerate().flat_map(|(i, &b)| {
-            (0..8).filter_map(move |j| ((b >> j) & 1 != 0).then_some(j | (i << 3)))
-        })
+        once(2)
+            .chain(
+                self.block
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, &b)| {
+                        (0..Self::B).filter_map(move |j| {
+                            ((b >> j) & 1 != 0).then_some(((j | (i << Self::T)) << 1) | 1)
+                        })
+                    })
+                    .skip(1),
+            )
+            .take_while(|&p| p < self.size)
     }
 }
 

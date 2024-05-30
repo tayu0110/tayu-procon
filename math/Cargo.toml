@@ -17,3 +17,6 @@ rand = "0.8.5"
 [features]
 # default = ["const_methods"]
 const_methods = ["dep:arbitrary-modint"]
+
+[profile.release]
+debug = 1
