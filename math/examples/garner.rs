@@ -1,5 +1,5 @@
 // https://yukicoder.me/problems/448
-use iolib::scan;
+use cpio::*;
 use math::garner_prechecked;
 
 const MOD: i64 = 1_000_000_007;
@@ -13,11 +13,11 @@ fn main() {
 
     if let Some((res, lcm)) = garner_prechecked(&a, &p, MOD) {
         if f {
-            println!("{}", lcm)
+            putln!(lcm);
         } else {
-            println!("{}", res)
+            putln!(res);
         }
     } else {
-        println!("-1")
+        putln!("-1");
     }
 }

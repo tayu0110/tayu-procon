@@ -1,77 +1,767 @@
 #[cfg(feature = "const_methods")]
 mod const_methods;
+mod montgomery;
 
-use arbitrary_montgomery_modint::ArbitraryMontgomeryModint;
+use std::collections::HashMap;
+
 #[cfg(feature = "const_methods")]
 pub use const_methods::*;
-use numeric::Integer;
+pub use montgomery::Montgomery;
 use simple_rand::xor_shift;
 
-//////////////////////////////////////////////////////////////////////////////////
-// Define famous functions for integers
-//////////////////////////////////////////////////////////////////////////////////
-
-/// Return gcd(x, y).
-#[inline]
-pub fn gcd<T: Integer>(mut x: T, mut y: T) -> T {
-    while y != T::zero() {
-        let (nx, ny) = (y, x % y);
-        x = nx;
-        y = ny;
-    }
-    x
+pub struct ExtendedGcd<T> {
+    pub gcd: T,
+    pub coef: [T; 2],
+    pub neg: [bool; 2],
 }
 
-/// Return lcm(x, y).
-#[inline]
-pub fn lcm<T: Integer>(x: T, y: T) -> T {
-    x / gcd(x, y) * y
+pub struct Factors<T: MathInt> {
+    current: T,
+}
+macro_rules! impl_factors {
+    ( $( $t:ty ),* ) => {
+        $(
+            impl Iterator for Factors<$t> {
+                type Item = ($t, u32);
+                fn next(&mut self) -> Option<Self::Item> {
+                    (self.current > 0).then(|| {
+                        if self.current & 1 == 0 {
+                            let tr = self.current.trailing_zeros();
+                            self.current >>= tr;
+                            return Some((2, tr));
+                        }
+
+                        self.current.one_of_the_prime_factors().map(|fac| {
+                            let mut cnt = 0;
+                            while self.current % fac == 0 {
+                                self.current /= fac;
+                                cnt += 1;
+                            }
+                            (fac, cnt)
+                        })
+                    })?
+                }
+            }
+        )*
+    };
 }
 
-/// Solve the equation "ax + by = gcd(a, b)"
-/// Return (gcd(a, b), x, y)
-//  s * 1 + t * 0 = s    ...(1)  (sx = 1, sy = 0)
-//  s * 0 + t * 1 = t    ...(2)  (tx = 0, ty = 1)
-//       -> (1) - (2) * |s/t|
-//       -> s * (sx - tx * |s/t|) + t * (sy - ty * |s/t|) = s % t
-// Repeating this, the right-hand side becomes gcd(s, t)
-//  s * tx + t * ty = gcd(s, t)
-#[inline]
-pub fn ext_gcd<T: Integer>(a: T, b: T) -> (T, T, T) {
-    let (mut s, mut t) = (a, b);
-    let (mut sx, mut tx) = (T::one(), T::zero());
-    let (mut sy, mut ty) = (T::zero(), T::one());
-    while s % t != T::zero() {
-        let d = s / t;
+impl_factors!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);
 
-        let u = s % t;
-        let ux = sx - tx * d;
-        let uy = sy - ty * d;
-        s = t;
-        sx = tx;
-        sy = ty;
-        t = u;
-        tx = ux;
-        ty = uy;
-    }
-
-    (t, tx, ty)
+pub trait MathInt: Sized + Copy {
+    /// Return the greatest common divisor of `self` and `other`.
+    /// `gcd(0, 0)` is assumed to be `0`.
+    ///
+    /// The return value is always non-negative.
+    /// Therefore, this method panics if two signed integer minimums (e.g., `i32::MIN`) are passed as arguments
+    /// because it may not return the correct result.
+    ///
+    /// # Panics
+    /// - One of the arguments must always be greater than the minimum value. (for only signed integer)
+    fn gcd(self, other: Self) -> Self;
+    /// Return the least common multiple of `self` and `other`.  
+    /// The return value is always non-negative.
+    ///
+    /// # Panics
+    /// - Because this method can overflow in multiplication, panic may occur (in debug mode)
+    fn lcm(self, other: Self) -> Self;
+    /// Return `gcd(a, b)`, `a`, `b` satisfying `self * a + other * b = gcd(a, b)`.
+    ///
+    /// Since the solution can be negative, for unsigned integers,
+    /// the solution is expressed as a combination of the absolute value of the solution and the sign.
+    ///
+    /// For signed integers, the returned sign has no meaning and is always `true`.  
+    /// `gcd(a, b)` is always non-negative.
+    ///
+    /// # Panics
+    /// - `gcd(a, b).abs()` must be less than or equal to Self::MAX (for signed integer)
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::{MathInt, ExtendedGcd};
+    ///
+    /// // Solve the equation 7x + 11y = 1.
+    /// let ExtendedGcd { gcd, mut coef, neg } = 7u32.extended_gcd(11);
+    /// // gcd(7, 11) == 1
+    /// assert_eq!(gcd, 1);
+    ///
+    /// coef[0] *= 7;
+    /// coef[1] *= 11;
+    /// // if neg[i] is `true`, coef[i] is negative.
+    /// let x = if neg[0] { coef[0].wrapping_neg() } else { coef[0] };
+    /// let y = if neg[1] { coef[1].wrapping_neg() } else { coef[1] };
+    /// assert_eq!(x.wrapping_add(y), gcd);
+    /// ```
+    fn extended_gcd(self, other: Self) -> ExtendedGcd<Self>;
+    /// Return the multiplicative inverse of `self` with `modulus` as the law.
+    /// If such number is not found, return `None`.
+    ///
+    /// # Panics
+    /// - `modulus > 0` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(3u32.inverse_mod(7), Some(5));
+    /// assert_eq!(5u32.inverse_mod(8), Some(5));
+    /// assert_eq!(2u32.inverse_mod(8), None);
+    /// ```
+    fn inverse_mod(self, modulus: Self) -> Option<Self>;
+    /// Returns the `exp` power of `self` using `modulus` as the law.
+    ///
+    /// # Panics
+    /// - `modulus > 0` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(2u32.pow_mod(31, 998244353), (1 << 31) % 998244353);
+    /// assert_eq!(3u32.pow_mod(20, 998244353), 3u32.pow(20) % 998244353);
+    /// ```
+    fn pow_mod(self, exp: u64, modulus: Self) -> Self;
+    /// Return `x` satisfying `base.pow_mod(x, modulus) == self % modulus`.
+    /// If such `x` is not found, return `None`.
+    ///
+    /// # Panics
+    /// - `modulus > 0` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(1u32.log_mod(2, 5), Some(0));
+    /// assert_eq!(7u32.log_mod(4, 10), None);
+    /// assert_eq!(6u32.log_mod(8, 10), Some(4));
+    /// assert_eq!(2u32.log_mod(5, 11), None);
+    /// assert_eq!(9u32.log_mod(5, 11), Some(4));
+    /// assert_eq!(0u32.log_mod(0, 1), Some(0));
+    /// assert_eq!(2u32.log_mod(0, 4), None);
+    /// assert_eq!(6u32.log_mod(6, 9), Some(1));
+    /// ```
+    fn log_mod(self, base: Self, modulus: Self) -> Option<Self>;
+    /// Return `x` satisfying `x.pow_mod(2, modulus) == self % modulus`.
+    /// If not found, return `None`.
+    ///
+    /// Tonelli-Shanks algorithm requires that the law is prime,
+    /// so `modulus` will not accept non-prime numbers.
+    ///
+    /// # Panics
+    /// - `modulus > 0` must be satisfied (for signed integer)
+    /// - `modulus.is_prime() == true` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(0u32.sqrt_mod(5).map(|sq| sq * sq % 5), Some(0));
+    /// assert_eq!(1u32.sqrt_mod(5).map(|sq| sq * sq % 5), Some(1));
+    /// assert_eq!(2u32.sqrt_mod(5), None);
+    /// assert_eq!(3u32.sqrt_mod(5), None);
+    /// assert_eq!(4u32.sqrt_mod(5).map(|sq| sq * sq % 5), Some(4));
+    /// assert_eq!(119811886u32.sqrt_mod(197136769).map(|sq| sq as u64 * sq as u64 % 197136769), Some(119811886));
+    /// ```
+    fn sqrt_mod(self, modulus: Self) -> Option<Self>;
+    /// If x satisfies x = p (mod m) and x = q (mod n) is found, return Some((x, lcm(m,n))).
+    /// Otherwise, return None.
+    /// ```ignore
+    /// p + ma = x
+    /// q + nb = x
+    ///     => p + ma = q + nb
+    ///     => ma - nb = q - p
+    ///     => ma = q - p (mod n)
+    /// ```
+    /// `self = p, modulus = m, other = q, other_modulus = n`
+    ///
+    /// # Panics
+    /// - Both `p < m` and `q < n` must be satisfied.
+    /// - Both `m > 0` and `n > 0` must be satisfied. (for signed integer)
+    /// - `lcm(modulus, other_modulus) <= Self::MAX` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(2u32.crt(3, 3, 5), Some((8, 15)));
+    /// assert_eq!(3u32.crt(5, 2, 7), Some((23, 35)));
+    /// assert_eq!(2u32.crt(7, 2, 3), Some((2, 21)));
+    /// assert_eq!(2u32.crt(3, 23, 35), Some((23, 105)));
+    /// ```
+    fn crt(self, modulus: Self, other: Self, other_modulus: Self) -> Option<(Self, Self)>;
+    /// Reference : https://doc.rust-lang.org/src/core/num/uint_macros.rs.html
+    /// This is as same as Rust unstable feature `isqrt`, so define here. When `isqrt` is stabilized, remove this method.
+    ///
+    /// # Panics
+    /// - `self >= 0` must be satisfied. (for signed integer)
+    fn sqrti(self) -> Self;
+    /// Check if `self` is a prime number.
+    ///
+    /// If `self` is negative, always return `false`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert!(2u32.is_prime());
+    /// assert!(5u32.is_prime());
+    /// assert!(998244353u32.is_prime());
+    /// assert!(!4u32.is_prime());
+    /// assert!(!561u32.is_prime());
+    /// ```
+    fn is_prime(self) -> bool;
+    /// Find one of the prime factors of `self`.
+    /// If not found, return `None`.
+    ///
+    /// If `self` is negative, always return `None`.
+    ///
+    /// This method uses Pollard's Rho algorithm.
+    fn one_of_the_prime_factors(self) -> Option<Self>;
+    /// Return an iterator that enumerates prime factors and their number.
+    ///
+    /// The order of prime factors returned by the iterator is *not defined*.
+    /// `1` is not listed.
+    ///
+    /// If `self` is negative, the iterator always returns `None`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// let mut factors = 108108u32.factorize().collect::<Vec<_>>();
+    ///
+    /// // Sorting is required to enumerate prime factors in ascending order.
+    /// factors.sort();
+    /// assert_eq!(factors, vec![(2, 2), (3, 3), (7, 1), (11, 1), (13, 1)]);
+    ///
+    /// assert_eq!(factors.iter().map(|&(f, c)| f.pow(c)).product::<u32>(), 108108);
+    /// ```
+    fn factorize(self) -> Factors<Self>;
+    /// Return the list of the divisors of `self`.
+    /// The order of divisors is *not defined*.
+    ///
+    /// `1` is included in list.
+    ///
+    /// If `self` is negative, always return an empty `Vec`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// let mut divisors = 108u32.divisors();
+    ///
+    /// // Sorting is required to enumerate divisors in ascending order.
+    /// divisors.sort();
+    /// assert_eq!(divisors, vec![1, 2, 3, 4, 6, 9, 12, 18, 27, 36, 54, 108])
+    /// ```
+    fn divisors(self) -> Vec<Self>;
+    /// Find one of the primitive roots of `self`.
+    ///
+    /// # Panics
+    /// - `self.is_prime() == true` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(2u32.primitive_root(), 1);
+    /// assert_eq!(3u32.primitive_root(), 2);
+    /// assert_eq!(5u32.primitive_root(), 2);
+    /// assert_eq!(7u32.primitive_root(), 3);
+    /// assert_eq!(11u32.primitive_root(), 2);
+    /// assert_eq!(13u32.primitive_root(), 2);
+    /// assert_eq!(17u32.primitive_root(), 3);
+    /// assert_eq!(19u32.primitive_root(), 2);
+    /// ```
+    fn primitive_root(self) -> Self;
 }
 
-/// Using p as the modulus, calculate a^n.
-#[inline]
-pub fn mod_pow(a: i64, mut n: i64, p: i64) -> i64 {
-    let mut res = 1;
-    let mut pow = a;
-    while n != 0 {
-        if n & 1 != 0 {
-            res = (res as i128 * pow as i128 % p as i128) as i64;
+macro_rules! overflow_err {
+    ( $method:literal ) => {
+        ::std::concat!("Overflow occurs in ", $method, " for signed integer")
+    };
+}
+
+macro_rules! impl_math_int_unsigned {
+    ( $t:ty, $st:ty, $expand:ty, $( $witness:expr ),* ) => {
+        impl MathInt for $t {
+            fn gcd(mut self, mut other: Self) -> Self {
+                while other != 0 {
+                    (self, other) = (other, self % other);
+                }
+                self
+            }
+
+            fn lcm(self, other: Self) -> Self {
+                if self == 0 || other == 0 {
+                    return 0;
+                }
+                self / self.gcd(other) * other
+            }
+
+            fn extended_gcd(self, other: Self) -> ExtendedGcd<Self> {
+                let (mut s, mut sx, mut sy) = (self, 1, 0);
+                let (mut t, mut tx, mut ty) = (other, 0, 1);
+                let mut neg = 0;
+                while t != 0 {
+                    let d = s / t;
+                    let u = s - t * d;
+                    let (ux, uy) = (sx + tx * d, sy + ty * d);
+                    (s, sx, sy, t, tx, ty, neg) = (t, tx, ty, u, ux, uy, neg + 1);
+                }
+
+                ExtendedGcd {
+                    gcd: s,
+                    coef: [sx, sy],
+                    neg: [
+                        neg > 2 && neg & 1 == 1 && sx != 0,
+                        neg > 1 + (self < other) as i32 && neg & 1 == 0 && sy != 0,
+                    ],
+                }
+            }
+
+            fn inverse_mod(self, modulus: Self) -> Option<Self> {
+                assert!(modulus > 0);
+                let ExtendedGcd { gcd, coef, neg } = self.extended_gcd(modulus);
+
+                (gcd == 1).then(|| if neg[0] { modulus - coef[0] } else { coef[0] })
+            }
+
+            fn pow_mod(self, mut exp: u64, modulus: Self) -> Self {
+                assert!(modulus > 0);
+                if modulus == 1 {
+                    return 0;
+                }
+                let a = self % modulus;
+                if exp == 0 || a == 1 {
+                    return 1;
+                }
+                if exp == 1 {
+                    return a;
+                }
+
+                if modulus & 1 == 1 {
+                    let mont = Montgomery::<Self>::new(modulus);
+                    return mont.reduce(mont.pow(mont.convert(a), exp));
+                }
+
+                // If modulus is even, Montgomery multiplication cannot be used.
+                // In this case, modulus=modulus' * 2^k (modulus' is odd), and the CRT restoration can be done as `pow_mod(a,exp,modulus')` and `pow_mod(a,exp,2^k)`.
+                let s = modulus.trailing_zeros();
+                let r = a.pow_mod(exp, modulus >> s);
+                assert!(r < modulus >> s);
+                let (mut res, mut val) = (1 as $t, a);
+                while exp > 0 {
+                    if exp & 1 != 0 {
+                        res = res.wrapping_mul(val);
+                    }
+                    val = val.wrapping_mul(val);
+                    exp >>= 1;
+                }
+                res &= (1 << s) - 1;
+
+                if modulus == 1 << s {
+                    res
+                } else {
+                    r.crt(modulus >> s, res, 1 << s).map(|r| r.0)
+                        .expect("Unexpected panic: `crt` may have bugs")
+                }
+            }
+
+            fn log_mod(self, base: Self, modulus: Self) -> Option<Self> {
+                assert!(modulus > 0);
+                let (a, b) = (base % modulus, self % modulus);
+                if modulus == 1 || b == 1 {
+                    return Some(0);
+                }
+
+                let ExtendedGcd { gcd, coef, neg } = a.extended_gcd(modulus);
+                if gcd != 1 {
+                    return (b % gcd == 0).then(|| {
+                        let (na, nb, nm) = (a / gcd, b / gcd, modulus / gcd);
+                        let inv_na = na
+                            .inverse_mod(nm)
+                            .expect("Internal Error: inverse_mod may have bugs");
+                        (((nb as $expand * inv_na as $expand) % modulus as $expand) as Self)
+                            .log_mod(a, nm)
+                            .map(|res| res + 1)
+                    })?;
+                }
+
+                let n = (modulus as f64).sqrt().ceil() as Self;
+                assert!(n.saturating_mul(n) >= modulus);
+                let mut map = HashMap::new();
+                let mut aq = 1;
+                for i in 0..n {
+                    map.entry(aq).or_insert(i);
+                    aq = ((aq as $expand * a as $expand) % modulus as $expand) as Self;
+                }
+
+                let inv_a = (if neg[0] { modulus - coef[0] } else { coef[0] }).pow_mod(n as u64, modulus);
+                let mut ap = b;
+                for p in 0..=n {
+                    if let Some(q) = map.get(&ap) {
+                        return Some(p * n + q);
+                    }
+                    ap = ((ap as $expand * inv_a as $expand) % modulus as $expand) as Self;
+                }
+
+                None
+            }
+
+            fn sqrt_mod(self, modulus: Self) -> Option<Self> {
+                assert!(modulus.is_prime());
+                if modulus == 2 {
+                    let res = self & 1;
+                    return Some(res);
+                }
+                let mont = Montgomery::<Self>::new(modulus);
+                let mn = mont.convert(self);
+                if mn == 0 {
+                    return Some(0);
+                }
+
+                if modulus & 0b11 == 3 {
+                    let s = mont.reduce(mont.pow(mn, (modulus as u64 + 1) >> 2));
+                    let t = modulus - s;
+                    return Some(s.min(t));
+                }
+
+                if mont.pow(mn, (modulus as u64 - 1) >> 1) != mont.one() {
+                    return None;
+                }
+
+                let mut rng =
+                    xor_shift(381928476372819).map(|b| mont.convert(b as Self % (modulus - 2) + 2));
+                loop {
+                    let b = rng.next()?;
+                    if mont.pow(b, (modulus as u64 - 1) >> 1) != mont.one() {
+                        let q = (modulus - 1).trailing_zeros() as u64;
+                        let s = (modulus as u64 - 1) >> q;
+
+                        let mut x = mont.pow(mn, (s + 1) >> 1);
+                        let mut x2 = mont.multiply(x, x);
+                        let mut b = mont.pow(b, s);
+                        // because `modulus` is a prime number,
+                        // so pow(val, modulus - 2) is equivalent to inv(val, modulus)
+                        let mninv = mont.pow(mn, modulus as u64 - 2);
+
+                        let mut shift = 2;
+                        while x2 != mn {
+                            let diff = mont.multiply(mninv, x2);
+                            if mont.pow(diff, 1 << (q - shift)) != mont.one() {
+                                x = mont.multiply(x, b);
+                                b = mont.multiply(b, b);
+                                x2 = mont.multiply(x2, b);
+                            } else {
+                                b = mont.multiply(b, b);
+                            }
+                            shift += 1;
+                        }
+                        break Some(mont.reduce(x));
+                    }
+                }
+            }
+
+            fn crt(self, modulus: Self, other: Self, other_modulus: Self) -> Option<(Self, Self)> {
+                assert!(self < modulus && other < other_modulus);
+
+                if other < self {
+                    return other.crt(other_modulus, self, modulus);
+                }
+
+                if self == other {
+                    return Some((self, modulus.lcm(other_modulus)));
+                }
+
+                let w = other - self;
+                let ExtendedGcd { gcd, coef, neg } = modulus.extended_gcd(other_modulus);
+                (w % gcd == 0).then(|| {
+                    let inv = if neg[0] { other_modulus - coef[0] } else { coef[0] };
+                    let k: Self = (inv as $expand * (w / gcd) as $expand % (other_modulus / gcd) as $expand)
+                        .try_into()
+                        .expect("lcm(modulus, other_modulus) is too large.");
+                    let res = self + modulus * k;
+                    debug_assert_eq!(res % modulus, self);
+                    debug_assert_eq!(res % other_modulus, other);
+                    (res, modulus / gcd * other_modulus)
+                })
+            }
+
+            fn sqrti(self) -> Self {
+                if self < 2 {
+                    return self;
+                }
+
+                let mut op = self;
+                let mut res = 0;
+                let mut one = 1 << (self.ilog2() & !1);
+
+                while one != 0 {
+                    if op >= res + one {
+                        op -= res + one;
+                        res = (res >> 1) + one;
+                    } else {
+                        res >>= 1;
+                    }
+                    one >>= 2;
+                }
+
+                res
+            }
+
+            fn is_prime(self) -> bool {
+                if self == 1 || self & 1 == 0 {
+                    return self == 2;
+                }
+
+                let s = (self - 1).trailing_zeros();
+                let t = (self - 1) >> s;
+                let mont = Montgomery::<Self>::new(self);
+
+                [$( $witness ),*]
+                    .iter()
+                    .map(|&a| mont.convert(a))
+                    .filter(|&a| a != 0)
+                    .all(|a| {
+                        let at = mont.pow(a, t as u64);
+                        // a^t = 1 (mod p) or a^t = -1 (mod p)
+                        if at == mont.one() || at == self - mont.one() {
+                            return true;
+                        }
+
+                        // found i satisfying a^((2^i)*t) = -1 (mod p)
+                        (1..s)
+                            .scan(at, |at, _| {
+                                *at = mont.multiply(*at, *at);
+                                Some(*at)
+                            })
+                            .any(|at| at == self - mont.one())
+                    })
+            }
+
+            fn one_of_the_prime_factors(self) -> Option<Self> {
+                // 1 is trival prime factor. So return None.
+                if self <= 1 {
+                    return None;
+                }
+                if self & 1 == 0 {
+                    return Some(2);
+                }
+
+                // If self is prime number, self has no divisors of ifself.
+                // So return itself.
+                if self.is_prime() {
+                    return Some(self);
+                }
+
+                let m = (self as f64).powf(0.125).round() as Self + 1;
+                let mont = Montgomery::<Self>::new(self);
+                let mut g = 1;
+
+                for c in (1..self).map(|c| mont.convert(c)) {
+                    let mut y = 0;
+                    let mut q = mont.one();
+
+                    'base: for r in (0..).map(|i| 1 << i) {
+                        let x = y;
+                        (r..=(3 * r) >> 2).for_each(|_| y = mont.add(mont.multiply(y, y), c));
+                        for k in (((3 * r) >> 2)..r).step_by(m as usize) {
+                            let ys = y;
+                            (0..m.min(r - k)).for_each(|_| {
+                                y = mont.add(mont.multiply(y, y), c);
+                                q = mont.multiply(q, mont.sub(x, y));
+                            });
+                            g = mont.reduce(q).gcd(self);
+                            if g != 1 {
+                                if g == self {
+                                    y = mont.add(mont.multiply(ys, ys), c);
+                                    while mont.reduce(mont.sub(x, y)).gcd(self) == 1 {
+                                        y = mont.add(mont.multiply(y, y), c);
+                                    }
+                                    g = mont.reduce(mont.sub(x, y)).gcd(self);
+                                }
+                                break 'base;
+                            }
+                        }
+                    }
+
+                    if g != self {
+                        break;
+                    }
+                }
+
+                g.one_of_the_prime_factors()
+            }
+
+            fn factorize(self) -> Factors<Self> {
+                Factors { current: self }
+            }
+
+            fn divisors(self) -> Vec<Self> {
+                let mut f = self.factorize().collect::<Vec<_>>();
+                f.sort();
+
+                let mut res = vec![1];
+                for (c, cnt) in f {
+                    let mut now = 1;
+                    let len = res.len();
+                    for _ in 0..cnt {
+                        now *= c;
+                        for i in 0..len {
+                            let new = res[i] * now;
+                            res.push(new);
+                        }
+                    }
+                }
+
+                res
+            }
+
+            fn primitive_root(self) -> Self {
+                if self == 2 {
+                    return 1;
+                }
+
+                assert!(self.is_prime());
+
+                let factor = (self - 1)
+                    .factorize()
+                    .map(|v| (self - 1) / v.0)
+                    .collect::<Vec<_>>();
+                let mont = Montgomery::<Self>::new(self);
+                (1..)
+                    .map(|g| mont.convert(g))
+                    .find_map(|g| {
+                        factor
+                            .iter()
+                            .all(|&f| mont.pow(g, f as u64) != mont.one())
+                            .then_some(mont.reduce(g) % self)
+                    })
+                    .unwrap()
+            }
         }
-        pow = (pow as i128 * pow as i128 % p as i128) as i64;
-        n >>= 1;
-    }
-    res
+
+        impl MathInt for $st {
+            fn gcd(self, other: Self) -> Self {
+                self.unsigned_abs()
+                    .gcd(other.unsigned_abs())
+                    .try_into()
+                    .expect(overflow_err!("MathInt::gcd"))
+            }
+
+            fn lcm(self, other: Self) -> Self {
+                self.unsigned_abs()
+                    .lcm(other.unsigned_abs())
+                    .try_into()
+                    .expect(overflow_err!("MathInt::lcm"))
+            }
+
+            fn extended_gcd(self, other: Self) -> ExtendedGcd<Self> {
+                let (mut s, mut sx, mut sy) = (self, 1, 0);
+                let (mut t, mut tx, mut ty) = (other, 0, 1);
+                while t != 0 {
+                    let d = s / t;
+                    let u = s - t * d;
+                    let (ux, uy) = (sx - tx * d, sy - ty * d);
+                    (s, sx, sy, t, tx, ty) = (t, tx, ty, u, ux, uy);
+                }
+
+                if s < 0 {
+                    const ERR: &str = overflow_err!("MathInt::extended_gcd");
+                    s = s.checked_neg().expect(ERR);
+                    sx = s.checked_neg().expect(ERR);
+                    sy = s.checked_neg().expect(ERR);
+                }
+
+                ExtendedGcd { gcd: s, coef: [sx, sy], neg: [true; 2] }
+            }
+
+            fn inverse_mod(self, modulus: Self) -> Option<Self> {
+                assert!(modulus > 0);
+                (self.rem_euclid(modulus) as $t)
+                    .inverse_mod(modulus as $t)
+                    .map(|inv| inv as Self)
+            }
+
+            fn pow_mod(self, exp: u64, modulus: Self) -> Self {
+                assert!(modulus > 0);
+                (self.rem_euclid(modulus) as $t).pow_mod(exp, modulus as $t) as Self
+            }
+
+            fn log_mod(self, base: Self, modulus: Self) -> Option<Self> {
+                assert!(modulus > 0);
+                (self.rem_euclid(modulus) as $t)
+                    .log_mod(base.rem_euclid(modulus) as $t, modulus as $t)
+                    .map(|log| log as Self)
+            }
+
+            fn sqrt_mod(self, modulus: Self) -> Option<Self> {
+                assert!(modulus > 0);
+                (self.rem_euclid(modulus) as $t)
+                    .sqrt_mod(modulus as $t)
+                    .map(|sq| sq as Self)
+            }
+
+            fn crt(self, modulus: Self, other: Self, other_modulus: Self) -> Option<(Self, Self)> {
+                assert!(modulus > 0 && other_modulus > 0);
+                (self.rem_euclid(modulus) as $t)
+                    .crt(
+                        modulus as $t,
+                        other.rem_euclid(other_modulus) as $t,
+                        other_modulus as $t,
+                    )
+                    .map(|(x, lcm)| {
+                        (
+                            x.try_into().expect(overflow_err!("MathInt::crt")),
+                            lcm.try_into().expect(overflow_err!("MathInt::crt")),
+                        )
+                    })
+            }
+
+            fn sqrti(self) -> Self {
+                assert!(self >= 0);
+                (self as $t).sqrti() as Self
+            }
+
+            fn is_prime(self) -> bool {
+                self > 1 && (self as $t).is_prime()
+            }
+
+            fn one_of_the_prime_factors(self) -> Option<Self> {
+                self.is_positive()
+                    .then(|| (self as $t).one_of_the_prime_factors().map(|f| f as Self))?
+            }
+
+            fn factorize(self) -> Factors<Self> {
+                Factors { current: self }
+            }
+
+            fn divisors(self) -> Vec<Self> {
+                if self <= 0 {
+                    return vec![];
+                }
+
+                (self as $t)
+                    .divisors()
+                    .into_iter()
+                    .map(|d| d as Self)
+                    .collect()
+            }
+
+            fn primitive_root(self) -> Self {
+                assert!(self >= 0);
+                (self as $t).primitive_root() as Self
+            }
+        }
+    };
 }
+
+impl_math_int_unsigned!(u8, i8, u16, 2, 7, 61);
+impl_math_int_unsigned!(u16, i16, u32, 2, 7, 61);
+impl_math_int_unsigned!(u32, i32, u64, 2, 7, 61);
+impl_math_int_unsigned!(u64, i64, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
+impl_math_int_unsigned!(usize, isize, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
 
 /// Return an integer x satisfying a^x = b (mod p)
 #[inline]
@@ -98,7 +788,8 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
         return Some(0);
     }
 
-    let (g, inv, _) = ext_gcd(a, p);
+    let ExtendedGcd { gcd, coef, neg: _ } = a.extended_gcd(p);
+    let (g, inv) = (gcd, coef[0].rem_euclid(p));
     // if gcd(a, p) != 1, g = gcd(a, p), a = g * a', p = g * p'
     //      ->                (ga')^x = b (mod gp')
     //      ->            (ga')^x - b = gp' * k
@@ -115,7 +806,7 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
             return None;
         }
         let (na, nb, np) = (a / g, b / g, p / g);
-        let (_, inv, _) = ext_gcd(na, np);
+        let inv = na.inverse_mod(np)?;
         let inv = inv.rem_euclid(np);
         if let Some(res) = mod_log(a, nb * inv, np) {
             return Some(res + 1);
@@ -135,7 +826,7 @@ pub fn mod_log_with_lower_bound_constraint(a: i64, b: i64, p: i64, lower: i64) -
         now = (now as i128 * a as i128 % p as i128) as i64;
     }
 
-    let inv = mod_pow(inv.rem_euclid(p), m, p);
+    let inv = inv.rem_euclid(p).pow_mod(m as u64, p);
     debug_assert_eq!((now as i128 * inv as i128).rem_euclid(p as i128), 1);
 
     let mut now = 1;
@@ -189,44 +880,6 @@ pub fn baby_step_giant_step(
     None
 }
 
-/// Return an integer x less than lcm(m1, m2) satisfying x = a (mod m1) and x = b (mod m2) and lcm(m1, m2).
-/// If no integers satisfy the condition, return None.
-//      m1 = gcd(m1, m2) * p,   m2 = gcd(m1, m2) * q
-//          -> x = a (mod gcd(m1, m2)) && x = b (mod gcd(m1, m2))
-//      m1 * k + m2 * l = gcd(m1, m2) = d
-//          -> now, * s (= (b - a) / d)
-//      s * m1 * k + s * m2 * l = b - a
-//          -> a + s * m1 * k = b - s * m2 * l = x
-//          -> x = a (mod m1) && x = b (mod m2)
-#[inline]
-pub fn chinese_remainder_theorem(
-    mut a: i64,
-    mut m1: i64,
-    mut b: i64,
-    mut m2: i64,
-) -> Option<(i64, i64)> {
-    if m1 < m2 {
-        std::mem::swap(&mut a, &mut b);
-        std::mem::swap(&mut m1, &mut m2);
-    }
-    let (a, b) = (a.rem_euclid(m1), b.rem_euclid(m2));
-    if m1 % m2 == 0 {
-        return if a % m2 != b { None } else { Some((a, m1)) };
-    }
-
-    let (d, k, _) = ext_gcd(m1, m2);
-    let u1 = m2 / d;
-
-    if a % d != b % d {
-        return None;
-    }
-
-    let x = (b - a) / d % u1 * k % u1;
-    let m = m1 * u1;
-    let res = (a + x * m1).rem_euclid(m);
-    Some((res, m))
-}
-
 /// Return a minimum integer x (mod modulo) satisfying x = a[i] (mod p[i]) for any i and p[1]*p[2]*p[3].... (mod modulo)
 ///
 /// Note: For any i, j (i != j), gcd(p[i], p[j]) MUST be 1.
@@ -250,7 +903,9 @@ pub fn garner(a: &[i64], p: &[i64], modulo: i64) -> (i64, i64) {
     let mut res = vec![0; p.len() + 1];
     for (i, (&a, &m)) in a.iter().zip(p.iter()).enumerate() {
         let a = a % m;
-        let (_, inv, _) = ext_gcd(prod[i], m);
+        let inv = prod[i]
+            .inverse_mod(m)
+            .expect("math::garner : inverse_mod is not found");
         let t = ((a - res[i]) * inv).rem_euclid(m);
         for (i, &p) in p.iter().enumerate().skip(i + 1) {
             res[i] = (res[i] + (t * prod[i])) % p;
@@ -270,7 +925,7 @@ pub fn garner_prechecked(a: &[i64], p: &[i64], modulo: i64) -> Option<(i64, i64)
     let mut p = p.to_vec();
     for i in 0..a.len() {
         for j in 0..i {
-            let mut g = gcd(p[i], p[j]);
+            let mut g = p[i].gcd(p[j]);
 
             if (a[i] - a[j]) % g != 0 {
                 return None;
@@ -279,14 +934,14 @@ pub fn garner_prechecked(a: &[i64], p: &[i64], modulo: i64) -> Option<(i64, i64)
             p[i] /= g;
             p[j] /= g;
 
-            let mut gi = gcd(p[i], g);
+            let mut gi = p[i].gcd(g);
             let mut gj = g / gi;
 
-            g = gcd(gi, gj);
+            g = gi.gcd(gj);
             gi *= g;
             gj /= g;
             while g != 1 {
-                g = gcd(gi, gj);
+                g = gi.gcd(gj);
                 gi *= g;
                 gj /= g;
             }
@@ -297,224 +952,6 @@ pub fn garner_prechecked(a: &[i64], p: &[i64], modulo: i64) -> Option<(i64, i64)
     }
 
     Some(garner(a, &p, modulo))
-}
-
-/// The given number is determined to be prime or not prime using the Miller-Rabin primality test.
-pub fn miller_rabin_test(p: u64) -> bool {
-    if p == 1 || p & 1 == 0 {
-        return p == 2;
-    }
-
-    let s = (p - 1).trailing_zeros();
-    let t = (p - 1) >> s;
-    let mont_zero = ArbitraryMontgomeryModint::raw(0, p);
-    let mont_one = mont_zero.one();
-    let mont_neg_one = mont_zero - mont_one;
-
-    [2, 325, 9375, 28178, 450775, 9780504, 1795265022]
-        .iter()
-        .map(|&a| a % p)
-        .filter(|&a| a != 0)
-        .all(|a| {
-            let a = ArbitraryMontgomeryModint::from_same_mod_unchecked(a, mont_zero);
-            let at = a.pow(t);
-            // a^t = 1 (mod p) or a^t = -1 (mod p)
-            if at == mont_one || at == mont_neg_one {
-                return true;
-            }
-
-            // found i satisfying a^((2^i)*t) = -1 (mod p)
-            (1..s)
-                .scan(at, |at, _| {
-                    *at *= *at;
-                    Some(*at)
-                })
-                .any(|at| at == mont_neg_one)
-        })
-}
-
-pub fn divisors_enumeration(n: u64) -> Vec<u64> {
-    let mut f = factorize(n);
-    f.sort();
-
-    let mut t = vec![];
-    for f in f {
-        match t.last_mut() {
-            Some((c, cnt)) if *c == f => *cnt += 1,
-            _ => t.push((f, 1)),
-        }
-    }
-
-    let mut res = vec![1];
-    for (c, cnt) in t {
-        let mut now = 1;
-        let len = res.len();
-        for _ in 0..cnt {
-            now *= c;
-            for i in 0..len {
-                let new = res[i] * now;
-                res.push(new);
-            }
-        }
-    }
-
-    res
-}
-
-/// Returns the result of prime factorization of integer `n`.
-pub fn factorize(mut n: u64) -> Vec<u64> {
-    if n == 1 {
-        return vec![];
-    }
-
-    let mut res = vec![2u64; n.trailing_zeros() as usize];
-    n >>= n.trailing_zeros();
-
-    for b in [3, 5, 7, 11, 13, 17, 19] {
-        while n % b == 0 {
-            res.push(b);
-            n /= b;
-        }
-    }
-
-    while let Some(g) = pollard_rho(n) {
-        while n % g == 0 {
-            res.push(g);
-            n /= g;
-        }
-    }
-
-    if n > 1 {
-        res.push(n);
-    }
-
-    res
-}
-
-/// Find non-trival prime factors of integer `n` by Pollard's rho algorithm.
-///
-/// If found, return this; If not found, return None.
-fn pollard_rho(n: u64) -> Option<u64> {
-    // 1 is trival prime factor. So return None.
-    if n <= 1 {
-        return None;
-    }
-
-    if n & 1 == 0 {
-        return Some(2);
-    }
-
-    // If n is prime number, n has no divisors of ifself.
-    // So return itself.
-    if miller_rabin_test(n) {
-        return Some(n);
-    }
-
-    let m = (n as f64).powf(0.125).round() as i64 + 1;
-    let mont_zero = ArbitraryMontgomeryModint::raw(0, n);
-    let mont_one = mont_zero.one();
-    let mut g = 1;
-
-    for c in (1..n).map(|c| ArbitraryMontgomeryModint::from_same_mod_unchecked(c, mont_zero)) {
-        let mut y = mont_zero;
-        let mut q = mont_one;
-
-        'base: for r in (0..).map(|i| 1 << i) {
-            let x = y;
-            (r..=(3 * r) >> 2).for_each(|_| y = y * y + c);
-            for k in (((3 * r) >> 2)..r).step_by(m as usize) {
-                let ys = y;
-                (0..m.min(r - k)).for_each(|_| {
-                    y = y * y + c;
-                    q *= x - y;
-                });
-                g = gcd(q.val() as i64, n as i64);
-                if g != 1 {
-                    if g == n as i64 {
-                        y = ys * ys + c;
-                        while gcd((x - y).val() as i64, n as i64) == 1 {
-                            y = y * y + c;
-                        }
-                        g = gcd((x - y).val() as i64, n as i64);
-                    }
-                    break 'base;
-                }
-            }
-        }
-
-        if g != n as i64 {
-            break;
-        }
-    }
-
-    pollard_rho(g as u64)
-}
-
-/// Same processing as ```tonelli_shanks()```, but without the prime number determination of `p`.
-///
-/// It works correctly only when `p` is a prime number, but it is the user's responsibility to manage whether `p` is a prime number or not.
-pub fn tonelli_shanks_unchecked(n: u64, p: u64) -> Option<u64> {
-    // ArbitraryMontgomeryModint expects only odd number for p. So, the case that p is equal to 2 must be processed the top of this procedure.
-    if p == 2 {
-        let res = n & 1;
-        assert_eq!(res * res % p, n);
-        return Some(res);
-    }
-    type Modint = ArbitraryMontgomeryModint;
-    let mn = Modint::new(n, p);
-    if mn.rawval() == 0 {
-        assert_eq!(0 % p, n);
-        return Some(0);
-    }
-
-    let one = mn.one();
-    if mn.pow((p - 1) >> 1).rawval() != one.rawval() {
-        return None;
-    }
-
-    if p & 0b11 == 3 {
-        let s = mn.pow((p + 1) >> 2).val();
-        let t = p - s;
-        return Some(s.min(t));
-    }
-
-    for b in xor_shift(381928476372819).map(|v| v % (p - 2) + 2) {
-        let b = Modint::from_same_mod(b, mn);
-        if b.pow((p - 1) >> 1).rawval() != one.rawval() {
-            let q = (p - 1).trailing_zeros() as u64;
-            let s = (p - 1) >> q;
-
-            let mut x = mn.pow((s + 1) >> 1);
-            let mut x2 = x * x;
-            let mut b = b.pow(s);
-            let mninv = mn.inv();
-
-            let mut shift = 2;
-            while x2 != mn {
-                let diff = mninv * x2;
-                if diff.pow(1 << (q - shift)).rawval() != one.rawval() {
-                    x *= b;
-                    b *= b;
-                    x2 *= b;
-                } else {
-                    b *= b;
-                }
-                shift += 1;
-            }
-            return Some(x.val());
-        }
-    }
-
-    unreachable!()
-}
-
-/// Return a square root of `n` on mod `p`.
-/// If return value is not found, return `None`.
-///
-/// `p` must be a prime number.
-pub fn tonelli_shanks(n: u64, p: u64) -> Option<u64> {
-    assert!(miller_rabin_test(p));
-    tonelli_shanks_unchecked(n, p)
 }
 
 /// Return xor bases for list `a`.
@@ -585,57 +1022,78 @@ impl std::ops::Index<usize> for Sieve {
     }
 }
 
-pub fn primitive_root(p: u64) -> u64 {
-    if p == 2 {
-        return 1;
-    }
-
-    assert!(miller_rabin_test(p));
-
-    let mut factor = factorize(p - 1);
-    factor.sort_unstable();
-    factor.dedup();
-
-    for g in 1.. {
-        let mg = ArbitraryMontgomeryModint::new(g, p);
-        if factor.iter().all(|&f| mg.pow((p - 1) / f) != mg.one()) {
-            return g % p;
-        }
-    }
-
-    unreachable!()
-}
-
 #[cfg(test)]
 mod tests {
+    use rand::{thread_rng, Rng};
+
     use super::*;
 
     #[test]
-    fn numeric_test() {
-        assert_eq!(gcd(12, 8), 4);
-        assert_eq!(gcd(12, 0), 12);
-        assert_eq!(gcd(8, 12), 4);
-        assert_eq!(gcd(0, 12), 12);
+    fn gcd_lcm_test() {
+        assert_eq!(12u32.gcd(8), 4);
+        assert_eq!(12u32.gcd(0), 12);
+        assert_eq!(8u32.gcd(12), 4);
+        assert_eq!(0u32.gcd(12), 12);
 
-        assert_eq!(lcm(12, 8), 24);
-        assert_eq!(lcm(12, 0), 0);
-        assert_eq!(lcm(8, 12), 24);
-        assert_eq!(lcm(0, 12), 0);
+        assert_eq!(12u32.lcm(8), 24);
+        assert_eq!(12u32.lcm(0), 0);
+        assert_eq!(8u32.lcm(12), 24);
+        assert_eq!(0u32.lcm(12), 0);
 
         assert_eq!(
-            lcm(1_000_000_000_000_000_000i64, 2_000_000_000_000_000_000i64),
-            2_000_000_000_000_000_000i64
+            1_000_000_000_000_000_000u64.lcm(2_000_000_000_000_000_000),
+            2_000_000_000_000_000_000
         );
+    }
 
-        let (g, x, y) = ext_gcd(111, 30);
+    #[test]
+    fn ext_gcd_random_test() {
+        let mut rng = thread_rng();
+        for _ in 0..1000 {
+            let a = rng.gen::<u32>();
+            let b = rng.gen();
 
-        assert_eq!(g, 3);
-        assert_eq!(x, 3);
-        assert_eq!(y, -11);
+            let ExtendedGcd { gcd, coef, neg } = a.extended_gcd(b);
+            let (mut ax, mut by) = (coef[0] as u64 * a as u64, coef[1] as u64 * b as u64);
+            ax = if neg[0] { ax.wrapping_neg() } else { ax };
+            by = if neg[1] { by.wrapping_neg() } else { by };
+            assert_eq!(ax.wrapping_add(by), gcd as u64);
+        }
+    }
 
-        let (x, l) = chinese_remainder_theorem(2, 3, 3, 5).unwrap();
-        assert_eq!(x, 8);
-        assert_eq!(l, 15);
+    #[test]
+    fn crt_random_test() {
+        let mut rng = thread_rng();
+        for _ in 0..1000 {
+            let m0 = rng.gen_range(1u32..=u32::MAX) as u64;
+            let a = rng.gen_range(0..m0);
+            let m1 = rng.gen_range(1u32..=u32::MAX) as u64;
+            let b = rng.gen_range(0..m1);
+
+            if let Some((res, lcm)) = a.crt(m0, b, m1) {
+                assert_eq!(res % m0, a);
+                assert_eq!(res % m1, b);
+                assert_eq!(lcm, m0.lcm(m1));
+                assert!(res < m0.lcm(m1));
+            }
+        }
+
+        // small case
+        for _ in 0..1000 {
+            let m0 = rng.gen_range(1u8..=u8::MAX) as u16;
+            let a = rng.gen_range(0..m0);
+            let m1 = rng.gen_range(1u8..=u8::MAX) as u16;
+            let b = rng.gen_range(0..m1);
+
+            if let Some((res, lcm)) = a.crt(m0, b, m1) {
+                assert_eq!(res % m0, a);
+                assert_eq!(res % m1, b);
+                assert_eq!(lcm, m0.lcm(m1));
+                assert!(res < m0.lcm(m1));
+            } else {
+                assert!((0..m0.lcm(m1)).all(|i| i % m0 != a || i % m1 != b));
+            }
+        }
     }
 
     #[test]
@@ -648,42 +1106,45 @@ mod tests {
                 for j in (2..MAX).take_while(|j| i * *j < MAX) {
                     p[(i * j) as usize] = i;
                 }
-                assert!(miller_rabin_test(i));
+                assert!(i.is_prime());
             } else {
-                assert!(!miller_rabin_test(i));
+                assert!(!i.is_prime());
             }
         }
     }
 
     #[test]
     fn factorize_test() {
-        let mut f = factorize(115940);
+        let mut f = 115940u64
+            .factorize()
+            .flat_map(|(f, c)| (0..c).map(move |_| f))
+            .collect::<Vec<_>>();
         f.sort();
 
         assert_eq!(f, vec![2, 2, 5, 11, 17, 31]);
 
-        let f = factorize(998244353);
-        assert_eq!(f, vec![998244353]);
+        let f = 998244353u64.factorize().collect::<Vec<_>>();
+        assert_eq!(f, vec![(998244353, 1)]);
 
-        let mut f = factorize(999381247093216751);
+        let mut f = 999381247093216751u64.factorize().collect::<Vec<_>>();
         f.sort();
-        assert_eq!(f, vec![999665081, 999716071]);
+        assert_eq!(f, vec![(999665081, 1), (999716071, 1)]);
     }
 
     #[test]
     fn divisors_enumeration_test() {
-        let mut f = divisors_enumeration(12);
+        let mut f = 12u32.divisors();
         f.sort();
 
         assert_eq!(f, vec![1, 2, 3, 4, 6, 12]);
 
-        let mut f = divisors_enumeration(999381247093216751);
+        let mut f = 999381247093216751u64.divisors();
         f.sort();
         assert_eq!(f, vec![1, 999665081, 999716071, 999381247093216751]);
     }
 
     #[test]
     fn primitive_root_test() {
-        assert_eq!(primitive_root(998244353), 3);
+        assert_eq!(998244353u32.primitive_root(), 3);
     }
 }

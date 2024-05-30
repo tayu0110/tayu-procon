@@ -1,21 +1,17 @@
 // https://judge.yosupo.jp/problem/discrete_logarithm_mod
-use iolib::scan;
-use math::mod_log_with_lower_bound_constraint;
+use cpio::*;
+use math::MathInt;
 
 fn main() {
-    use std::io::Write;
-    let out = std::io::stdout();
-    let mut out = std::io::BufWriter::new(out.lock());
-
     scan!(t: usize);
 
     for _ in 0..t {
-        scan!(x: i64, y: i64, m: i64);
+        scan!(x: u32, y: u32, m: u32);
 
-        if let Some(res) = mod_log_with_lower_bound_constraint(x, y, m, 0) {
-            writeln!(out, "{}", res).unwrap();
+        if let Some(res) = y.log_mod(x, m) {
+            putln!(res);
         } else {
-            writeln!(out, "-1").unwrap();
+            putln!(-1);
         }
     }
 }

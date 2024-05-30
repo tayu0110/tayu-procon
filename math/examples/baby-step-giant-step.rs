@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/abc270/tasks/abc270_g
-use iolib::scan;
-use math::{baby_step_giant_step, ext_gcd};
+use cpio::*;
+use math::{baby_step_giant_step, MathInt};
 
 fn main() {
     scan!(t: usize);
@@ -10,11 +10,11 @@ fn main() {
 
         if a == 0 {
             if g == s {
-                println!("0")
+                putln!("0");
             } else if g == b {
-                println!("1")
+                putln!("1");
             } else {
-                println!("-1")
+                putln!("-1");
             }
             continue;
         }
@@ -38,21 +38,23 @@ fn main() {
         let mut inv = vec![];
         let mut now = 1;
         for _ in 0..=m {
-            let (_, i, _) = ext_gcd(now, p);
-            inv.push(i.rem_euclid(p));
+            let i = now.inverse_mod(p).expect("inverse_mod is not found");
+            inv.push(i);
             now = now * a % p;
         }
 
         let f = |x: i64, exp: i64| -> i64 { (ap[exp as usize] * x + ab[exp as usize]) % p };
-        let f_inv = |x: i64, exp: i64| -> i64 { ((x - ab[exp as usize]).rem_euclid(p) * inv[exp as usize]).rem_euclid(p) };
+        let f_inv = |x: i64, exp: i64| -> i64 {
+            ((x - ab[exp as usize]).rem_euclid(p) * inv[exp as usize]).rem_euclid(p)
+        };
 
         assert_eq!(f(s, 0), s);
         assert_eq!(f_inv(s, 0), s);
 
         if let Some(res) = baby_step_giant_step(s, g, p, f, f_inv) {
-            println!("{}", res);
+            putln!(res);
         } else {
-            println!("-1");
+            putln!("-1");
         }
     }
 }

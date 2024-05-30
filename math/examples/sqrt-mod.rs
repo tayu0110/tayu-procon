@@ -1,14 +1,14 @@
 // https://judge.yosupo.jp/problem/sqrt_mod
-use iolib::{putln, scan};
-use math::tonelli_shanks_unchecked;
+use cpio::*;
+use math::MathInt;
 
 fn main() {
     scan!(t: usize);
 
     for _ in 0..t {
-        scan!(y: u64, p: u64);
+        scan!(y: u32, p: u32);
 
-        if let Some(res) = tonelli_shanks_unchecked(y, p) {
+        if let Some(res) = y.sqrt_mod(p) {
             putln!(res);
         } else {
             putln!(-1);

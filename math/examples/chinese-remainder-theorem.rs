@@ -1,17 +1,17 @@
 // https://yukicoder.me/problems/447
-use iolib::scan;
-use math::chinese_remainder_theorem;
+use cpio::*;
+use math::MathInt;
 
 fn main() {
-    scan!(x1: i64, y1: i64, x2: i64, y2: i64, x3: i64, y3: i64);
+    scan!(x1: u64, y1: u64, x2: u64, y2: u64, x3: u64, y3: u64);
 
-    if let Some((x4, y4)) = chinese_remainder_theorem(x1, y1, x2, y2) {
-        match chinese_remainder_theorem(x3, y3, x4, y4) {
-            Some((0, lcm)) => println!("{}", lcm),
-            Some((res, _)) => println!("{}", res),
-            None => println!("-1"),
+    if let Some(Some((res, lcm))) = x1.crt(y1, x2, y2).map(|(c, lcm)| c.crt(lcm, x3, y3)) {
+        if res == 0 {
+            putln!(lcm);
+        } else {
+            putln!(res);
         }
     } else {
-        println!("-1");
+        putln!(-1);
     }
 }
