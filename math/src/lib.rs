@@ -2,7 +2,7 @@
 mod const_methods;
 mod montgomery;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Index};
 
 #[cfg(feature = "const_methods")]
 pub use const_methods::*;
@@ -274,6 +274,10 @@ pub trait MathInt: Sized + Copy {
     /// assert_eq!(19u32.primitive_root(), 2);
     /// ```
     fn primitive_root(self) -> Self;
+    /// Return the number of primes less than or qeual to `self`.
+    ///
+    /// If `self < 2` is satisfied, always return `0`.
+    fn count_primes(self) -> usize;
 }
 
 macro_rules! overflow_err {
@@ -640,6 +644,70 @@ macro_rules! impl_math_int_unsigned {
                     })
                     .unwrap()
             }
+
+            // reference : https://judge.yosupo.jp/submission/61553
+            fn count_primes(self) -> usize {
+                if self <= 2 {
+                    return (self as usize).saturating_sub(1);
+                }
+                let v = self.sqrti() as usize;
+                let mut s = (v + 1) / 2;
+                let mut smalls = (0..s).collect::<Vec<_>>();
+                let mut roughs = (0..s).map(|s| 2 * s + 1).collect::<Vec<_>>();
+                let mut larges = (0..s).map(|s| (self as usize / (2 * s + 1) - 1) / 2).collect::<Vec<_>>();
+                let mut skip = vec![false; v + 1];
+                let mut pc = 0;
+                for p in (3..=v).step_by(2) {
+                    if !skip[p] {
+                        let q = p * p;
+                        if q * q > self as usize {
+                            break;
+                        }
+                        skip[p] = true;
+                        (q..=v).step_by(2 * p).for_each(|i| skip[i] = true);
+                        let mut ns = 0;
+                        for k in 0..s {
+                            let i = roughs[k];
+                            if skip[i] {
+                                continue;
+                            }
+                            let d = i * p;
+                            larges[ns] = larges[k] + pc - if d <= v { larges[smalls[d >> 1] - pc] } else { smalls[(self as usize / d - 1) >> 1] };
+                            roughs[ns] = i;
+                            ns += 1;
+                        }
+                        s = ns;
+                        let mut i = (v - 1) >> 1;
+                        let mut j = ((v / p) - 1) | 1;
+                        while j >= p {
+                            let c = smalls[j >> 1] - pc;
+                            let e = (j * p) >> 1;
+                            while i >= e {
+                                smalls[i] -= c;
+                                i -= 1;
+                            }
+                            j -= 2;
+                        }
+                        pc += 1;
+                    }
+                }
+                larges[0] += pc.wrapping_sub(1).wrapping_mul(2).wrapping_add(s) * (s - 1) / 2;
+                (1..s).for_each(|k| larges[0] -= larges[k]);
+                for l in 1..s {
+                    let q = roughs[l];
+                    let m = self as usize / q;
+                    let e = smalls[(m / q - 1) >> 1] - pc;
+                    if e < l + 1 {
+                        break;
+                    }
+                    let mut t = 0;
+                    for k in l + 1..=e {
+                        t += smalls[(m / roughs[k] - 1) >> 1];
+                    }
+                    larges[0] += t - (e - l) * (pc + l - 1);
+                }
+                larges[0] + 1
+            }
         }
 
         impl MathInt for $st {
@@ -752,6 +820,13 @@ macro_rules! impl_math_int_unsigned {
             fn primitive_root(self) -> Self {
                 assert!(self >= 0);
                 (self as $t).primitive_root() as Self
+            }
+
+            fn count_primes(self) -> usize {
+                if self < 2 {
+                    return 0;
+                }
+                (self as $t).count_primes()
             }
         }
     };
@@ -1004,12 +1079,52 @@ impl<const MAX: usize> Sieve<MAX> {
     pub const fn count(&self) -> usize {
         self.count
     }
+
+    pub fn primes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.primes.iter().copied().take(self.count)
+    }
 }
 
-impl std::ops::Index<usize> for Sieve {
+impl Index<usize> for Sieve {
     type Output = usize;
     fn index(&self, index: usize) -> &Self::Output {
         &self.primes[index]
+    }
+}
+
+/// Memory-saving and compact sieve.
+///
+/// It does not have information about prime factors, only whether a given natural number is prime or not.
+pub struct CompactSieve {
+    block: Vec<u8>,
+}
+
+impl CompactSieve {
+    /// Construct a sieve in the range `0..size`.
+    pub fn new(size: usize) -> Self {
+        let len = (size + 7) >> 3;
+        let mut block = vec![0b10101010; len];
+        block[0] = 0b10101100;
+        for i in (3..size).step_by(2) {
+            if (block[i >> 3] >> (i & 7)) & 1 != 0 {
+                for j in (3..)
+                    .step_by(2)
+                    .map(|j| j * i)
+                    .take_while(|&k| k < len << 3)
+                {
+                    block[j >> 3] &= !(1 << (j & 7));
+                }
+            }
+        }
+
+        Self { block }
+    }
+
+    /// Enumerate prime numbers in the range of `0..size`.
+    pub fn primes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.block.iter().enumerate().flat_map(|(i, &b)| {
+            (0..8).filter_map(move |j| ((b >> j) & 1 != 0).then_some(j | (i << 3)))
+        })
     }
 }
 
