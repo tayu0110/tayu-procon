@@ -3,7 +3,7 @@ mod const_methods;
 mod montgomery;
 mod sieve;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::from_fn, ops::RangeInclusive};
 
 #[cfg(feature = "const_methods")]
 pub use const_methods::*;
@@ -1040,6 +1040,37 @@ pub fn xor_base(a: &[u64]) -> Vec<u64> {
     res
 }
 
+/// Returns all of the quotients of `n` and the range of divisors for which the result of the truncation division is that quotient.  
+///
+/// The quotient returned is guaranteed to be in ascending order.
+///
+/// # Examples
+/// ```rust
+/// use math::enumerate_quotients;
+///
+/// let mut iter = enumerate_quotients(10);
+/// let mut len = 0;
+/// while let Some((quotient, range)) = iter.next() {
+///     assert_eq!(10 / range.start(), quotient);
+///     assert_eq!(10 / range.end(), quotient);
+///     len += range.end() + 1 - range.start();
+/// }
+///
+/// assert_eq!(len, 10);
+/// ```
+pub fn enumerate_quotients(n: u64) -> impl Iterator<Item = (u64, RangeInclusive<u64>)> {
+    let mut to = n;
+    from_fn(move || {
+        (to > 0).then(|| {
+            let quotient = n / to;
+            let next = n / (quotient + 1);
+            let res = (quotient, next + 1..=to);
+            to = next;
+            res
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use rand::{thread_rng, Rng};
@@ -1164,5 +1195,21 @@ mod tests {
     #[test]
     fn primitive_root_test() {
         assert_eq!(998244353u32.primitive_root(), 3);
+    }
+
+    #[test]
+    fn enumerate_quotients_random_test() {
+        let mut rng = thread_rng();
+        for _ in 0..1000 {
+            let n = rng.gen_range(1..1000000);
+            let mut prev = n + 1;
+            for (res, range) in enumerate_quotients(n) {
+                assert_eq!(n / range.start(), res);
+                assert_eq!(n / range.end(), res);
+                assert_eq!(prev, range.end() + 1);
+                prev = *range.start();
+            }
+            assert_eq!(prev, 1);
+        }
     }
 }
