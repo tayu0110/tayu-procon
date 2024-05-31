@@ -1,226 +1,176 @@
-use math::gcd;
-use numeric::{Error, IntoFloat, Numeric, One, Zero};
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::{
+    hash::Hash,
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, RemAssign, Sub, SubAssign},
+};
 
-//////////////////////////////////////////////////////////////////////////////////
-// Implement Rational Number
-//////////////////////////////////////////////////////////////////////////////////
-/// Represent rational numbers.
-/// The denominator is always retained as a positive number.
-// numerator / denominator
-#[derive(Clone, Copy, Eq, Ord, Hash, Default)]
-pub struct Rational {
-    pub numerator: i64,
-    pub denominator: i64,
+use zero_one::{One, Zero};
+
+fn reduce_generic<T>(mut num: T, mut den: T) -> (T, T)
+where
+    T: Clone + Copy + PartialEq + MulAssign + DivAssign + RemAssign + Zero + One,
+{
+    if den == T::zero() {
+        return (T::one(), T::zero());
+    }
+    if num == T::one() {
+        return (T::zero(), T::one());
+    }
+    let (mut s, mut t) = (num, den);
+    while t != T::zero() {
+        s %= t;
+        (s, t) = (t, s);
+    }
+    num /= s;
+    den /= t;
+    (num, den)
 }
 
-impl Rational {
-    pub fn new(num: i64, den: i64) -> Self {
-        if den == 0 {
-            return Self { numerator: 1, denominator: 0 };
-        } else if num == 0 {
-            return Self { numerator: 0, denominator: 1 };
+#[derive(Debug, Clone, Copy)]
+pub struct Rational<T> {
+    num: T,
+    den: T,
+}
+
+macro_rules! impl_assign {
+    ( $t:ty, $trait:ident, $f:ident, $op:tt ) => {
+        impl $trait for Rational<$t> {
+            fn $f(&mut self, rhs: Self) {
+                *self = *self $op rhs;
+            }
         }
-        let g = gcd(num.abs(), den.abs());
-        let num = if num / num.abs() == den / den.abs() { num.abs() } else { -num.abs() };
-        Self { numerator: num / g, denominator: den.abs() / g }
-    }
+    };
+}
 
-    pub fn is_nan(&self) -> bool { self.denominator == 0 }
+macro_rules! impl_rational {
+    ( $t:ty, $expand:ty ) => {
+        impl Rational<$t> {
+            fn reduce(num: $t, den: $t) -> ($t, $t) {
+                match reduce_generic(num, den) {
+                    r @ (1, 0) | r @ (0, 1) => r,
+                    (num, den) => (num * den.signum(), den.abs()),
+                }
+            }
 
-    pub fn abs(self) -> Self {
-        Self {
-            numerator: self.numerator.abs(),
-            denominator: self.denominator,
+            fn reduce_expanded(num: $expand, den: $expand) -> Result<($t, $t), <$t as TryFrom<$expand>>::Error> {
+                if let (Ok(num), Ok(den)) = (<$t>::try_from(num), <$t>::try_from(den)) {
+                    return Ok(Self::reduce(num, den));
+                }
+                match reduce_generic(num, den) {
+                    (1, 0) => Ok((1, 0)),
+                    (0, 1) => Ok((0, 1)),
+                    (num, den) => {
+                        let (num, den) = (num * den.signum(), den.abs());
+                        match (num.try_into(), den.try_into()) {
+                            (Ok(num), Ok(den)) => Ok((num, den)),
+                            (Err(e), _) | (_, Err(e)) => Err(e),
+                        }
+                    }
+                }
+            }
+
+            fn new_reduced(num: $t, den: $t) -> Self {
+                Self { num, den }
+            }
+
+            pub fn new(num: $t, den: $t) -> Self {
+                let (num, den) = Self::reduce(num, den);
+                Self { num, den }
+            }
+
+            pub fn is_nan(&self) -> bool {
+                self.den == 0
+            }
+
+            pub fn abs(&self) -> Self {
+                Self { num: self.num.abs(), den: self.den }
+            }
         }
-    }
-}
 
-impl Neg for Rational {
-    type Output = Rational;
-    fn neg(self) -> Self::Output {
-        assert!(!self.is_nan());
-
-        Self::new(-self.numerator, self.denominator)
-    }
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Define operations on rational numbers
-//////////////////////////////////////////////////////////////////////////////////
-impl Add for Rational {
-    type Output = Rational;
-    fn add(self, rhs: Self) -> Self::Output {
-        assert!(!self.is_nan());
-
-        Self::new(self.numerator * rhs.denominator + rhs.numerator * self.denominator, self.denominator * rhs.denominator)
-    }
-}
-
-impl Sub for Rational {
-    type Output = Rational;
-    fn sub(self, rhs: Self) -> Self::Output {
-        assert!(!self.is_nan());
-
-        self + (-rhs)
-    }
-}
-
-impl Mul for Rational {
-    type Output = Rational;
-    fn mul(self, rhs: Self) -> Self::Output {
-        assert!(!self.is_nan());
-
-        Self::new(self.numerator * rhs.numerator, self.denominator * rhs.denominator)
-    }
-}
-
-impl Div for Rational {
-    type Output = Rational;
-    fn div(self, rhs: Self) -> Self::Output {
-        assert!(!self.is_nan());
-
-        self * Self { numerator: rhs.denominator, denominator: rhs.numerator }
-    }
-}
-
-impl AddAssign for Rational {
-    fn add_assign(&mut self, rhs: Self) {
-        assert!(!self.is_nan());
-
-        *self = self.clone() + rhs;
-    }
-}
-
-impl SubAssign for Rational {
-    fn sub_assign(&mut self, rhs: Self) {
-        assert!(!self.is_nan());
-
-        *self = self.clone() - rhs;
-    }
-}
-
-impl MulAssign for Rational {
-    fn mul_assign(&mut self, rhs: Self) {
-        assert!(!self.is_nan());
-
-        *self = self.clone() * rhs;
-    }
-}
-
-impl DivAssign for Rational {
-    fn div_assign(&mut self, rhs: Self) {
-        assert!(!self.is_nan());
-
-        *self = self.clone() / rhs;
-    }
-}
-
-impl PartialOrd for Rational {
-    fn ge(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) >= self.denominator as i128 * other.numerator as i128 }
-    fn gt(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) > self.denominator as i128 * other.numerator as i128 }
-    fn le(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) <= self.denominator as i128 * other.numerator as i128 }
-    fn lt(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator as i128 * (other.denominator as i128) < self.denominator as i128 * other.numerator as i128 }
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.is_nan() || other.is_nan() {
-            None
-        } else {
-            (self.numerator as i128 * other.denominator as i128).partial_cmp(&(self.denominator as i128 * other.numerator as i128))
+        impl Add for Rational<$t> {
+            type Output = Self;
+            fn add(self, rhs: Self) -> Self::Output {
+                let den = self.den as $expand * rhs.den as $expand;
+                let num = self.den as $expand * rhs.num as $expand + rhs.den as $expand * self.num as $expand;
+                let (num, den) = Self::reduce_expanded(num, den).unwrap();
+                Self::new_reduced(num, den)
+            }
         }
-    }
-}
 
-impl PartialEq for Rational {
-    fn eq(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && self.numerator == other.numerator && self.denominator == other.denominator }
-    fn ne(&self, other: &Self) -> bool { !self.is_nan() && !other.is_nan() && !self.eq(other) }
-}
-
-impl std::fmt::Display for Rational {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "({} / {})", self.numerator, self.denominator) }
-}
-
-impl std::fmt::Debug for Rational {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "({} / {})", self.numerator, self.denominator) }
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Define operations between rational numbers and floating point numbers.
-//////////////////////////////////////////////////////////////////////////////////
-impl Add<f64> for Rational {
-    type Output = f64;
-    fn add(self, rhs: f64) -> Self::Output {
-        let lhs: f64 = self.try_into().unwrap();
-        lhs + rhs
-    }
-}
-
-impl Sub<f64> for Rational {
-    type Output = f64;
-    fn sub(self, rhs: f64) -> Self::Output {
-        let lhs: f64 = self.try_into().unwrap();
-        lhs - rhs
-    }
-}
-
-impl Mul<f64> for Rational {
-    type Output = f64;
-    fn mul(self, rhs: f64) -> Self::Output {
-        let lhs: f64 = self.try_into().unwrap();
-        lhs * rhs
-    }
-}
-
-impl Div<f64> for Rational {
-    type Output = f64;
-    fn div(self, rhs: f64) -> Self::Output {
-        let lhs: f64 = self.try_into().unwrap();
-        lhs / rhs
-    }
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Implement Numeric and IntoFloat for Rational
-//////////////////////////////////////////////////////////////////////////////////
-impl One for Rational {
-    fn one() -> Self { Self { numerator: 1, denominator: 1 } }
-}
-
-impl Zero for Rational {
-    fn zero() -> Self { Self { numerator: 0, denominator: 1 } }
-}
-
-impl Numeric for Rational {
-    fn max_value() -> Self { Self { numerator: i64::max_value(), denominator: 1 } }
-    fn min_value() -> Self { Self { numerator: i64::min_value(), denominator: 1 } }
-}
-
-impl IntoFloat for Rational {
-    fn as_f64(self) -> f64 { self.try_into().unwrap() }
-    fn as_f32(self) -> f32 { self.try_into().unwrap() }
-}
-
-impl<T: Into<i64>> From<T> for Rational {
-    fn from(from: T) -> Self { Self { numerator: from.into(), denominator: 1 } }
-}
-
-impl TryInto<f64> for Rational {
-    type Error = Error;
-    fn try_into(self) -> Result<f64, Self::Error> {
-        if self.is_nan() {
-            Err(Error("Failed to convert into f64 because this is NaN."))
-        } else {
-            Ok(self.numerator as f64 / self.denominator as f64)
+        impl Sub for Rational<$t> {
+            type Output = Self;
+            fn sub(self, rhs: Self) -> Self::Output {
+                self + (-rhs)
+            }
         }
+
+        impl Mul for Rational<$t> {
+            type Output = Self;
+            fn mul(self, rhs: Self) -> Self::Output {
+                let num = self.num as $expand * rhs.num as $expand;
+                let den = self.den as $expand * rhs.den as $expand;
+                let (num, den) = Self::reduce_expanded(num, den).unwrap();
+                Self::new_reduced(num, den)
+            }
+        }
+
+        impl Div for Rational<$t> {
+            type Output = Self;
+            fn div(self, rhs: Self) -> Self::Output {
+                self.mul(Self { num: rhs.den, den: rhs.num })
+            }
+        }
+
+        impl_assign!($t, AddAssign, add_assign, +);
+        impl_assign!($t, SubAssign, sub_assign, -);
+        impl_assign!($t, MulAssign, mul_assign, *);
+        impl_assign!($t, DivAssign, div_assign, /);
+
+        impl Neg for Rational<$t> {
+            type Output = Self;
+            fn neg(self) -> Self::Output {
+                Self { num: -self.num, den: self.den }
+            }
+        }
+
+        impl PartialEq for Rational<$t> {
+            fn eq(&self, other: &Self) -> bool {
+                !self.is_nan() && !other.is_nan() && self.num == other.num && self.den == other.den
+            }
+        }
+
+        impl PartialOrd for Rational<$t> {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                (!self.is_nan() && !other.is_nan()).then(|| {
+                    let l = self.num as $expand * other.den as $expand;
+                    let r = other.num as $expand * self.den as $expand;
+                    l.cmp(&r)
+                })
+            }
+        }
+    };
+}
+
+impl_rational!(i8, i16);
+impl_rational!(i16, i32);
+impl_rational!(i32, i64);
+impl_rational!(i64, i128);
+impl_rational!(i128, i128);
+
+impl<T: Hash> Hash for Rational<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.num.hash(state);
+        self.den.hash(state);
     }
 }
 
-impl TryInto<f32> for Rational {
-    type Error = Error;
-    fn try_into(self) -> Result<f32, Self::Error> {
-        if self.is_nan() {
-            Err(Error("Failed to convert into f32 because this is NaN."))
-        } else {
-            Ok(self.numerator as f32 / self.denominator as f32)
-        }
+impl<T: Zero + One> Zero for Rational<T> {
+    fn zero() -> Self {
+        Self { num: T::zero(), den: T::one() }
+    }
+}
+
+impl<T: One> One for Rational<T> {
+    fn one() -> Self {
+        Self { num: T::one(), den: T::one() }
     }
 }
