@@ -1100,31 +1100,38 @@ pub struct CompactSieve {
     block: Vec<u64>,
 }
 
+macro_rules! make_mask {
+    ( $( $m:literal ),* ) => {
+        0 $( | (1 << $m) )*
+    };
+}
+
 impl CompactSieve {
     const B: usize = u64::BITS as usize;
     const B2: usize = Self::B * 2;
     const T: usize = Self::B.trailing_zeros() as usize;
     const T2: usize = Self::T + 1;
 
-    /// Construct a sieve in the range `0..size`.
-    pub fn new(size: usize) -> Self {
+    pub fn eratosthenes(size: usize) -> Self {
         let len = (size + Self::B2 - 1) >> Self::T2;
         let mut block = vec![u64::MAX; len];
+        let get = |now: usize| (now >> Self::T2, (now >> 1) & (Self::B - 1));
         let mut i = 3;
         while i < size {
-            if block[i >> Self::T2] == 0 {
+            let (b, p) = get(i);
+            if block[b] == 0 {
                 i += Self::B2;
                 continue;
             }
 
-            if (block[i >> Self::T2] >> ((i >> 1) & (Self::B - 1))) & 1 != 0 {
-                for j in (3..)
+            if (block[b] >> p) & 1 != 0 {
+                for (b, p) in (3..)
                     .step_by(2)
                     .map(|j| i * j)
                     .take_while(|&j| j < len << Self::T2)
-                    .map(|j| j >> 1)
+                    .map(get)
                 {
-                    block[j >> Self::T] &= !(1 << (j & (Self::B - 1)));
+                    block[b] &= !(1 << p);
                 }
             }
 
@@ -1132,6 +1139,85 @@ impl CompactSieve {
         }
 
         Self { size, block }
+    }
+
+    pub fn atkin(size: usize) -> Self {
+        let len = (size + Self::B2 - 1) >> Self::T2;
+        let mut block = vec![0; len];
+        let get = |now: usize| (now >> Self::T2, (now >> 1) & (Self::B - 1));
+        let sq = size.sqrti();
+        for x in (1..sq + 1).map(|x| 4 * x * x).take_while(|&x| x < size) {
+            for n in (1..sq + 1)
+                .step_by(2)
+                .map(|y| x + y * y)
+                .take_while(|&n| n < size)
+            {
+                const MASK: usize = make_mask!(1, 13, 17, 29, 37, 41, 49, 53);
+                if MASK & (1 << (n % 60)) != 0 {
+                    let (b, p) = get(n);
+                    block[b] ^= 1 << p;
+                }
+            }
+        }
+        for x in (1..sq + 1)
+            .step_by(2)
+            .map(|x| 3 * x * x)
+            .take_while(|&x| x < size)
+        {
+            for n in (2..sq + 1)
+                .step_by(2)
+                .map(|y| x + y * y)
+                .take_while(|&n| n < size)
+            {
+                const MASK: usize = make_mask!(7, 19, 31, 43);
+                if MASK & (1 << (n % 60)) != 0 {
+                    let (b, p) = get(n);
+                    block[b] ^= 1 << p;
+                }
+            }
+        }
+        for x in (2..).take_while(|&x| 2 * x * (x + 1) - 1 < size) {
+            for n in (1 + (x & 1)..x)
+                .step_by(2)
+                .map(|y| 3 * x * x - y * y)
+                .skip_while(|&n| n >= size)
+            {
+                const MASK: usize = make_mask!(11, 23, 47, 59);
+                if MASK & (1 << (n % 60)) != 0 {
+                    let (b, p) = get(n);
+                    block[b] ^= 1 << p;
+                }
+            }
+        }
+
+        const MASK: [usize; 16] = [1, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 49, 53, 59];
+        for i in (0..size)
+            .step_by(60)
+            .flat_map(|i| MASK.into_iter().map(move |j| i + j))
+            .skip_while(|&i| i < 7)
+            .take_while(|i| i * i < size)
+        {
+            let (b, p) = get(i);
+            if (block[b] >> p) & 1 != 0 {
+                let k = i * i;
+                for j in (0..)
+                    .step_by(60)
+                    .flat_map(|i| MASK.into_iter().map(move |j| (i + j) * k))
+                    .take_while(|&j| j < size)
+                {
+                    let (b, p) = get(j);
+                    block[b] &= !(1 << p);
+                }
+            }
+        }
+
+        block[0] |= 7;
+        Self { size, block }
+    }
+
+    /// Construct a sieve in the range `0..size`.
+    pub fn new(size: usize) -> Self {
+        Self::atkin(size)
     }
 
     /// Enumerate prime numbers in the range of `0..size`.
