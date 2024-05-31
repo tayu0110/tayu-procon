@@ -280,6 +280,19 @@ pub trait MathInt: Sized + Copy {
     ///
     /// If `self < 2` is satisfied, always return `0`.
     fn count_primes(self) -> usize;
+    /// Returns the number of numbers in the range “1.=`self`” that are prime to `self`.
+    ///
+    /// # Panics
+    /// - `self > 0` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// assert_eq!(30u32.totient(), (1..=30).filter(|i| i.gcd(30) == 1).count() as u32);
+    /// assert_eq!(59u32.totient(), (1..=59).filter(|i| i.gcd(59) == 1).count() as u32);
+    /// ```
+    fn totient(self) -> Self;
 }
 
 macro_rules! overflow_err {
@@ -710,6 +723,15 @@ macro_rules! impl_math_int {
                 }
                 larges[0] + 1
             }
+
+            fn totient(self) -> Self {
+                assert!(self > 0);
+                let mut res = 1;
+                for (p, e) in self.factorize() {
+                    res *= p.pow(e - 1) * (p - 1);
+                }
+                res
+            }
         }
 
         impl MathInt for $st {
@@ -829,6 +851,11 @@ macro_rules! impl_math_int {
                     return 0;
                 }
                 (self as $t).count_primes()
+            }
+
+            fn totient(self) -> Self {
+                assert!(self > 0);
+                (self as $t).totient() as $st
             }
         }
     };
@@ -1210,6 +1237,16 @@ mod tests {
                 prev = *range.start();
             }
             assert_eq!(prev, 1);
+        }
+    }
+
+    #[test]
+    fn totient_test() {
+        for n in 1..1000 {
+            assert_eq!(
+                n.totient(),
+                (1..=n).filter(|i| i.gcd(n) == 1).count() as u32
+            );
         }
     }
 }
