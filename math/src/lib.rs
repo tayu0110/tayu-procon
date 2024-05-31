@@ -286,7 +286,7 @@ macro_rules! overflow_err {
     };
 }
 
-macro_rules! impl_math_int_unsigned {
+macro_rules! impl_math_int {
     ( $t:ty, $st:ty, $expand:ty, $( $witness:expr ),* ) => {
         impl MathInt for $t {
             fn gcd(mut self, mut other: Self) -> Self {
@@ -832,11 +832,11 @@ macro_rules! impl_math_int_unsigned {
     };
 }
 
-impl_math_int_unsigned!(u8, i8, u16, 2, 7, 61);
-impl_math_int_unsigned!(u16, i16, u32, 2, 7, 61);
-impl_math_int_unsigned!(u32, i32, u64, 2, 7, 61);
-impl_math_int_unsigned!(u64, i64, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
-impl_math_int_unsigned!(usize, isize, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
+impl_math_int!(u8, i8, u16, 2, 7, 61);
+impl_math_int!(u16, i16, u32, 2, 7, 61);
+impl_math_int!(u32, i32, u64, 2, 7, 61);
+impl_math_int!(u64, i64, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
+impl_math_int!(usize, isize, u128, 2, 325, 9375, 28178, 450775, 9780504, 1795265022);
 
 /// Return an integer x satisfying a^x = b (mod p)
 #[inline]
@@ -1102,7 +1102,7 @@ pub struct CompactSieve {
 
 macro_rules! make_mask {
     ( $( $m:literal ),* ) => {
-        0 $( | (1 << $m) )*
+        (0 $( | (1 << $m) )*)
     };
 }
 
