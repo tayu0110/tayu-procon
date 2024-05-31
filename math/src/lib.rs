@@ -280,7 +280,7 @@ pub trait MathInt: Sized + Copy {
     ///
     /// If `self < 2` is satisfied, always return `0`.
     fn count_primes(self) -> usize;
-    /// Returns the number of numbers in the range “1.=`self`” that are prime to `self`.
+    /// Return the number of numbers in the range "1.=`self`" that are prime to `self`.
     ///
     /// # Panics
     /// - `self > 0` must be satisfied.
@@ -293,6 +293,20 @@ pub trait MathInt: Sized + Copy {
     /// assert_eq!(59u32.totient(), (1..=59).filter(|i| i.gcd(59) == 1).count() as u32);
     /// ```
     fn totient(self) -> Self;
+    /// Return the smallest positive integer `m` that satisfies `a.pow_mod(m, self)` for every integer `a` coprime to `self`.
+    ///
+    /// # Panics
+    /// - `self > 0` must be satisfied.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use math::MathInt;
+    ///
+    /// let n = 30u32;
+    /// let coprimes = (1..n).filter(|i| i.gcd(n) == 1).collect::<Vec<_>>();
+    /// assert_eq!(n.carmichael(), (1..).find(|&m| coprimes.iter().all(|a| a.pow_mod(m as u64, n) == 1)).unwrap());
+    /// ```
+    fn carmichael(self) -> Self;
 }
 
 macro_rules! overflow_err {
@@ -732,6 +746,25 @@ macro_rules! impl_math_int {
                 }
                 res
             }
+
+            fn carmichael(self) -> Self {
+                assert!(self > 0);
+                if self == 1 || self == 2 || self == 4 {
+                    self.totient()
+                } else if self & self.wrapping_neg() == self {
+                    self.totient() / 2
+                } else {
+                    let mut res = 1 as $t;
+                    for (p, e) in self.factorize() {
+                        res = if p == 2 {
+                            res.lcm(if e == 1 { 1 } else { 1 << (e - 2) })
+                        } else {
+                            res.lcm(p.pow(e - 1) * (p - 1))
+                        }
+                    }
+                    res
+                }
+            }
         }
 
         impl MathInt for $st {
@@ -856,6 +889,11 @@ macro_rules! impl_math_int {
             fn totient(self) -> Self {
                 assert!(self > 0);
                 (self as $t).totient() as $st
+            }
+
+            fn carmichael(self) -> Self {
+                assert!(self > 0);
+                (self as $t).carmichael() as $st
             }
         }
     };
@@ -1246,6 +1284,20 @@ mod tests {
             assert_eq!(
                 n.totient(),
                 (1..=n).filter(|i| i.gcd(n) == 1).count() as u32
+            );
+        }
+    }
+
+    #[test]
+    fn carmichael_test() {
+        for n in 1..2000 {
+            eprintln!("n: {n}");
+            let coprimes = (1..n).filter(|i| i.gcd(n) == 1).collect::<Vec<_>>();
+            assert_eq!(
+                n.carmichael(),
+                (1..)
+                    .find(|&m| coprimes.iter().all(|a| a.pow_mod(m as u64, n) == 1))
+                    .unwrap()
             );
         }
     }
