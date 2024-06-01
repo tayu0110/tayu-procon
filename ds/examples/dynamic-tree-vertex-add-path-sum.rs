@@ -9,15 +9,21 @@ impl MapMonoid for DynamicTreeVertexAddPathSum {
     type M = u64;
     type Act = ();
 
-    fn e() -> Self::M { 0 }
+    fn e() -> Self::M {
+        0
+    }
 
-    fn op(l: &Self::M, r: &Self::M) -> Self::M { l + r }
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        l + r
+    }
 
     fn id() -> Self::Act {}
 
     fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
 
-    fn map(m: &Self::M, _: &Self::Act) -> Self::M { *m }
+    fn map(m: &Self::M, _: &Self::Act) -> Self::M {
+        *m
+    }
 }
 
 type Lct = LinkCutTree<DynamicTreeVertexAddPathSum>;

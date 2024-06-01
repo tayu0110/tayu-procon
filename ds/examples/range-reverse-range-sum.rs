@@ -22,7 +22,12 @@ impl MapMonoid for U64Add {
 }
 
 fn main() {
-    scan!(n: usize, q: usize, a: [u64; n], query: [(u8, usize, usize); q]);
+    scan!(
+        n: usize,
+        q: usize,
+        a: [u64; n],
+        query: [(u8, usize, usize); q]
+    );
 
     let mut seq = a.into_iter().collect::<DynamicSequence<U64Add>>();
 

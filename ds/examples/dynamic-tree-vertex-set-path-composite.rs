@@ -12,10 +12,14 @@ impl MapMonoid for DynamicTreeVertexSetPathComposite {
     type M = (Modint, Modint, Modint, Modint);
     type Act = ();
 
-    fn e() -> Self::M { (Modint::one(), Modint::zero(), Modint::one(), Modint::zero()) }
+    fn e() -> Self::M {
+        (Modint::one(), Modint::zero(), Modint::one(), Modint::zero())
+    }
 
     fn op(l: &Self::M, r: &Self::M) -> Self::M {
-        fn f(a: Modint, b: Modint, c: Modint, d: Modint) -> (Modint, Modint) { (c * a, c * b + d) }
+        fn f(a: Modint, b: Modint, c: Modint, d: Modint) -> (Modint, Modint) {
+            (c * a, c * b + d)
+        }
         let (a, b) = f(l.0, l.1, r.0, r.1);
         let (c, d) = f(r.2, r.3, l.2, l.3);
         (a, b, c, d)
@@ -23,11 +27,15 @@ impl MapMonoid for DynamicTreeVertexSetPathComposite {
 
     fn id() -> Self::Act {}
 
-    fn map(m: &Self::M, _: &Self::Act) -> Self::M { *m }
+    fn map(m: &Self::M, _: &Self::Act) -> Self::M {
+        *m
+    }
 
     fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
 
-    fn reverse(m: &mut Self::M) { *m = (m.2, m.3, m.0, m.1); }
+    fn reverse(m: &mut Self::M) {
+        *m = (m.2, m.3, m.0, m.1);
+    }
 }
 
 fn main() {
