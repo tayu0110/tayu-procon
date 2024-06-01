@@ -113,23 +113,17 @@ impl<M: MapMonoid> NodeRef<M> {
     }
 
     fn disconnect_left(mut self) -> Option<Self> {
-        if let Some(mut left) = self.left {
+        self.left.take().map(|mut left| {
             left.parent = None;
-            self.left = None;
-            Some(left)
-        } else {
-            None
-        }
+            left
+        })
     }
 
     fn disconnect_right(mut self) -> Option<Self> {
-        if let Some(mut right) = self.right {
+        self.right.take().map(|mut right| {
             right.parent = None;
-            self.right = None;
-            Some(right)
-        } else {
-            None
-        }
+            right
+        })
     }
 
     fn disconnect_parent(&mut self) -> Edge<M> {
@@ -439,6 +433,10 @@ impl<M: MapMonoid> LinkCutTree<M> {
         }
     }
 
+    /// Construct a new `LinkCutTree` with `edges`.
+    ///
+    /// If `edges` creates a cycle, return `Err`.  
+    /// All edges are connected by `link_flat`, so there is no need to worry about parent-child relationships.
     pub fn from_edges(
         n: usize,
         edges: impl IntoIterator<Item = (usize, usize)>,
@@ -446,7 +444,7 @@ impl<M: MapMonoid> LinkCutTree<M> {
         let mut res = Self::new(n);
 
         for (u, v) in edges {
-            res.link(u, v)?;
+            res.link_flat(u, v)?;
         }
 
         Ok(res)
@@ -662,21 +660,33 @@ impl<M: MapMonoid> LinkCutTree<M> {
         })
     }
 
+    /// Set `val` to the vertex its index is `index`.
     pub fn set(&mut self, index: usize, val: M::M) {
         self.expose(index);
         self.nodes[index].val = val;
         self.nodes[index].update();
     }
 
+    /// Get `val` of the vertex its index is `index`.  
+    /// If such vertexes are not found, return `None`.
     pub fn val(&self, index: usize) -> Option<&M::M> {
         self.nodes.get(index).as_ref().map(|n| &n.val)
     }
 
+    /// Update the value of the vertex its index is `index` by `f`.
+    ///
+    /// The argument of `f` is the current value of the target vertex.
     pub fn update_by(&mut self, index: usize, f: impl Fn(&M::M) -> M::M) {
         let new = f(&self.nodes[index].val);
         self.set(index, new);
     }
 
+    /// Fold values on the path between `u` and `v`.  
+    /// If such path is not found, return `None`.
+    ///
+    /// Internally `self.evert(u)` and `self.expose(v)` are executed,
+    /// so the root of the target tree is changed.  
+    /// And library users need not execute them before calling this method.
     pub fn fold(&mut self, u: usize, v: usize) -> Option<&M::M> {
         self.is_connected(u, v).then(|| {
             self.evert(u);
