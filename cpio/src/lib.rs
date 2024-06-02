@@ -9,14 +9,14 @@ pub use output::{get_buffer, Display};
 
 #[macro_export]
 macro_rules! scan {
-    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:ident], @ty[$( $ty:tt )*], @rest $(, $( $rest:tt )* )? ) => {
+    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:tt], @ty[$( $ty:tt )*], @rest $(, $( $rest:tt )* )? ) => {
         $crate::read_value!(@src $src, @mut[$( $mut )?], @id[$v], @ty[$( $ty )*]);
         $crate::scan!(@src $src, $( $( $rest )* )?);
     };
-    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:ident], @ty[$( $ty:tt )*], @rest $t:tt $( $rest:tt )* ) => {
+    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:tt], @ty[$( $ty:tt )*], @rest $t:tt $( $rest:tt )* ) => {
         $crate::scan!(@src $src, @mut[$( $mut )?], @id[$v], @ty[$( $ty )* $t], @rest $( $rest )*);
     };
-    ( @src $src:ident, @mut[$( $mut:tt )?], @rest $v:ident : $( $t:tt )* ) => {
+    ( @src $src:ident, @mut[$( $mut:tt )?], @rest $v:tt : $( $t:tt )* ) => {
         $crate::scan!(@src $src, @mut[$( $mut )?], @id[$v], @ty[], @rest $( $t )*);
     };
     ( @src $src:ident, @mut[], @rest mut $( $t:tt )* ) => {
@@ -38,7 +38,7 @@ macro_rules! scan {
 
 #[macro_export]
 macro_rules! read_value {
-    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:ident], @ty[$( $t:tt )*]) => {
+    ( @src $src:ident, @mut[$( $mut:tt )?], @id[$v:tt], @ty[$( $t:tt )*]) => {
         let $( $mut )? $v = $crate::read_value!(@src $src, @ty[$( $t )*]);
     };
 
@@ -98,7 +98,7 @@ macro_rules! put {
         )*
     };
     ( $arg:expr ) => {
-        $crate::Display::fmt(& $arg, $crate::get_buffer(), "");
+        $crate::Display::fmt(& $arg, $crate::get_buffer(), "\n");
     };
     ( $( $args:expr ),* ) => {
         $crate::put!($( $args ),* , @sep = "\n");
