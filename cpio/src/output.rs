@@ -116,6 +116,7 @@ macro_rules! impl_base_ust {
     };
 }
 impl_base_ust!(&str, str,);
+impl_base_ust!(String, str,);
 impl_base_ust!(&[T], [T], T: Display);
 impl_base_ust!([T; N], [T], T: Display, const N: usize);
 impl_base_ust!(Vec<T>, [T], T: Display);
@@ -158,10 +159,7 @@ impl Buffer {
     const LEN: usize = 1 << 20;
 
     const fn new() -> Self {
-        Self {
-            head: 0,
-            buf: [0; Self::LEN],
-        }
+        Self { head: 0, buf: [0; Self::LEN] }
     }
 
     fn reserve(&mut self, len: usize) {
