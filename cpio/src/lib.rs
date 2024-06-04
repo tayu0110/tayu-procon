@@ -62,7 +62,7 @@ macro_rules! read_value {
 
     // tuple
     ( @src $src:ident, @ty[( $( $t:tt )* )]) => {
-        $crate::read_value!(@tup @src $src, @ty[], @cur[], @rest $( $t )*);
+        $crate::read_value!(@tup @src $src, @ty[], @cur[], @rest $( $t )*)
     };
     ( @tup @src $src:ident, @ty [$([$($ty:tt)*])*], @cur [], @rest) => {
         ( $($crate::read_value!(@src $src, @ty [$($ty)*]),)* )
