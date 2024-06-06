@@ -1,0 +1,13 @@
+[package]
+name = "cpgraph"
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+unionfind = { git = "https://github.com/tayu0110/tayu-procon.git", version = "0.1.0" }
+
+[dev-dependencies]
+cpio = { git = "https://github.com/tayu0110/tayu-procon.git" }
