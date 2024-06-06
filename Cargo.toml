@@ -10,6 +10,9 @@ license = "CC0-1.0"
 bitset = { path = "./bitset" }
 complex = { path = "./complex" }
 convolution = { path = "./convolution" }
+cpgraph = { git = "https://github.com/tayu0110/tayu-procon.git", version = "0.1.0" }
+cpio = { git = "https://github.com/tayu0110/tayu-procon.git", version = "0.1.0" }
+ds = { git = "https://github.com/tayu0110/tayu-procon.git", version = "0.1.0" }
 fenwick-tree = { path = "./fenwick-tree" }
 flow = { path = "./flow" }
 geometry = { path = "./geometry" }
