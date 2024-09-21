@@ -270,7 +270,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
 
     /// Although this process is required internally in an immutable method,
     /// it should be exposed externally as a variable method, so the method is split.
-    fn extend_inner(&self, other: Self) {
+    fn append_inner(&self, other: Self) {
         let Some(other) = other.root.take() else {
             return;
         };
@@ -286,17 +286,21 @@ impl<M: MapMonoid> DynamicSequence<M> {
 
     /// Extend `self` by `other`.
     ///
+    /// # Note
+    /// `extend` can perform the same operation, but `append` is more efficient.  
+    /// Specifically, `append` is logarithmic time with respect to the number of elements and `extend` is linear time.
+    ///
     /// # Examples
     /// ```
     /// use ds::DynamicSequence;
     ///
     /// let mut dc = <DynamicSequence>::new(3);
     /// assert_eq!(dc.len(), 3);
-    /// dc.extend(DynamicSequence::new(3));
+    /// dc.append(DynamicSequence::new(3));
     /// assert_eq!(dc.len(), 6);
     /// ```
-    pub fn extend(&mut self, other: Self) {
-        self.extend_inner(other);
+    pub fn append(&mut self, other: Self) {
+        self.append_inner(other);
     }
 
     /// Insert `element` as `at`th element.  
@@ -335,8 +339,8 @@ impl<M: MapMonoid> DynamicSequence<M> {
         let new = self.alloc.borrow_mut().alloc(DSData::with_value(element));
         let mid = Self { root: Cell::new(Some(new)), alloc: Rc::clone(&self.alloc) };
         let back = self.split_off(at);
-        self.extend(mid);
-        self.extend(back);
+        self.append(mid);
+        self.append(back);
     }
 
     fn first_node(&self) -> Option<NodeRef<DSData<M>>> {
@@ -359,6 +363,16 @@ impl<M: MapMonoid> DynamicSequence<M> {
         }
         node.splay();
         Some(node)
+    }
+
+    /// Push element from the head of this sequence.
+    pub fn push_first(&mut self, element: M::M) {
+        self.insert(0, element);
+    }
+
+    /// Push element from the tail of this sequence.
+    pub fn push_last(&mut self, element: M::M) {
+        self.insert(self.len(), element);
     }
 
     /// Pop the first element of this sequence.
@@ -457,7 +471,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
 
         let mut back = self.split_off(at);
         let res = back.pop_first().unwrap();
-        self.extend(back);
+        self.append(back);
         res
     }
 
@@ -567,8 +581,8 @@ impl<M: MapMonoid> DynamicSequence<M> {
         let back = self.split_off_inner(range.end);
         let mid = self.split_off_inner(range.start);
         let res = M::op(&M::e(), &mid.root.get().unwrap().data.sum);
-        self.extend_inner(mid);
-        self.extend_inner(back);
+        self.append_inner(mid);
+        self.append_inner(back);
         res
     }
 
@@ -587,6 +601,25 @@ where
         f.debug_struct("DynamicSequence")
             .field("root", &self.root.get())
             .finish()
+    }
+}
+
+impl<M> Clone for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+    M::Act: Clone,
+{
+    fn clone(&self) -> Self {
+        let mut cloned = Self { root: Cell::new(None), alloc: Rc::clone(&self.alloc) };
+        cloned.extend(self.iter().cloned());
+        cloned
+    }
+}
+
+impl<M: MapMonoid> Extend<M::M> for DynamicSequence<M> {
+    fn extend<T: IntoIterator<Item = M::M>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|e| self.push_last(e));
     }
 }
 
@@ -646,13 +679,13 @@ pub struct Iter<'a, M: MapMonoid> {
 }
 
 impl<'a, M: MapMonoid> Iterator for Iter<'a, M> {
-    type Item = M::M;
+    type Item = &'a M::M;
     fn next(&mut self) -> Option<Self::Item> {
         let mut node = self.node.take()?;
         if !node.is_root() {
             node.splay();
         }
-        let res = M::op(&M::e(), &node.data.val);
+        let res = unsafe { &node.0.as_ref().data.val };
         if let Some(mut next) = node.right() {
             node.propagate();
             next.propagate();
@@ -855,15 +888,6 @@ where
         }
     }
 
-    /// Extend `self` by `other`.
-    ///
-    /// # Note
-    /// This method is equivalent to `other.into_iter().for_each(|elem| self.insert(elem))`.  
-    /// Therefore, the complexity of this method is `O(NlogM)` (`M` is `self.len()`, `N` is `other.len()`).
-    pub fn extend(&mut self, other: Self) {
-        other.seq.into_iter().for_each(|elem| self.insert(elem));
-    }
-
     /// Insert `element`.
     ///
     /// Even if `element` is already contained,
@@ -935,7 +959,7 @@ where
         }
 
         let res = back.pop_first();
-        self.seq.extend(back.seq);
+        self.seq.append(back.seq);
         res
     }
 
@@ -965,6 +989,34 @@ where
             },
             seq: &self.seq,
         }
+    }
+
+    pub fn iter(&self) -> Iter<'_, M> {
+        self.seq.iter()
+    }
+}
+
+impl<M> Clone for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+    M::Act: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { seq: self.seq.clone() }
+    }
+}
+
+impl<M> Extend<M::M> for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Ord,
+{
+    /// # Note
+    /// This method is equivalent to `iter.into_iter().for_each(|elem| self.insert(elem))`.  
+    /// Therefore, the complexity of this method is `O(NlogM)` (`M` is `self.len()`, `N` is `other.len()`).
+    fn extend<T: IntoIterator<Item = M::M>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|elem| self.insert(elem));
     }
 }
 
