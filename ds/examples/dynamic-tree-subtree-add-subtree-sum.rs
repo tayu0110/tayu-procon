@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/dynamic_tree_subtree_add_subtree_sum
+use cpio::*;
 use ds::{EulerTourTree, MapMonoid};
-use iolib::*;
 
 struct U64Add;
 

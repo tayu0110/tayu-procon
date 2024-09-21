@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/vertex_add_subtree_sum
+use cpio::{putln, scan};
 use ds::{EulerTourTree, MapMonoid};
-use iolib::{putln, scan};
 
 struct U64Add;
 

@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/static_range_count_distinct
+use cpio::*;
 use ds::WaveletMatrix;
-use iolib::*;
 
 fn main() {
     scan!(n: usize, q: usize, a: [u32; n], query: [(usize, usize); q]);

@@ -68,7 +68,7 @@ impl<D: NodeData + Debug> Debug for Node<D> {
     }
 }
 
-pub(crate) struct NodeRef<D: NodeData>(NonNull<Node<D>>);
+pub(crate) struct NodeRef<D: NodeData>(pub(crate) NonNull<Node<D>>);
 
 impl<D: NodeData> NodeRef<D> {
     // pub(crate) fn from_raw(ptr: *mut Node<D>) -> Self {

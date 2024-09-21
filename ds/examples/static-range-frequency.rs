@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/static_range_frequency
+use cpio::{putln, scan};
 use ds::WaveletMatrix;
-use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, q: usize, a: [u32; n]);

@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/dynamic_tree_vertex_set_path_composite
+use cpio::{putln, scan};
 use ds::{LinkCutTree, MapMonoid};
-use iolib::{putln, scan};
 use static_modint::{Mod998244353, StaticModint};
 
 type Modint = StaticModint<Mod998244353>;

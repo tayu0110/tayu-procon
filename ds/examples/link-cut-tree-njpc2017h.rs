@@ -1,6 +1,6 @@
 // https://atcoder.jp/contests/njpc2017/tasks/njpc2017_h
+use cpio::{putln, scan};
 use ds::LinkCutTree;
-use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, p: [usize; n - 1], c: [u8; n], q: usize);

@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/dynamic_graph_vertex_add_component_sum
+use cpio::*;
 use ds::{MapMonoid, OnlineDynamicConnectivity};
-use iolib::*;
 
 struct U64Add;
 

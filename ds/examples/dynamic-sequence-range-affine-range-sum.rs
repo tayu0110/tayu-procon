@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/dynamic_sequence_range_affine_range_sum
+use cpio::*;
 use ds::{DynamicSequence, MapMonoid};
-use iolib::*;
 use static_modint::{Mod998244353, StaticModint};
 
 type Modint = StaticModint<Mod998244353>;

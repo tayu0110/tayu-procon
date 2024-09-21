@@ -1,5 +1,5 @@
+use cpio::*;
 use ds::{DynamicSequence, MapMonoid};
-use iolib::*;
 
 struct U64Add;
 

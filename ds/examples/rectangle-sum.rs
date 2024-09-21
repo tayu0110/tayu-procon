@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/rectangle_sum
+use cpio::*;
 use ds::StaticRectangleSum;
-use iolib::*;
 
 fn main() {
     scan!(n: usize, q: usize, mut points: [(usize, usize, usize); n], queries: [(usize, usize, usize, usize); q]);

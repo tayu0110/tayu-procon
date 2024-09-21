@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/range_kth_smallest
+use cpio::{putln, scan};
 use ds::WaveletMatrix;
-use iolib::{putln, scan};
 
 fn main() {
     scan!(

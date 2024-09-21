@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/double_ended_priority_queue
+use cpio::{putln, scan};
 use ds::IntervalHeap;
-use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, q: usize, s: [i32; n]);

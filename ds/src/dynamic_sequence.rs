@@ -1,6 +1,6 @@
 use std::cell::{Cell, RefCell, RefMut};
 use std::fmt::Debug;
-use std::ops::{Range, RangeBounds};
+use std::ops::{Bound, Range, RangeBounds};
 use std::ptr::copy;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -217,6 +217,10 @@ impl<M: MapMonoid> DynamicSequence<M> {
                 node = node.right().expect("Inconsistent node size");
             }
         })
+    }
+
+    pub fn get(&self, nth: usize) -> Option<&M::M> {
+        unsafe { Some(&self.nth_node(nth)?.0.as_ref().data.val) }
     }
 
     /// Although this process is required internally in an immutable method,
@@ -514,7 +518,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
     }
 
     /// Update `at`th element by `f`.
-    pub fn update_by(&mut self, at: usize, f: impl Fn(&M::M) -> M::M) {
+    pub fn update_by(&mut self, at: usize, mut f: impl FnMut(&M::M) -> M::M) {
         let mut n = self.nth_node(at).unwrap();
         n.data.val = f(&n.data.val);
         n.update();
@@ -656,7 +660,7 @@ impl<'a, M: MapMonoid> Iterator for Iter<'a, M> {
                 next = n;
                 next.propagate();
             }
-            node.splay();
+            next.splay();
             self.node = Some(next);
             self.seq.root.set(Some(next));
         }
@@ -686,6 +690,389 @@ impl<M: MapMonoid> IntoIterator for DynamicSequence<M> {
     type IntoIter = IntoIter<M>;
     fn into_iter(self) -> Self::IntoIter {
         Self::IntoIter { seq: self }
+    }
+}
+
+pub struct DynamicSortedSequence<M: MapMonoid> {
+    seq: DynamicSequence<M>,
+}
+
+impl<M: MapMonoid> DynamicSortedSequence<M>
+where
+    M::M: Ord,
+{
+    /// Create new dynamic sorted sequence.
+    pub fn new() -> Self {
+        Self { seq: DynamicSequence::new(0) }
+    }
+
+    /// Return the elements owned by this sequence.
+    pub fn len(&self) -> usize {
+        self.seq.len()
+    }
+
+    /// Check if `self.len() == 0` is satisfied.
+    pub fn is_empty(&self) -> bool {
+        self.seq.is_empty()
+    }
+
+    /// Get nth element of this sequence.
+    ///
+    /// If `nth >= self.len()` is satisfied, return `None`.
+    pub fn get(&self, nth: usize) -> Option<&M::M> {
+        self.seq.get(nth)
+    }
+
+    /// Return the range of index of `element`.
+    ///
+    /// If `element` is not contained by this sequence, return `None`.
+    pub fn indexes_of(&self, element: &M::M) -> Option<Range<usize>> {
+        let start = self.first_index_of(element)?;
+        let end = self
+            .upper_bound_node(element)
+            .map(|n| n.left().map(|l| l.data.size).unwrap_or(self.len()))?;
+        Some(start..end)
+    }
+
+    /// Return the smallest index of `element`.
+    ///
+    /// If `element` is not contained by this sequence, return `None`.
+    pub fn first_index_of(&self, element: &M::M) -> Option<usize> {
+        Some(
+            self.lower_bound_node(element)
+                .filter(|n| &n.data.val == element)?
+                .left()
+                .map(|l| l.data.size)
+                .unwrap_or(0),
+        )
+    }
+
+    /// Return the largest index of `element`.
+    ///
+    /// If `element` is not contained by this sequence, return `None`.
+    pub fn last_index_of(&self, element: &M::M) -> Option<usize> {
+        self.indexes_of(element).map(|range| range.end - 1)
+    }
+
+    /// Check if `element` is contained by this sequence.
+    pub fn contains(&self, element: &M::M) -> bool {
+        self.first_index_of(element).is_some()
+    }
+
+    /// Split and Return the partition after the `at`th of the sequence.  
+    /// The `self` is changed so that the elements after `at` are deleted.
+    ///
+    /// # Panics
+    /// - `at < self.len()` must be satisfied.
+    ///
+    pub fn split_off(&mut self, at: usize) -> DynamicSortedSequence<M> {
+        let seq = self.seq.split_off(at);
+        Self { seq }
+    }
+
+    /// Search the first node satisfies `element <= node.data.val`.  
+    /// In other words,
+    /// - if multiple nodes satisfies `element == node.data.val`, return the first of such nodes,
+    /// - if such nodes do not exist, return the first node with data that is greater than `element`.
+    ///
+    /// If such node is found, return `Some` after make it the root of `self`.
+    fn lower_bound_node(&self, element: &M::M) -> Option<NodeRef<DSData<M>>> {
+        let mut node = self.seq.root.get()?;
+        let mut ok = None::<NodeRef<DSData<M>>>;
+        loop {
+            node.propagate();
+            if &node.data.val < element {
+                if let Some(right) = node.right() {
+                    node = right;
+                } else {
+                    let res = ok?;
+                    res.splay();
+                    self.seq.root.set(Some(node));
+                    break ok;
+                }
+            } else {
+                ok = Some(node);
+                if let Some(left) = node.left() {
+                    node = left;
+                } else {
+                    node.splay();
+                    self.seq.root.set(Some(node));
+                    break Some(node);
+                }
+            }
+        }
+    }
+
+    /// Search the first node satisfies `element < node.data.val`.  
+    ///
+    /// If such node is found, return `Some` after make it the root of `self`.
+    fn upper_bound_node(&self, element: &M::M) -> Option<NodeRef<DSData<M>>> {
+        let mut node = self.seq.root.get()?;
+        let mut ok = None::<NodeRef<DSData<M>>>;
+        loop {
+            node.propagate();
+            if &node.data.val <= element {
+                if let Some(right) = node.right() {
+                    node = right;
+                } else {
+                    let res = ok?;
+                    res.splay();
+                    self.seq.root.set(Some(node));
+                    break Some(res);
+                }
+            } else {
+                ok = Some(node);
+                if let Some(left) = node.left() {
+                    node = left;
+                } else {
+                    node.splay();
+                    self.seq.root.set(Some(node));
+                    break Some(node);
+                }
+            }
+        }
+    }
+
+    /// Split and Return the partition after the first position that `element` occurs.  
+    /// The effect of this method is almost equivalent `self.split_off(self.first_index_of(element))`.
+    ///
+    /// If `element` is not contained by this sequence,
+    /// split at the position that `element` should be inserted.
+    pub fn split_off_by(&mut self, element: &M::M) -> DynamicSortedSequence<M> {
+        let Some(mut root) = self.lower_bound_node(element) else {
+            return Self::new();
+        };
+
+        let left = root.disconnect_left();
+        root.update();
+        self.seq.root.set(left);
+
+        Self {
+            seq: DynamicSequence {
+                root: Cell::new(Some(root)),
+                alloc: Rc::clone(&self.seq.alloc),
+            },
+        }
+    }
+
+    /// Extend `self` by `other`.
+    ///
+    /// # Note
+    /// This method is equivalent to `other.into_iter().for_each(|elem| self.insert(elem))`.  
+    /// Therefore, the complexity of this method is `O(NlogM)` (`M` is `self.len()`, `N` is `other.len()`).
+    pub fn extend(&mut self, other: Self) {
+        other.seq.into_iter().for_each(|elem| self.insert(elem));
+    }
+
+    /// Insert `element`.
+    ///
+    /// Even if `element` is already contained,
+    /// it is inserted at the one of positions the order of this sequence can be kept.
+    ///
+    /// If there is more than one position to insert, the position is undefined.
+    pub fn insert(&mut self, element: M::M) {
+        let mut new = self
+            .seq
+            .alloc
+            .borrow_mut()
+            .alloc(DSData::with_value(element));
+        if let Some(mut node) = self.lower_bound_node(&new.data.val) {
+            if let Some(left) = node.disconnect_left() {
+                node.update();
+                new.connect_left(left);
+            }
+            new.connect_right(node);
+            new.update();
+        } else if let Some(root) = self.seq.root.take() {
+            new.connect_left(root);
+            new.update();
+        }
+        self.seq.root.set(Some(new));
+    }
+
+    /// Pop the first element of this sequence.
+    /// If `self.is_empty()` is `true`, return None.
+    pub fn pop_first(&mut self) -> Option<M::M> {
+        self.seq.pop_first()
+    }
+
+    /// Pop the last element of this sequence.
+    /// If `self.is_empty()` is `true`, return None.
+    pub fn pop_last(&mut self) -> Option<M::M> {
+        self.seq.pop_last()
+    }
+
+    /// Return the reference of the first element.
+    pub fn first(&self) -> Option<&M::M> {
+        self.seq
+            .first_node()
+            .map(|node| unsafe { &node.0.as_ref().data.val })
+    }
+
+    /// Return the reference of the last element.
+    pub fn last(&self) -> Option<&M::M> {
+        self.seq
+            .last_node()
+            .map(|node| unsafe { &node.0.as_ref().data.val })
+    }
+
+    /// Remove `at`th element from this sequence.
+    ///
+    /// # Panics
+    /// - `at < self.len()` must be satisfied.
+    pub fn remove(&mut self, at: usize) -> M::M {
+        self.seq.remove(at)
+    }
+
+    /// Remove the one of `element`.
+    ///
+    /// If removal occurs, return `Some`, otherwise return `None`.
+    pub fn remove_once(&mut self, element: &M::M) -> Option<M::M> {
+        let mut back = self.split_off_by(&element);
+        if back.first() != Some(element) {
+            self.seq.extend(back.seq);
+            return None;
+        }
+
+        let res = back.pop_first();
+        self.seq.extend(back.seq);
+        res
+    }
+
+    /// Remove all `element`.
+    ///
+    /// Removed elements are returned as an iterator.
+    pub fn remove_all<'a>(&'a mut self, element: &'a M::M) -> impl Iterator<Item = M::M> + 'a {
+        std::iter::from_fn(move || self.remove_once(element))
+    }
+
+    /// Fold values of the range of subsequence specified by `range`.
+    pub fn fold(&self, range: impl RangeBounds<usize>) -> M::M {
+        self.seq.fold(range)
+    }
+
+    pub fn range(&self, range: impl RangeBounds<M::M>) -> RangeIter<'_, M> {
+        RangeIter {
+            node: match range.start_bound() {
+                Bound::Unbounded => self.seq.first_node(),
+                Bound::Excluded(m) => self.upper_bound_node(m),
+                Bound::Included(m) => self.lower_bound_node(m),
+            },
+            end: match range.end_bound() {
+                Bound::Unbounded => None,
+                Bound::Excluded(m) => self.lower_bound_node(m),
+                Bound::Included(m) => self.upper_bound_node(m),
+            },
+            seq: &self.seq,
+        }
+    }
+}
+
+impl<M> Debug for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Debug,
+    M::Act: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DynamicSortedSequence")
+            .field("root", &self.seq.root.get())
+            .finish()
+    }
+}
+
+impl<M> Default for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Ord,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<M> FromIterator<M::M> for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Ord,
+{
+    fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
+        let mut v = iter.into_iter().collect::<Vec<_>>();
+        v.sort_unstable();
+        Self { seq: v.into_iter().collect() }
+    }
+}
+
+impl<M: MapMonoid> IntoIterator for DynamicSortedSequence<M> {
+    type Item = M::M;
+    type IntoIter = IntoIter<M>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.seq.into_iter()
+    }
+}
+
+pub struct RangeIter<'a, M: MapMonoid> {
+    node: Option<NodeRef<DSData<M>>>,
+    end: Option<NodeRef<DSData<M>>>,
+    seq: &'a DynamicSequence<M>,
+}
+
+impl<'a, M: MapMonoid> Iterator for RangeIter<'a, M> {
+    type Item = &'a M::M;
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.node.map(|n| n.data.index()) != self.end.map(|n| n.data.index()))
+            .then(|| {
+                let mut node = self.node.take()?;
+                if !node.is_root() {
+                    node.splay();
+                }
+                let res = unsafe { &node.0.as_ref().data.val };
+                if let Some(mut next) = node.right() {
+                    node.propagate();
+                    next.propagate();
+                    while let Some(n) = next.left() {
+                        next = n;
+                        next.propagate();
+                    }
+                    node.splay();
+                    self.node = Some(next);
+                    self.seq.root.set(Some(next));
+                }
+                Some(res)
+            })
+            .flatten()
+    }
+}
+
+impl<'a, M: MapMonoid> DoubleEndedIterator for RangeIter<'a, M> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        (self.node.map(|n| n.data.index()) != self.end.map(|n| n.data.index()))
+            .then(|| {
+                if let Some(mut end) = self.end {
+                    if !end.is_root() {
+                        end.splay();
+                    }
+                    let res = unsafe { &end.0.as_ref().data.val };
+                    if let Some(mut prev) = end.left() {
+                        end.propagate();
+                        prev.propagate();
+                        while let Some(n) = prev.right() {
+                            prev = n;
+                            prev.propagate();
+                        }
+                        prev.splay();
+                        self.end = Some(prev);
+                        self.seq.root.set(Some(prev));
+                    }
+                    Some(res)
+                } else {
+                    let end = self.seq.last_node()?;
+                    let res = unsafe { &end.0.as_ref().data.val };
+                    self.end = Some(end);
+                    Some(res)
+                }
+            })
+            .flatten()
     }
 }
 

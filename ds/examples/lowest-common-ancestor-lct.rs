@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/lca
+use cpio::{putln, scan};
 use ds::LinkCutTree;
-use iolib::{putln, scan};
 
 fn main() {
     scan!(n: usize, q: usize);

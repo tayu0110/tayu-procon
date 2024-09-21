@@ -1,6 +1,6 @@
 // https://judge.yosupo.jp/problem/dynamic_tree_vertex_add_path_sum
+use cpio::{putln, scan};
 use ds::{LinkCutTree, MapMonoid};
-use iolib::{putln, scan};
 
 #[derive(Debug)]
 struct DynamicTreeVertexAddPathSum;
