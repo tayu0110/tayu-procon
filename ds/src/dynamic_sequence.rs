@@ -24,7 +24,11 @@ struct DSData<M: MapMonoid> {
     lazy: M::Act,
 }
 
-impl<M: MapMonoid> DSData<M> {
+impl<M> DSData<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn new() -> Self {
         let index = DATA_INDEX.fetch_add(1, Ordering::Relaxed);
         assert!(index < 1 << 62);
@@ -34,7 +38,7 @@ impl<M: MapMonoid> DSData<M> {
     fn with_value(val: M::M) -> Self {
         let mut res = Self::new();
         res.val = val;
-        unsafe { copy(&res.val as _, &mut res.sum as _, 1) };
+        res.sum = res.val.clone();
         res
     }
 
@@ -57,7 +61,11 @@ impl<M: MapMonoid> DSData<M> {
     }
 }
 
-impl<M: MapMonoid> NodeData for DSData<M> {
+impl<M> NodeData for DSData<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn index(&self) -> usize {
         self.index & !(0b11 << 62)
     }
@@ -101,14 +109,14 @@ impl<M: MapMonoid> NodeData for DSData<M> {
             }
             _ => {
                 self.size = 1;
-                unsafe { copy(&self.val as _, &mut self.sum as _, 1) }
+                self.sum = self.val.clone();
             }
         };
     }
 
     fn aggrmove(&mut self, source: NodeRef<Self>) {
         self.size = source.data.size;
-        unsafe { copy(&source.data.sum as _, &mut self.sum as _, 1) }
+        self.sum = source.data.sum.clone();
     }
 
     fn toggle(&mut self) {
@@ -126,7 +134,7 @@ impl<M: MapMonoid> PartialEq for DSData<M> {
 impl<M> Debug for DSData<M>
 where
     M: MapMonoid,
-    M::M: Debug,
+    M::M: Debug + Clone,
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -140,18 +148,29 @@ where
     }
 }
 
-impl<M: MapMonoid> Default for DSData<M> {
+impl<M> Default for DSData<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub struct DynamicSequence<M: MapMonoid = DefaultZST> {
+pub struct DynamicSequence<M: MapMonoid = DefaultZST>
+where
+    M::M: Clone,
+{
     root: Cell<Option<NodeRef<DSData<M>>>>,
     alloc: Rc<RefCell<NodeAllocator<DSData<M>>>>,
 }
 
-impl<M: MapMonoid> DynamicSequence<M> {
+impl<M> DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     /// Generate a new `DynamicSequence`.
     ///
     /// Each value of elements are initialize by `MapMonoid::e()`.
@@ -351,6 +370,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
             node.propagate();
         }
         node.splay();
+        self.root.set(Some(node));
         Some(node)
     }
 
@@ -594,7 +614,7 @@ impl<M: MapMonoid> DynamicSequence<M> {
 impl<M> Debug for DynamicSequence<M>
 where
     M: MapMonoid,
-    M::M: Debug,
+    M::M: Debug + Clone,
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -617,13 +637,21 @@ where
     }
 }
 
-impl<M: MapMonoid> Extend<M::M> for DynamicSequence<M> {
+impl<M> Extend<M::M> for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn extend<T: IntoIterator<Item = M::M>>(&mut self, iter: T) {
         iter.into_iter().for_each(|e| self.push_last(e));
     }
 }
 
-impl<M: MapMonoid> Default for DynamicSequence<M> {
+impl<M> Default for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn default() -> Self {
         Self {
             root: Cell::new(None),
@@ -632,15 +660,23 @@ impl<M: MapMonoid> Default for DynamicSequence<M> {
     }
 }
 
-impl<M: MapMonoid> Drop for DynamicSequence<M> {
+impl<M> Drop for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn drop(&mut self) {
-        fn dealloc_recursive<M: MapMonoid>(
+        fn dealloc_recursive<M>(
             node: Option<NodeRef<DSData<M>>>,
             alloc: &mut RefMut<NodeAllocator<DSData<M>>>,
-        ) -> Option<()> {
+        ) -> Option<()>
+        where
+            M: MapMonoid,
+            M::M: Clone,
+        {
             let node = node?;
-            dealloc_recursive(node.left(), alloc);
-            dealloc_recursive(node.right(), alloc);
+            dealloc_recursive(node.disconnect_left(), alloc);
+            dealloc_recursive(node.disconnect_right(), alloc);
             alloc.dealloc(node);
             Some(())
         }
@@ -650,7 +686,11 @@ impl<M: MapMonoid> Drop for DynamicSequence<M> {
     }
 }
 
-impl<M: MapMonoid> FromIterator<M::M> for DynamicSequence<M> {
+impl<M> FromIterator<M::M> for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
         let buf = iter
             .into_iter()
@@ -673,12 +713,20 @@ impl<M: MapMonoid> FromIterator<M::M> for DynamicSequence<M> {
     }
 }
 
-pub struct Iter<'a, M: MapMonoid> {
+#[derive(Clone)]
+pub struct Iter<'a, M: MapMonoid>
+where
+    M::M: Clone,
+{
     seq: &'a DynamicSequence<M>,
     node: Option<NodeRef<DSData<M>>>,
 }
 
-impl<'a, M: MapMonoid> Iterator for Iter<'a, M> {
+impl<'a, M> Iterator for Iter<'a, M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     type Item = &'a M::M;
     fn next(&mut self) -> Option<Self::Item> {
         let mut node = self.node.take()?;
@@ -701,24 +749,50 @@ impl<'a, M: MapMonoid> Iterator for Iter<'a, M> {
     }
 }
 
-pub struct IntoIter<M: MapMonoid> {
+pub struct IntoIter<M: MapMonoid>
+where
+    M::M: Clone,
+{
     seq: DynamicSequence<M>,
 }
 
-impl<M: MapMonoid> Iterator for IntoIter<M> {
+impl<M> Clone for IntoIter<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+    M::Act: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { seq: self.seq.clone() }
+    }
+}
+
+impl<M> Iterator for IntoIter<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     type Item = M::M;
     fn next(&mut self) -> Option<Self::Item> {
         self.seq.pop_first()
     }
 }
 
-impl<M: MapMonoid> DoubleEndedIterator for IntoIter<M> {
+impl<M> DoubleEndedIterator for IntoIter<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         self.seq.pop_last()
     }
 }
 
-impl<M: MapMonoid> IntoIterator for DynamicSequence<M> {
+impl<M> IntoIterator for DynamicSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     type Item = M::M;
     type IntoIter = IntoIter<M>;
     fn into_iter(self) -> Self::IntoIter {
@@ -726,13 +800,16 @@ impl<M: MapMonoid> IntoIterator for DynamicSequence<M> {
     }
 }
 
-pub struct DynamicSortedSequence<M: MapMonoid> {
+pub struct DynamicSortedSequence<M: MapMonoid>
+where
+    M::M: Clone,
+{
     seq: DynamicSequence<M>,
 }
 
 impl<M: MapMonoid> DynamicSortedSequence<M>
 where
-    M::M: Ord,
+    M::M: Ord + Clone,
 {
     /// Create new dynamic sorted sequence.
     pub fn new() -> Self {
@@ -1010,7 +1087,7 @@ where
 impl<M> Extend<M::M> for DynamicSortedSequence<M>
 where
     M: MapMonoid,
-    M::M: Ord,
+    M::M: Ord + Clone,
 {
     /// # Note
     /// This method is equivalent to `iter.into_iter().for_each(|elem| self.insert(elem))`.  
@@ -1023,7 +1100,7 @@ where
 impl<M> Debug for DynamicSortedSequence<M>
 where
     M: MapMonoid,
-    M::M: Debug,
+    M::M: Debug + Clone,
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1036,7 +1113,7 @@ where
 impl<M> Default for DynamicSortedSequence<M>
 where
     M: MapMonoid,
-    M::M: Ord,
+    M::M: Ord + Clone,
 {
     fn default() -> Self {
         Self::new()
@@ -1046,7 +1123,7 @@ where
 impl<M> FromIterator<M::M> for DynamicSortedSequence<M>
 where
     M: MapMonoid,
-    M::M: Ord,
+    M::M: Ord + Clone,
 {
     fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
         let mut v = iter.into_iter().collect::<Vec<_>>();
@@ -1055,7 +1132,11 @@ where
     }
 }
 
-impl<M: MapMonoid> IntoIterator for DynamicSortedSequence<M> {
+impl<M> IntoIterator for DynamicSortedSequence<M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     type Item = M::M;
     type IntoIter = IntoIter<M>;
     fn into_iter(self) -> Self::IntoIter {
@@ -1063,13 +1144,20 @@ impl<M: MapMonoid> IntoIterator for DynamicSortedSequence<M> {
     }
 }
 
-pub struct RangeIter<'a, M: MapMonoid> {
+pub struct RangeIter<'a, M: MapMonoid>
+where
+    M::M: Clone,
+{
     node: Option<NodeRef<DSData<M>>>,
     end: Option<NodeRef<DSData<M>>>,
     seq: &'a DynamicSequence<M>,
 }
 
-impl<'a, M: MapMonoid> Iterator for RangeIter<'a, M> {
+impl<'a, M> Iterator for RangeIter<'a, M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     type Item = &'a M::M;
     fn next(&mut self) -> Option<Self::Item> {
         (self.node.map(|n| n.data.index()) != self.end.map(|n| n.data.index()))
@@ -1096,7 +1184,11 @@ impl<'a, M: MapMonoid> Iterator for RangeIter<'a, M> {
     }
 }
 
-impl<'a, M: MapMonoid> DoubleEndedIterator for RangeIter<'a, M> {
+impl<'a, M> DoubleEndedIterator for RangeIter<'a, M>
+where
+    M: MapMonoid,
+    M::M: Clone,
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.node.map(|n| n.data.index()) != self.end.map(|n| n.data.index()))
             .then(|| {
@@ -1223,5 +1315,66 @@ mod tests {
                 assert_eq!(t, ds.iter().map(|v| v.0).collect::<Vec<_>>());
             }
         }
+    }
+
+    struct S;
+    impl MapMonoid for S {
+        type M = String;
+        type Act = ();
+
+        fn e() -> Self::M {
+            "".to_owned()
+        }
+        fn op(_: &Self::M, _: &Self::M) -> Self::M {
+            "".to_owned()
+        }
+
+        fn id() -> Self::Act {}
+        fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
+
+        fn map(_: &Self::M, _: &Self::Act) -> Self::M {
+            "".to_owned()
+        }
+    }
+
+    #[test]
+    fn node_allocator_test() {
+        let mut alloc = NodeAllocator::<DSData<S>>::with_capacity(10);
+        for _ in 0..20 {
+            let mem = alloc.alloc_uninitialized();
+            alloc.dealloc(mem);
+            let mem = alloc.alloc(DSData {
+                index: 0,
+                size: 0,
+                val: "".to_owned(),
+                sum: "".to_owned(),
+                lazy: (),
+            });
+            alloc.dealloc(mem);
+        }
+        // drop here
+    }
+
+    #[test]
+    fn string_element_test() {
+        let mut seq = DynamicSequence::<S>::new(0);
+
+        seq.push_last("abc".to_owned());
+        seq.push_last("def".to_owned());
+        seq.push_last("ghi".to_owned());
+        seq.push_last("jkl".to_owned());
+        seq.push_last("mno".to_owned());
+        seq.push_last("pqr".to_owned());
+        seq.push_last("stu".to_owned());
+
+        assert_eq!(seq.pop_first(), Some("abc".to_owned()));
+        assert_eq!(seq.pop_last(), Some("stu".to_owned()));
+        assert_eq!(seq.remove(1), "ghi".to_owned());
+        assert_eq!(seq.remove(2), "mno".to_owned());
+
+        assert_eq!(
+            seq.into_iter().collect::<Vec<_>>(),
+            vec!["def".to_owned(), "jkl".to_owned(), "pqr".to_owned(),]
+        )
     }
 }
