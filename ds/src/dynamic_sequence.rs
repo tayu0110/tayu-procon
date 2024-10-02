@@ -897,7 +897,7 @@ where
                 } else {
                     let res = ok?;
                     res.splay();
-                    self.seq.root.set(Some(node));
+                    self.seq.root.set(Some(res));
                     break ok;
                 }
             } else {
@@ -927,7 +927,7 @@ where
                 } else {
                     let res = ok?;
                     res.splay();
-                    self.seq.root.set(Some(node));
+                    self.seq.root.set(Some(res));
                     break Some(res);
                 }
             } else {
@@ -1222,6 +1222,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::{cmp::Reverse, collections::HashMap};
+
     use rand::{thread_rng, Rng};
     use static_modint::{Mod998244353, StaticModint};
 
@@ -1376,5 +1378,68 @@ mod tests {
             seq.into_iter().collect::<Vec<_>>(),
             vec!["def".to_owned(), "jkl".to_owned(), "pqr".to_owned(),]
         )
+    }
+
+    struct T;
+    impl MapMonoid for T {
+        type Act = ();
+        type M = Reverse<usize>;
+        fn e() -> Self::M {
+            Reverse(0)
+        }
+        fn op(l: &Self::M, _: &Self::M) -> Self::M {
+            *l
+        }
+        fn id() -> Self::Act {}
+        fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
+        fn map(m: &Self::M, _: &Self::Act) -> Self::M {
+            *m
+        }
+    }
+
+    // https://atcoder.jp/contests/past202203-open/tasks/past202203_m
+    #[test]
+    fn sorted_seq_random_test() {
+        let mut rng = thread_rng();
+        let n = 100;
+        let q = 10000;
+        let mut p = (0..n).map(|_| rng.gen::<usize>()).collect::<Vec<_>>();
+
+        let mut map = HashMap::new();
+        for (i, &p) in p.iter().enumerate() {
+            map.insert(p, i);
+        }
+        let mut seq = p
+            .iter()
+            .cloned()
+            .map(|p| Reverse(p))
+            .collect::<DynamicSortedSequence<T>>();
+        for _ in 0..q {
+            let ty: usize = rng.gen_range(1..=3);
+
+            if ty == 1 {
+                let a: usize = rng.gen_range(1..=n);
+                let x: usize = rng.gen();
+                assert!(seq.remove_once(&Reverse(p[a - 1])).is_some());
+                seq.insert(Reverse(x));
+                p[a - 1] = x;
+                map.insert(x, a - 1);
+                assert_eq!(seq.len(), n);
+            } else if ty == 2 {
+                let a: usize = rng.gen_range(0..n);
+                let index = seq.first_index_of(&Reverse(p[a]));
+                assert!(index.is_some());
+                let index = index.unwrap();
+                let mut q = p.clone();
+                q.sort_unstable_by_key(|&q| Reverse(q));
+                assert_eq!(index, q.iter().position(|&q| q == p[a]).unwrap());
+            } else {
+                let r: usize = rng.gen_range(0..n);
+                let p = seq.get(r);
+                assert!(p.is_some());
+                let p = p.unwrap().0;
+                assert!(map.contains_key(&p));
+            }
+        }
     }
 }
