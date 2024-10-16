@@ -1165,6 +1165,7 @@ where
                 let mut node = self.node.take()?;
                 if !node.is_root() {
                     node.splay();
+                    self.seq.root.set(Some(node));
                 }
                 let res = unsafe { &node.0.as_ref().data.val };
                 if let Some(mut next) = node.right() {
@@ -1176,7 +1177,7 @@ where
                     }
                     node.splay();
                     self.node = Some(next);
-                    self.seq.root.set(Some(next));
+                    self.seq.root.set(Some(node));
                 }
                 Some(res)
             })
