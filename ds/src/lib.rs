@@ -68,7 +68,11 @@ pub trait MapMonoid {
     }
 }
 
-#[cfg(any(feature = "dynamic-sequence", feature = "wavelet-matrix"))]
+#[cfg(any(
+    feature = "dynamic-sequence",
+    feature = "wavelet-matrix",
+    feature = "segtree"
+))]
 fn convert_range(len: usize, range: impl RangeBounds<usize>) -> Range<usize> {
     let start = match range.start_bound() {
         Bound::Included(l) => *l,

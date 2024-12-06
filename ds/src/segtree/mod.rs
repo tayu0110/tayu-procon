@@ -3,23 +3,12 @@ mod lazy;
 
 pub use dynamic::*;
 pub use lazy::*;
-use std::ops::{Bound, Range, RangeBounds};
+use std::{
+    fmt::Debug,
+    ops::{Bound, Range, RangeBounds},
+};
 
-use crate::Monoid;
-
-fn convert_range(min: usize, max: usize, range: impl RangeBounds<usize>) -> Range<usize> {
-    let l = match range.start_bound() {
-        Bound::Included(l) => *l,
-        Bound::Unbounded => min,
-        Bound::Excluded(l) => l - 1,
-    };
-    let r = match range.end_bound() {
-        Bound::Included(r) => r + 1,
-        Bound::Excluded(r) => *r,
-        Bound::Unbounded => max,
-    };
-    Range { start: l, end: r }
-}
+use crate::{convert_range, Monoid};
 
 fn convert_range_isize(min: isize, max: isize, range: impl RangeBounds<isize>) -> Range<isize> {
     let l = match range.start_bound() {
@@ -85,7 +74,7 @@ impl<T: Monoid> SegmentTree<T> {
     }
 
     pub fn fold(&self, range: impl RangeBounds<usize>) -> T::M {
-        let Range { start, end } = convert_range(0, self.len(), range);
+        let Range { start, end } = convert_range(self.len(), range);
 
         let (mut l, mut r) = (start + self.len(), end + self.len());
         let (mut lf, mut rf) = (T::id(), T::id());
@@ -111,6 +100,15 @@ where
 {
     fn clone(&self) -> Self {
         SegmentTree { t: self.t.clone() }
+    }
+}
+
+impl<T: Monoid> Debug for SegmentTree<T>
+where
+    T::M: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentTree").field("t", &self.t).finish()
     }
 }
 

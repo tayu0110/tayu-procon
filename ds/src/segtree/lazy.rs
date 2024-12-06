@@ -179,19 +179,13 @@ where
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (mut tree, mut lazy, mut l, mut r) = (vec![], vec![], 1, 2);
-        while r < self.tree.len() {
-            let (mut nd, mut nlz) = (vec![], vec![]);
-            for i in l..r {
-                nd.push(&self.tree[i]);
-                nlz.push(&self.lazy[i]);
-            }
-            tree.push(nd);
-            lazy.push(nlz);
-            l <<= 1;
-            r <<= 1;
-        }
-        write!(f, "tree: {:?}\nlz: {:?}", tree, lazy)
+        f.debug_struct("LazySegmentTree")
+            .field("n", &self.n)
+            .field("size", &self.size)
+            .field("log", &self.log)
+            .field("tree", &self.tree)
+            .field("lazy", &self.lazy)
+            .finish()
     }
 }
 
