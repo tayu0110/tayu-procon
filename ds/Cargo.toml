@@ -8,11 +8,12 @@ license = "CC0-1.0"
 
 [dependencies]
 rustc-hash = { version = "1.1.0", optional = true }
+static-modint = { path = "../modint/static-modint", optional = true }
 
 [dev-dependencies]
+static-modint = { path = "../modint/static-modint" }
 proconio = "0.4.5"
 rand = "0.8.5"
-static-modint = { path = "../modint/static-modint" }
 cpio = { path = "../cpio" }
 unionfind = { path = "../unionfind" }
 
@@ -27,6 +28,7 @@ full = [
   "fixed-ring-queue",
   "link-cut-tree",
   "online-dynamic-connectivity",
+  "segtree",
   "splay-tree",
   "wavelet-matrix",
 ]
@@ -38,7 +40,9 @@ euler-tour-tree = ["splay-tree"]
 fixed-ring-queue = []
 link-cut-tree = []
 online-dynamic-connectivity = ["euler-tour-tree"]
+segtree = []
 splay-tree = []
+modint = ["dep:static-modint"]
 rustc-hash = ["dep:rustc-hash"]
 wavelet-matrix = []
 
@@ -84,3 +88,7 @@ required-features = ["full"]
 [[example]]
 name = "dynamic-graph-vertex-add-component-sum"
 required-features = ["full"]
+
+[[example]]
+name = "range-affine-range-sum"
+required-features = ["full", "modint"]

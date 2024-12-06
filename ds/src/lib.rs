@@ -14,6 +14,8 @@ mod interval_heap;
 mod link_cut_tree;
 #[cfg(feature = "online-dynamic-connectivity")]
 mod online_dynamic_connectivity;
+#[cfg(feature = "segtree")]
+mod segtree;
 #[cfg(feature = "splay-tree")]
 mod splay_tree;
 #[cfg(feature = "wavelet-matrix")]
@@ -38,6 +40,10 @@ pub use interval_heap::*;
 pub use link_cut_tree::*;
 #[cfg(feature = "online-dynamic-connectivity")]
 pub use online_dynamic_connectivity::*;
+#[cfg(feature = "segtree")]
+pub use segtree::*;
+#[cfg(feature = "modint")]
+use static_modint::{Modulo, StaticModint};
 #[cfg(feature = "wavelet-matrix")]
 pub use wavelet_matrix::*;
 
@@ -84,4 +90,33 @@ impl MapMonoid for DefaultZST {
     fn map(_: &Self::M, _: &Self::Act) -> Self::M {}
     fn id() -> Self::Act {}
     fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
+}
+
+pub trait ZeroOne {
+    fn zero() -> Self;
+    fn one() -> Self;
+}
+
+macro_rules! impl_zero_one {
+    ( $zero:expr, $one:expr, $( $t:ty ),* ) => {
+        $(
+            impl ZeroOne for $t {
+                fn zero() -> Self { $zero }
+                fn one() -> Self { $one }
+            }
+        )*
+    };
+}
+
+impl_zero_one!(0, 1, u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+impl_zero_one!(0.0, 1.0, f32, f64);
+
+#[cfg(feature = "modint")]
+impl<M: Modulo> ZeroOne for StaticModint<M> {
+    fn zero() -> Self {
+        Self::zero()
+    }
+    fn one() -> Self {
+        Self::one()
+    }
 }
