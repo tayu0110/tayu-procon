@@ -47,6 +47,12 @@ use static_modint::{Modulo, StaticModint};
 #[cfg(feature = "wavelet-matrix")]
 pub use wavelet_matrix::*;
 
+pub trait Monoid {
+    type M;
+    fn id() -> Self::M;
+    fn op(l: &Self::M, r: &Self::M) -> Self::M;
+}
+
 pub trait MapMonoid {
     type M;
     type Act;

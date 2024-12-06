@@ -5,6 +5,8 @@ pub use dynamic::*;
 pub use lazy::*;
 use std::ops::{Bound, Range, RangeBounds};
 
+use crate::Monoid;
+
 fn convert_range(min: usize, max: usize, range: impl RangeBounds<usize>) -> Range<usize> {
     let l = match range.start_bound() {
         Bound::Included(l) => *l,
@@ -31,12 +33,6 @@ fn convert_range_isize(min: isize, max: isize, range: impl RangeBounds<isize>) -
         Bound::Unbounded => max,
     };
     Range { start: l, end: r }
-}
-
-pub trait Monoid {
-    type M;
-    fn id() -> Self::M;
-    fn op(l: &Self::M, r: &Self::M) -> Self::M;
 }
 
 pub struct SegmentTree<T: Monoid> {

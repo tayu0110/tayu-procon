@@ -4,34 +4,27 @@ use std::{
     ops::{Add, Mul},
 };
 
-use crate::ZeroOne;
-
-pub trait MapMonoid {
-    type E: Clone;
-    type Act: Clone;
-
-    fn op(l: Self::E, r: Self::E) -> Self::E;
-    fn e() -> Self::E;
-    fn id() -> Self::Act;
-    fn map(act: Self::Act, elem: Self::E) -> Self::E;
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act;
-}
+use crate::{MapMonoid, ZeroOne};
 
 #[derive(Clone)]
 pub struct LazySegtree<M: MapMonoid> {
     n: usize,
     size: usize,
     log: usize,
-    tree: Vec<M::E>,
+    tree: Vec<M::M>,
     lazy: Vec<M::Act>,
 }
 
-impl<M: MapMonoid> LazySegtree<M> {
+impl<M: MapMonoid> LazySegtree<M>
+where
+    M::M: Clone,
+    M::Act: Clone,
+{
     pub fn new(size: usize) -> Self {
         LazySegtree::from_vec(&vec![M::e(); size])
     }
 
-    pub fn from_vec(v: &[M::E]) -> Self {
+    pub fn from_vec(v: &[M::M]) -> Self {
         let n = v.len();
         let size = n.next_power_of_two();
         let log = size.trailing_zeros() as usize;
@@ -42,11 +35,11 @@ impl<M: MapMonoid> LazySegtree<M> {
             .zip(v.iter().cloned())
             .for_each(|(t, w)| *t = w);
         for i in (1..size).rev() {
-            tree[i] = M::op(tree[i * 2].clone(), tree[i * 2 + 1].clone());
+            tree[i] = M::op(&tree[i * 2], &tree[i * 2 + 1]);
         }
         Self { n, size, log, tree, lazy }
     }
-    pub fn set(&mut self, idx: usize, val: M::E) {
+    pub fn set(&mut self, idx: usize, val: M::M) {
         assert!(idx < self.n);
         let idx = idx + self.size;
         for i in (1..self.log + 1).rev() {
@@ -58,7 +51,7 @@ impl<M: MapMonoid> LazySegtree<M> {
         }
     }
     // Get the value of a single point whose index is idx.
-    pub fn get(&mut self, idx: usize) -> M::E {
+    pub fn get(&mut self, idx: usize) -> M::M {
         assert!(idx < self.n);
         let idx = idx + self.size;
         for i in (1..self.log + 1).rev() {
@@ -67,7 +60,7 @@ impl<M: MapMonoid> LazySegtree<M> {
         self.tree[idx].clone()
     }
     // Get the result of applying the operation to the interval [l, r).
-    pub fn prod(&mut self, l: usize, r: usize) -> M::E {
+    pub fn prod(&mut self, l: usize, r: usize) -> M::M {
         assert!(l <= r && r <= self.n);
         if l == r {
             return M::e();
@@ -84,19 +77,19 @@ impl<M: MapMonoid> LazySegtree<M> {
         let (mut sml, mut smr) = (M::e(), M::e());
         while l < r {
             if (l & 1) != 0 {
-                sml = M::op(sml, self.tree[l].clone());
+                sml = M::op(&sml, &self.tree[l]);
                 l += 1;
             }
             if (r & 1) != 0 {
                 r -= 1;
-                smr = M::op(self.tree[r].clone(), smr);
+                smr = M::op(&self.tree[r], &smr);
             }
             l >>= 1;
             r >>= 1;
         }
-        M::op(sml, smr)
+        M::op(&sml, &smr)
     }
-    pub fn all_prod(&self) -> M::E {
+    pub fn all_prod(&self) -> M::M {
         self.tree[1].clone()
     }
     // Apply val to a point whose index is idx.
@@ -106,7 +99,7 @@ impl<M: MapMonoid> LazySegtree<M> {
         for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
-        self.tree[idx] = M::map(val, self.tree[idx].clone());
+        self.tree[idx] = M::map(&self.tree[idx], &val);
         for i in 1..=self.log {
             self.update(idx >> i);
         }
@@ -149,12 +142,12 @@ impl<M: MapMonoid> LazySegtree<M> {
         }
     }
     fn update(&mut self, idx: usize) {
-        self.tree[idx] = M::op(self.tree[idx * 2].clone(), self.tree[idx * 2 + 1].clone());
+        self.tree[idx] = M::op(&self.tree[idx * 2], &self.tree[idx * 2 + 1]);
     }
     fn all_apply(&mut self, idx: usize, val: M::Act) {
-        self.tree[idx] = M::map(val.clone(), self.tree[idx].clone());
+        self.tree[idx] = M::map(&self.tree[idx], &val);
         if idx < self.size {
-            self.lazy[idx] = M::composite(val, self.lazy[idx].clone());
+            self.lazy[idx] = M::composite(&val, &self.lazy[idx]);
         }
     }
     fn push(&mut self, idx: usize) {
@@ -166,7 +159,7 @@ impl<M: MapMonoid> LazySegtree<M> {
 impl<M: MapMonoid> Debug for LazySegtree<M>
 where
     M: MapMonoid,
-    M::E: Debug,
+    M::M: Debug,
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -201,23 +194,26 @@ impl<T> MapMonoid for RangeAddRangeSumQuery<T>
 where
     T: ZeroOne + Clone + Add<Output = T> + Mul<Output = T>,
 {
-    type E = (T, T);
+    type M = (T, T);
     type Act = T;
 
-    fn e() -> Self::E {
+    fn e() -> Self::M {
         (T::zero(), T::zero())
     }
-    fn op(l: Self::E, r: Self::E) -> Self::E {
-        (l.0 + r.0, l.1 + r.1)
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        (l.0.clone() + r.0.clone(), l.1.clone() + r.1.clone())
     }
     fn id() -> Self::Act {
         T::zero()
     }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
-        l + r
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
+        l.clone() + r.clone()
     }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E {
-        (elem.0 + act * elem.1.clone(), elem.1)
+    fn map(elem: &Self::M, act: &Self::Act) -> Self::M {
+        (
+            elem.0.clone() + act.clone() * elem.1.clone(),
+            elem.1.clone(),
+        )
     }
 }
 
@@ -230,22 +226,22 @@ impl RangeAddRangeMaximumQuery {
 }
 
 impl MapMonoid for RangeAddRangeMaximumQuery {
-    type E = i64;
+    type M = i64;
     type Act = i64;
 
-    fn e() -> Self::E {
+    fn e() -> Self::M {
         i64::MIN
     }
-    fn op(l: Self::E, r: Self::E) -> Self::E {
-        l.max(r)
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        *l.max(r)
     }
     fn id() -> Self::Act {
         0
     }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
         l + r
     }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+    fn map(elem: &Self::M, act: &Self::Act) -> Self::M {
         act + elem
     }
 }
@@ -259,22 +255,22 @@ impl RangeAddRangeMinimumQuery {
 }
 
 impl MapMonoid for RangeAddRangeMinimumQuery {
-    type E = i64;
+    type M = i64;
     type Act = i64;
 
-    fn e() -> Self::E {
+    fn e() -> Self::M {
         i64::MAX
     }
-    fn op(l: Self::E, r: Self::E) -> Self::E {
-        l.min(r)
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        *l.min(r)
     }
     fn id() -> Self::Act {
         0
     }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
         l + r
     }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+    fn map(elem: &Self::M, act: &Self::Act) -> Self::M {
         act + elem
     }
 }
@@ -295,23 +291,29 @@ impl<T> MapMonoid for RangeAffineRangeSum<T>
 where
     T: ZeroOne + Clone + Add<Output = T> + Mul<Output = T>,
 {
-    type E = (T, T);
+    type M = (T, T);
     type Act = (T, T);
 
-    fn e() -> Self::E {
+    fn e() -> Self::M {
         (T::zero(), T::zero())
     }
-    fn op(l: Self::E, r: Self::E) -> Self::E {
-        (l.0 + r.0, l.1 + r.1)
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
+        (l.0.clone() + r.0.clone(), l.1.clone() + r.1.clone())
     }
     fn id() -> Self::Act {
         (T::one(), T::zero())
     }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
-        (l.0.clone() * r.0, l.0 * r.1 + l.1)
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
+        (
+            l.0.clone() * r.0.clone(),
+            l.0.clone() * r.1.clone() + l.1.clone(),
+        )
     }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E {
-        (act.0 * elem.0 + act.1 * elem.1.clone(), elem.1)
+    fn map(elem: &Self::M, act: &Self::Act) -> Self::M {
+        (
+            act.0.clone() * elem.0.clone() + act.1.clone() * elem.1.clone(),
+            elem.1.clone(),
+        )
     }
 }
 
@@ -331,36 +333,36 @@ impl RangeFlipRangeLongestTerm {
 }
 
 impl MapMonoid for RangeFlipRangeLongestTerm {
-    type E = (u32, u32, u32, u32, u32, u32, u32);
+    type M = (u32, u32, u32, u32, u32, u32, u32);
     type Act = bool;
 
-    fn e() -> Self::E {
+    fn e() -> Self::M {
         (0, 0, 0, 0, 1, 1, 1)
     }
-    fn op(l: Self::E, r: Self::E) -> Self::E {
+    fn op(l: &Self::M, r: &Self::M) -> Self::M {
         let (rm, rl, rr, rt, rm0, rl0, rr0) = r;
         let (m, l, r, t, m0, l0, r0) = l;
         (
-            rm.max(m).max(r + rl),
-            if l == t { l + rl } else { l },
-            if rr == rt { rr + r } else { rr },
+            *rm.max(m).max(&(r + rl)),
+            if l == t { l + rl } else { *l },
+            if rr == rt { rr + r } else { *rr },
             t + rt,
-            rm0.max(m0).max(r0 + rl0),
-            if l0 == t { l0 + rl0 } else { l0 },
-            if rr0 == rt { rr0 + r0 } else { rr0 },
+            *rm0.max(m0).max(&(r0 + rl0)),
+            if l0 == t { l0 + rl0 } else { *l0 },
+            if rr0 == rt { rr0 + r0 } else { *rr0 },
         )
     }
     fn id() -> Self::Act {
         false
     }
-    fn composite(l: Self::Act, r: Self::Act) -> Self::Act {
+    fn composite(l: &Self::Act, r: &Self::Act) -> Self::Act {
         l ^ r
     }
-    fn map(act: Self::Act, elem: Self::E) -> Self::E {
+    fn map(elem: &Self::M, act: &Self::Act) -> Self::M {
         if !act {
-            return elem;
+            return *elem;
         }
         let (m, l, r, t, m0, l0, r0) = elem;
-        (m0, l0, r0, t, m, l, r)
+        (*m0, *l0, *r0, *t, *m, *l, *r)
     }
 }
