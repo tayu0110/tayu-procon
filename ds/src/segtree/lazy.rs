@@ -6,7 +6,7 @@ use std::{
 
 use crate::{MapMonoid, ZeroOne};
 
-pub struct LazySegtree<M: MapMonoid> {
+pub struct LazySegmentTree<M: MapMonoid> {
     n: usize,
     size: usize,
     log: usize,
@@ -14,13 +14,13 @@ pub struct LazySegtree<M: MapMonoid> {
     lazy: Vec<M::Act>,
 }
 
-impl<M: MapMonoid> LazySegtree<M>
+impl<M: MapMonoid> LazySegmentTree<M>
 where
     M::M: Clone,
     M::Act: Clone,
 {
     pub fn new(size: usize) -> Self {
-        LazySegtree::from_vec(&vec![M::e(); size])
+        LazySegmentTree::from_vec(&vec![M::e(); size])
     }
 
     pub fn from_vec(v: &[M::M]) -> Self {
@@ -156,7 +156,7 @@ where
     }
 }
 
-impl<M: MapMonoid> Clone for LazySegtree<M>
+impl<M: MapMonoid> Clone for LazySegmentTree<M>
 where
     M::M: Clone,
     M::Act: Clone,
@@ -172,7 +172,7 @@ where
     }
 }
 
-impl<M: MapMonoid> Debug for LazySegtree<M>
+impl<M: MapMonoid> Debug for LazySegmentTree<M>
 where
     M: MapMonoid,
     M::M: Debug,
@@ -201,8 +201,8 @@ impl<T> RangeAddRangeSumQuery<T>
 where
     T: ZeroOne + Clone + Add<Output = T> + Mul<Output = T>,
 {
-    pub fn new(size: usize) -> LazySegtree<Self> {
-        LazySegtree::from_vec(&vec![(T::zero(), T::one()); size])
+    pub fn new(size: usize) -> LazySegmentTree<Self> {
+        LazySegmentTree::from_vec(&vec![(T::zero(), T::one()); size])
     }
 }
 
@@ -236,8 +236,8 @@ where
 pub struct RangeAddRangeMaximumQuery;
 
 impl RangeAddRangeMaximumQuery {
-    pub fn new(size: usize) -> LazySegtree<Self> {
-        LazySegtree::from_vec(&vec![0; size])
+    pub fn new(size: usize) -> LazySegmentTree<Self> {
+        LazySegmentTree::from_vec(&vec![0; size])
     }
 }
 
@@ -265,8 +265,8 @@ impl MapMonoid for RangeAddRangeMaximumQuery {
 pub struct RangeAddRangeMinimumQuery;
 
 impl RangeAddRangeMinimumQuery {
-    pub fn new(size: usize) -> LazySegtree<Self> {
-        LazySegtree::from_vec(&vec![0; size])
+    pub fn new(size: usize) -> LazySegmentTree<Self> {
+        LazySegmentTree::from_vec(&vec![0; size])
     }
 }
 
@@ -297,9 +297,9 @@ impl<T> RangeAffineRangeSum<T>
 where
     T: ZeroOne + Clone + Add<Output = T> + Mul<Output = T>,
 {
-    pub fn new(a: Vec<T>) -> LazySegtree<Self> {
+    pub fn new(a: Vec<T>) -> LazySegmentTree<Self> {
         let a = a.into_iter().map(|v| (v, T::one())).collect::<Vec<_>>();
-        LazySegtree::from_vec(&a)
+        LazySegmentTree::from_vec(&a)
     }
 }
 
@@ -336,8 +336,8 @@ where
 pub struct RangeFlipRangeLongestTerm;
 
 impl RangeFlipRangeLongestTerm {
-    pub fn new(v: &[bool]) -> LazySegtree<Self> {
-        LazySegtree::from_vec(
+    pub fn new(v: &[bool]) -> LazySegmentTree<Self> {
+        LazySegmentTree::from_vec(
             &v.iter()
                 .map(|&f| {
                     let f = f as u32;
