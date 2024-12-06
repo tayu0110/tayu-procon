@@ -27,6 +27,7 @@ full = [
   "euler-tour-tree",
   "fixed-ring-queue",
   "link-cut-tree",
+  "modint",
   "online-dynamic-connectivity",
   "segtree",
   "splay-tree",

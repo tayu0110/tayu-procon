@@ -14,10 +14,10 @@ fn main() {
 
         if t == 0 {
             scan!(l: usize, r: usize, b: u32, c: u32);
-            st.apply_range(l, r, (StaticModint::raw(b), StaticModint::raw(c)));
+            st.apply(l..r, (StaticModint::raw(b), StaticModint::raw(c)));
         } else {
             scan!(l: usize, r: usize);
-            let (res, _) = st.prod(l, r);
+            let (res, _) = st.fold(l..r);
             putln!(res.val());
         }
     }

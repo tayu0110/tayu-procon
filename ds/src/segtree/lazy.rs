@@ -2,10 +2,10 @@ use std::{
     any::type_name,
     fmt::Debug,
     marker::PhantomData,
-    ops::{Add, Mul},
+    ops::{Add, Mul, Range, RangeBounds},
 };
 
-use crate::{MapMonoid, ZeroOne};
+use crate::{convert_range, MapMonoid, ZeroOne};
 
 pub struct LazySegmentTree<M: MapMonoid> {
     n: usize,
@@ -39,8 +39,21 @@ where
         }
         Self { n, size, log, tree, lazy }
     }
+
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Set `val` to `index`-th element.
+    ///
+    /// # Panics
+    /// - `index < self.len()` must be satisfied.
     pub fn set(&mut self, idx: usize, val: M::M) {
-        assert!(idx < self.n);
+        assert!(idx < self.len());
         let idx = idx + self.size;
         for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
@@ -50,22 +63,33 @@ where
             self.update(idx >> i);
         }
     }
-    // Get the value of a single point whose index is idx.
+
+    /// Get `index`-th element.
+    ///
+    /// # Panics
+    /// - `index < self.len()` must be satisfied.
     pub fn get(&mut self, idx: usize) -> M::M {
-        assert!(idx < self.n);
+        assert!(idx < self.len());
         let idx = idx + self.size;
         for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
         }
         self.tree[idx].clone()
     }
-    // Get the result of applying the operation to the interval [l, r).
-    pub fn prod(&mut self, l: usize, r: usize) -> M::M {
-        assert!(l <= r && r <= self.n);
-        if l == r {
+
+    /// Apply `M::op` to the elements within `range` and return its result.
+    ///
+    /// # Panics
+    /// - The head of `range` must be smaller than or equal to the tail of `range`.
+    /// - `range` must not contain a range greater than `self.len()`.
+    pub fn fold(&mut self, range: impl RangeBounds<usize>) -> M::M {
+        let Range { start, end } = convert_range(self.len(), range);
+        assert!(start <= end);
+        assert!(end <= self.len());
+        if start == end {
             return M::e();
         }
-        let (mut l, mut r) = (l + self.size, r + self.size);
+        let (mut l, mut r) = (start + self.size, end + self.size);
         for i in (1..self.log + 1).rev() {
             if ((l >> i) << i) != l {
                 self.push(l >> i);
@@ -76,11 +100,11 @@ where
         }
         let (mut sml, mut smr) = (M::e(), M::e());
         while l < r {
-            if (l & 1) != 0 {
+            if l & 1 != 0 {
                 sml = M::op(&sml, &self.tree[l]);
                 l += 1;
             }
-            if (r & 1) != 0 {
+            if r & 1 != 0 {
                 r -= 1;
                 smr = M::op(&self.tree[r], &smr);
             }
@@ -89,12 +113,14 @@ where
         }
         M::op(&sml, &smr)
     }
+
     pub fn all_prod(&self) -> M::M {
         self.tree[1].clone()
     }
-    // Apply val to a point whose index is idx.
-    pub fn apply(&mut self, idx: usize, val: M::Act) {
-        assert!(idx < self.n);
+
+    /// Apply `val` to a point whose `index` is idx.
+    fn apply_one(&mut self, idx: usize, val: M::Act) {
+        assert!(idx < self.len());
         let idx = idx + self.size;
         for i in (1..self.log + 1).rev() {
             self.push(idx >> i);
@@ -104,22 +130,28 @@ where
             self.update(idx >> i);
         }
     }
-    // Apply val to the interval [l, r).
-    pub fn apply_range(&mut self, l: usize, r: usize, val: M::Act) {
-        assert!(l <= r && r <= self.n);
-        if l == r {
+
+    /// Apply `val` to the elements within `range`.
+    pub fn apply(&mut self, range: impl RangeBounds<usize>, val: M::Act) {
+        let Range { start, end } = convert_range(self.len(), range);
+        assert!(start <= end && end <= self.n);
+        if start == end {
             return;
         }
-        let (l, r) = (l + self.size, r + self.size);
+        if end - start == 1 {
+            self.apply_one(start, val);
+            return;
+        }
+        let (start, end) = (start + self.size, end + self.size);
         for i in (1..self.log + 1).rev() {
-            if ((l >> i) << i) != l {
-                self.push(l >> i);
+            if ((start >> i) << i) != start {
+                self.push(start >> i);
             }
-            if ((r >> i) << i) != r {
-                self.push((r - 1) >> i);
+            if ((end >> i) << i) != end {
+                self.push((end - 1) >> i);
             }
         }
-        let (mut a, mut b) = (l, r);
+        let (mut a, mut b) = (start, end);
         while a < b {
             if (a & 1) != 0 {
                 self.all_apply(a, val.clone());
@@ -133,23 +165,26 @@ where
             b >>= 1;
         }
         for i in 1..=self.log {
-            if ((l >> i) << i) != l {
-                self.update(l >> i);
+            if ((start >> i) << i) != start {
+                self.update(start >> i);
             }
-            if ((r >> i) << i) != r {
-                self.update((r - 1) >> i);
+            if ((end >> i) << i) != end {
+                self.update((end - 1) >> i);
             }
         }
     }
+
     fn update(&mut self, idx: usize) {
         self.tree[idx] = M::op(&self.tree[idx * 2], &self.tree[idx * 2 + 1]);
     }
+
     fn all_apply(&mut self, idx: usize, val: M::Act) {
         self.tree[idx] = M::map(&self.tree[idx], &val);
         if idx < self.size {
             self.lazy[idx] = M::composite(&val, &self.lazy[idx]);
         }
     }
+
     fn push(&mut self, idx: usize) {
         self.all_apply(idx * 2, self.lazy[idx].clone());
         self.all_apply(idx * 2 + 1, self.lazy[idx].clone());

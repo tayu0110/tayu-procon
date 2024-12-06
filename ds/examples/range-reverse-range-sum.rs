@@ -1,3 +1,4 @@
+// https://judge.yosupo.jp/problem/range_reverse_range_sum
 use cpio::*;
 use ds::{DynamicSequence, MapMonoid};
 

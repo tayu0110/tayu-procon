@@ -123,7 +123,8 @@ impl<T: Monoid> SegmentTree<T> {
     /// ```
     pub fn fold(&self, range: impl RangeBounds<usize>) -> T::M {
         let Range { start, end } = convert_range(self.len(), range);
-        assert!(start <= end && end <= self.len());
+        assert!(start <= end);
+        assert!(end <= self.len());
 
         let (mut l, mut r) = (start + self.len(), end + self.len());
         let (mut lf, mut rf) = (T::id(), T::id());
@@ -246,32 +247,32 @@ mod tests {
 
         let mut st = RangeAddRangeMaximumQuery::new(10);
         for (i, w) in v.iter().enumerate() {
-            st.apply(i, *w);
+            st.apply(i..=i, *w);
         }
 
-        assert_eq!(st.prod(0, 10), 14);
-        assert_eq!(st.prod(5, 10), 11);
-        assert_eq!(st.prod(0, 5), 14);
-        assert_eq!(st.prod(5, 8), 6);
+        assert_eq!(st.fold(0..10), 14);
+        assert_eq!(st.fold(5..10), 11);
+        assert_eq!(st.fold(0..5), 14);
+        assert_eq!(st.fold(5..8), 6);
 
         let mut st = RangeAddRangeMinimumQuery::new(10);
         for (i, w) in v.iter().enumerate() {
-            st.apply(i, *w);
+            st.apply(i..=i, *w);
         }
 
-        assert_eq!(st.prod(0, 10), 1);
-        assert_eq!(st.prod(5, 10), 3);
-        assert_eq!(st.prod(0, 5), 1);
-        assert_eq!(st.prod(2, 5), 4);
+        assert_eq!(st.fold(0..10), 1);
+        assert_eq!(st.fold(5..10), 3);
+        assert_eq!(st.fold(0..5), 1);
+        assert_eq!(st.fold(2..5), 4);
 
         let mut st = RangeAddRangeSumQuery::new(10);
         for (i, w) in v.iter().enumerate() {
-            st.apply(i, *w);
+            st.apply(i..=i, *w);
         }
 
-        assert_eq!(st.prod(0, 10).0, 62);
-        assert_eq!(st.prod(5, 10).0, 33);
-        assert_eq!(st.prod(0, 5).0, 29);
-        assert_eq!(st.prod(3, 7).0, 30);
+        assert_eq!(st.fold(0..10).0, 62);
+        assert_eq!(st.fold(5..10).0, 33);
+        assert_eq!(st.fold(0..5).0, 29);
+        assert_eq!(st.fold(3..7).0, 30);
     }
 }
