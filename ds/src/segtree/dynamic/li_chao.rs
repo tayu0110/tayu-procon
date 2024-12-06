@@ -21,6 +21,7 @@ impl From<(isize, isize)> for Affine {
 
 type LiChaoTreeNode = Node<Affine, Zst>;
 
+#[derive(Debug, Clone)]
 pub struct LiChaoTree {
     range: Range<isize>,
     nodes: Vec<LiChaoTreeNode>,

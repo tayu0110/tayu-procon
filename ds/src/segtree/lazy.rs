@@ -6,7 +6,6 @@ use std::{
 
 use crate::{MapMonoid, ZeroOne};
 
-#[derive(Clone)]
 pub struct LazySegtree<M: MapMonoid> {
     n: usize,
     size: usize,
@@ -156,6 +155,23 @@ where
         self.lazy[idx] = M::id();
     }
 }
+
+impl<M: MapMonoid> Clone for LazySegtree<M>
+where
+    M::M: Clone,
+    M::Act: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            n: self.n,
+            size: self.size,
+            log: self.log,
+            tree: self.tree.clone(),
+            lazy: self.lazy.clone(),
+        }
+    }
+}
+
 impl<M: MapMonoid> Debug for LazySegtree<M>
 where
     M: MapMonoid,

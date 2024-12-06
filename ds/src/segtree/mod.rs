@@ -105,6 +105,15 @@ impl<T: Monoid> SegmentTree<T> {
     }
 }
 
+impl<T: Monoid> Clone for SegmentTree<T>
+where
+    T::M: Clone,
+{
+    fn clone(&self) -> Self {
+        SegmentTree { t: self.t.clone() }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Reversible<T: Monoid + Clone> {
     pub forward: T,

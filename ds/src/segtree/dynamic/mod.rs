@@ -5,6 +5,7 @@ use std::ops::{Range, RangeBounds};
 use super::{convert_range_isize, Monoid};
 pub use li_chao::*;
 
+#[derive(Debug, Clone)]
 struct Node<T, L> {
     left: u32,
     right: u32,
