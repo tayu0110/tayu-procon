@@ -116,6 +116,24 @@ impl FromBytes for String {
     }
 }
 
+impl FromBytes for f32 {
+    fn from_bytes(bytes: &[u8]) -> Self {
+        from_utf8(bytes)
+            .expect("Malformed UTF-8 byte sequence")
+            .parse()
+            .expect("Failed to parse f32 value.")
+    }
+}
+
+impl FromBytes for f64 {
+    fn from_bytes(bytes: &[u8]) -> Self {
+        from_utf8(bytes)
+            .expect("Malformed UTF-8 byte sequence")
+            .parse()
+            .expect("Failed to parse f32 value.")
+    }
+}
+
 pub struct Source {
     buf: Box<[u8]>,
     // This `File` is required.
@@ -152,21 +170,13 @@ impl Source {
             Self::get_buffer_use_std(&mut stdin)
         };
 
-        Self {
-            buf,
-            _file: Some(stdin),
-            head: 0,
-        }
+        Self { buf, _file: Some(stdin), head: 0 }
     }
 
     #[cfg(not(target_family = "unix"))]
     pub fn new() -> Self {
         let buf = Self::get_buffer_use_std(&mut std::io::stdin().lock());
-        Self {
-            buf,
-            _file: None,
-            head: 0,
-        }
+        Self { buf, _file: None, head: 0 }
     }
 
     pub fn next_start(&mut self) -> Option<usize> {
