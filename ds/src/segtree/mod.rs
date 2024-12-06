@@ -4,6 +4,7 @@ mod lazy;
 pub use dynamic::*;
 pub use lazy::*;
 use std::{
+    any::type_name,
     fmt::Debug,
     ops::{Bound, Range, RangeBounds},
 };
@@ -29,6 +30,7 @@ pub struct SegmentTree<T: Monoid> {
 }
 
 impl<T: Monoid> SegmentTree<T> {
+    /// Create new `SegmentTree` filled with `M::id`.
     pub fn new(size: usize) -> Self {
         Self { t: (0..size * 2).map(|_| T::id()).collect() }
     }
@@ -52,6 +54,19 @@ impl<T: Monoid> SegmentTree<T> {
         self.len() == 0
     }
 
+    /// Get `index`-th element.
+    ///
+    /// # Panics
+    /// - `index < self.len()` must be satisfied.
+    pub fn get(&self, index: usize) -> &T::M {
+        assert!(index < self.len());
+        &self.t[index + self.len()]
+    }
+
+    /// Set `val` to `index`-th element.
+    ///
+    /// # Panics
+    /// - `index < self.len()` must be satisfied.
     pub fn set(&mut self, mut index: usize, val: T::M) {
         assert!(index < self.len());
 
@@ -64,6 +79,12 @@ impl<T: Monoid> SegmentTree<T> {
         }
     }
 
+    /// Update `index`-th element by `f`.
+    ///
+    /// This method is equivalent to `self.set(index, f(self.get(index)))`.
+    ///
+    /// # Panics
+    /// - `index < self.len()` must be satisfied.
     pub fn update_by<F>(&mut self, index: usize, f: F)
     where
         F: Fn(&T::M) -> T::M,
@@ -73,8 +94,36 @@ impl<T: Monoid> SegmentTree<T> {
         self.set(index, new);
     }
 
+    /// Apply `M::op` to the elements within `range` and return its result.
+    ///
+    /// # Panics
+    /// - The head of `range` must be smaller than or equal to the tail of `range`.
+    /// - `range` must not contain a range greater than `self.len()`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use ds::{SegmentTree, Monoid};
+    ///
+    /// struct I32Sum;
+    /// impl Monoid for I32Sum {
+    ///     type M = i32;
+    ///     fn id() -> i32 { 0 }
+    ///     fn op(l: &i32, r: &i32) -> i32 { l + r }
+    /// }
+    ///
+    /// let mut st = SegmentTree::<I32Sum>::from_vec(vec![0, 1, 2, 3]);
+    /// assert_eq!(st.fold(1..3), 3);
+    /// assert_eq!(st.fold(..), 6);
+    /// st.set(2, 5);
+    /// assert_eq!(st.fold(..), 9);
+    /// // Panics !!! (range.start > range.end)
+    /// // st.fold(3..1);
+    /// // Panics !!! (index out of range)
+    /// // st.fold(1..5);
+    /// ```
     pub fn fold(&self, range: impl RangeBounds<usize>) -> T::M {
         let Range { start, end } = convert_range(self.len(), range);
+        assert!(start <= end && end <= self.len());
 
         let (mut l, mut r) = (start + self.len(), end + self.len());
         let (mut lf, mut rf) = (T::id(), T::id());
@@ -108,7 +157,9 @@ where
     T::M: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SegmentTree").field("t", &self.t).finish()
+        f.debug_struct(type_name::<Self>())
+            .field("t", &self.t)
+            .finish()
     }
 }
 

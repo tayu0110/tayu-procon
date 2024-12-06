@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     fmt::Debug,
     marker::PhantomData,
     ops::{Add, Mul},
@@ -179,7 +180,7 @@ where
     M::Act: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LazySegmentTree")
+        f.debug_struct(type_name::<Self>())
             .field("n", &self.n)
             .field("size", &self.size)
             .field("log", &self.log)
