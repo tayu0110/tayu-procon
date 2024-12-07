@@ -164,6 +164,22 @@ where
     }
 }
 
+impl<M: Monoid> FromIterator<M::M> for SegmentTree<M> {
+    fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
+        let mut t = iter.into_iter().collect::<Vec<M::M>>();
+        let size = t.len();
+        t.resize_with(size * 2, M::id);
+        for i in 0..size {
+            t.swap(i, i + size);
+        }
+        for i in (1..size).rev() {
+            t[i] = M::op(&t[i << 1], &t[(i << 1) | 1]);
+        }
+
+        Self { t }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Reversible<T: Monoid + Clone> {
     pub forward: T,
@@ -213,6 +229,50 @@ mod tests {
         }
 
         let mut st = SegmentTree::<I32Add>::from_vec(v.to_vec());
+
+        assert_eq!(st.fold(0..10), 62);
+        assert_eq!(st.fold(5..10), 33);
+        assert_eq!(st.fold(0..5), 29);
+        assert_eq!(st.fold(3..7), 30);
+
+        st.set(4, -1);
+
+        assert_eq!(st.fold(0..10), 47);
+        assert_eq!(st.fold(5..10), 33);
+        assert_eq!(st.fold(0..5), 14);
+        assert_eq!(st.fold(3..7), 15);
+
+        st.update_by(4, |old| old + 15);
+
+        assert_eq!(st.fold(0..10), 62);
+        assert_eq!(st.fold(5..10), 33);
+        assert_eq!(st.fold(0..5), 29);
+        assert_eq!(st.fold(3..7), 30);
+
+        st.update_by(6, |old| old * 3);
+
+        assert_eq!(st.fold(0..10), 74);
+        assert_eq!(st.fold(5..10), 45);
+        assert_eq!(st.fold(0..5), 29);
+        assert_eq!(st.fold(3..7), 42);
+    }
+
+    #[test]
+    fn segtree_from_iterator_test() {
+        let v = [1, 3, 4, 7, 14, 3, 6, 4, 11, 9];
+
+        struct I32Add;
+        impl Monoid for I32Add {
+            type M = i32;
+            fn id() -> Self::M {
+                0
+            }
+            fn op(l: &Self::M, r: &Self::M) -> Self::M {
+                l + r
+            }
+        }
+
+        let mut st = v.into_iter().collect::<SegmentTree<I32Add>>();
 
         assert_eq!(st.fold(0..10), 62);
         assert_eq!(st.fold(5..10), 33);

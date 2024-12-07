@@ -2,6 +2,7 @@ use std::{
     any::type_name,
     fmt::Debug,
     marker::PhantomData,
+    mem::replace,
     ops::{Add, Mul, Range, RangeBounds},
 };
 
@@ -13,6 +14,7 @@ pub struct LazySegmentTree<M: MapMonoid> {
     log: usize,
     tree: Vec<M::M>,
     lazy: Vec<M::Act>,
+    has_lazy: Vec<bool>,
 }
 
 impl<M: MapMonoid> LazySegmentTree<M>
@@ -37,7 +39,7 @@ where
         for i in (1..size).rev() {
             tree[i] = M::op(&tree[i * 2], &tree[i * 2 + 1]);
         }
-        Self { n, size, log, tree, lazy }
+        Self { n, size, log, tree, lazy, has_lazy: vec![false; size * 2] }
     }
 
     pub fn len(&self) -> usize {
@@ -155,12 +157,12 @@ where
         let (mut a, mut b) = (start, end);
         while a < b {
             if a & 1 != 0 {
-                self.all_apply(a, val.clone());
+                self.all_apply(a, &val);
                 a += 1;
             }
             if b & 1 != 0 {
                 b -= 1;
-                self.all_apply(b, val.clone());
+                self.all_apply(b, &val);
             }
             a >>= 1;
             b >>= 1;
@@ -179,17 +181,21 @@ where
         self.tree[idx] = M::op(&self.tree[idx * 2], &self.tree[idx * 2 + 1]);
     }
 
-    fn all_apply(&mut self, idx: usize, val: M::Act) {
+    fn all_apply(&mut self, idx: usize, val: &M::Act) {
         self.tree[idx] = M::map(&self.tree[idx], &val);
         if idx < self.size {
             self.lazy[idx] = M::composite(&val, &self.lazy[idx]);
+            self.has_lazy[idx] = true;
         }
     }
 
     fn push(&mut self, idx: usize) {
-        self.all_apply(idx * 2, self.lazy[idx].clone());
-        self.all_apply(idx * 2 + 1, self.lazy[idx].clone());
-        self.lazy[idx] = M::id();
+        if self.has_lazy[idx] {
+            let val = replace(&mut self.lazy[idx], M::id());
+            self.all_apply(idx * 2, &val);
+            self.all_apply(idx * 2 + 1, &val);
+            self.has_lazy[idx] = false;
+        }
     }
 }
 
@@ -205,6 +211,7 @@ where
             log: self.log,
             tree: self.tree.clone(),
             lazy: self.lazy.clone(),
+            has_lazy: self.has_lazy.clone(),
         }
     }
 }
@@ -223,6 +230,24 @@ where
             .field("tree", &self.tree)
             .field("lazy", &self.lazy)
             .finish()
+    }
+}
+
+impl<M: MapMonoid> FromIterator<M::M> for LazySegmentTree<M> {
+    fn from_iter<T: IntoIterator<Item = M::M>>(iter: T) -> Self {
+        let mut tree = iter.into_iter().collect::<Vec<_>>();
+        let n = tree.len();
+        let size = n.next_power_of_two();
+        tree.resize_with(size * 2, M::e);
+        for i in 0..n {
+            tree.swap(i, i + size);
+        }
+        let log = size.trailing_zeros() as usize;
+        let lazy = (0..size * 2).map(|_| M::id()).collect::<Vec<_>>();
+        for i in (1..size).rev() {
+            tree[i] = M::op(&tree[i * 2], &tree[i * 2 + 1]);
+        }
+        Self { n, size, log, tree, lazy, has_lazy: vec![false; size * 2] }
     }
 }
 
