@@ -134,7 +134,8 @@ where
     /// Apply `val` to the elements within `range`.
     pub fn apply(&mut self, range: impl RangeBounds<usize>, val: M::Act) {
         let Range { start, end } = convert_range(self.len(), range);
-        assert!(start <= end && end <= self.n);
+        assert!(start <= end);
+        assert!(end <= self.len());
         if start == end {
             return;
         }
@@ -153,11 +154,11 @@ where
         }
         let (mut a, mut b) = (start, end);
         while a < b {
-            if (a & 1) != 0 {
+            if a & 1 != 0 {
                 self.all_apply(a, val.clone());
                 a += 1;
             }
-            if (b & 1) != 0 {
+            if b & 1 != 0 {
                 b -= 1;
                 self.all_apply(b, val.clone());
             }
