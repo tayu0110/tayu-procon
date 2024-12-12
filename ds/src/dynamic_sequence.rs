@@ -1197,18 +1197,17 @@ where
                     if !end.is_root() {
                         end.splay();
                     }
-                    let res = unsafe { &end.0.as_ref().data.val };
-                    if let Some(mut prev) = end.left() {
-                        end.propagate();
+                    let mut prev = end.left()?;
+                    end.propagate();
+                    prev.propagate();
+                    while let Some(n) = prev.right() {
+                        prev = n;
                         prev.propagate();
-                        while let Some(n) = prev.right() {
-                            prev = n;
-                            prev.propagate();
-                        }
-                        prev.splay();
-                        self.end = Some(prev);
-                        self.seq.root.set(Some(prev));
                     }
+                    prev.splay();
+                    let res = unsafe { &prev.0.as_ref().data.val };
+                    self.end = Some(prev);
+                    self.seq.root.set(Some(prev));
                     Some(res)
                 } else {
                     let end = self.seq.last_node()?;
@@ -1442,5 +1441,42 @@ mod tests {
                 assert!(map.contains_key(&p));
             }
         }
+    }
+
+    #[test]
+    fn sorted_seq_double_ended_iter_abc241_test() {
+        struct T;
+        impl MapMonoid for T {
+            type M = usize;
+            type Act = ();
+            fn e() -> Self::M {
+                0
+            }
+            fn op(l: &Self::M, _: &Self::M) -> Self::M {
+                *l
+            }
+            fn id() -> Self::Act {}
+            fn composite(_: &Self::Act, _: &Self::Act) -> Self::Act {}
+            fn map(m: &Self::M, _: &Self::Act) -> Self::M {
+                *m
+            }
+        }
+
+        let mut seq = DynamicSortedSequence::<T>::new();
+        seq.insert(20);
+        seq.insert(10);
+        seq.insert(30);
+        seq.insert(20);
+        assert_eq!(seq.range(15..).nth(0), Some(&20));
+        assert_eq!(seq.range(15..).nth(1), Some(&20));
+        assert_eq!(seq.range(15..).nth(2), Some(&30));
+        assert_eq!(seq.range(15..).nth(3), None);
+        assert_eq!(seq.range(..=100).nth_back(0), Some(&30));
+        assert_eq!(seq.range(..=100).nth_back(1), Some(&20));
+        assert_eq!(seq.range(..=100).nth_back(2), Some(&20));
+        assert_eq!(seq.range(..=100).nth_back(3), Some(&10));
+        assert_eq!(seq.range(..=100).nth_back(4), None);
+        seq.insert(1);
+        assert_eq!(seq.range(..=100).nth_back(4), Some(&1));
     }
 }
