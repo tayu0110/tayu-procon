@@ -382,6 +382,7 @@ where
             node.propagate();
         }
         node.splay();
+        self.root.set(Some(node));
         Some(node)
     }
 
@@ -1478,5 +1479,10 @@ mod tests {
         assert_eq!(seq.range(..=100).nth_back(4), None);
         seq.insert(1);
         assert_eq!(seq.range(..=100).nth_back(4), Some(&1));
+        seq.insert(2);
+        assert_eq!(seq.range(..=15).nth_back(0), Some(&10));
+        assert_eq!(seq.range(..=15).nth_back(1), Some(&2));
+        assert_eq!(seq.range(..=15).nth_back(2), Some(&1));
+        assert_eq!(seq.range(..=15).nth_back(3), None);
     }
 }
