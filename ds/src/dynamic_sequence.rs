@@ -944,6 +944,14 @@ where
         }
     }
 
+    pub fn append(&mut self, other: Self) {
+        if self.last() <= other.first() {
+            self.seq.append(other.seq);
+            return;
+        }
+        self.extend(other);
+    }
+
     /// Split and Return the partition after the first position that `element` occurs.  
     /// The effect of this method is almost equivalent `self.split_off(self.first_index_of(element))`.
     ///
