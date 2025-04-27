@@ -944,6 +944,13 @@ where
         }
     }
 
+    /// Extend `self` by `other`.
+    ///
+    /// # Note
+    /// `extend` can perform the same operation, but `append` may be more efficient.  
+    /// Specifically, when the largest element of `self` is less than or equal to the smallest element of `other`,
+    /// `append` can be logarithmic time with respect to the number of elements.  
+    /// Otherwise, `append` is linear time as same as `extend`.
     pub fn append(&mut self, other: Self) {
         if self.last() <= other.first() {
             self.seq.append(other.seq);
