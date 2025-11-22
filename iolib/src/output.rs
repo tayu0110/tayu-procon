@@ -2,7 +2,7 @@
 use std::{
     cell::RefCell,
     io::{StdoutLock, Write},
-    ptr::{addr_of_mut, copy_nonoverlapping},
+    ptr::copy_nonoverlapping,
 };
 const BUF_SIZE: usize = 1 << 20;
 
@@ -237,9 +237,7 @@ impl<'a> FastOutput<'a> {
 struct DummyForFlush(u32);
 impl Drop for DummyForFlush {
     fn drop(&mut self) {
-        unsafe {
-            OUTPUT.flush();
-        }
+        get_output().flush();
     }
 }
 static mut OUTPUT: FastOutput<'static> = FastOutput::new();
@@ -259,7 +257,7 @@ fn init() -> &'static mut FastOutput<'static> {
     res
 }
 fn get_output() -> &'static mut FastOutput<'static> {
-    unsafe { addr_of_mut!(OUTPUT).as_mut().unwrap() }
+    unsafe { (&raw mut OUTPUT).as_mut().unwrap() }
 }
 pub fn get_output_source() -> &'static mut FastOutput<'static> {
     unsafe { STDOUTSOURCE() }
