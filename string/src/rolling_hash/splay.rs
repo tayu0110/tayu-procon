@@ -127,7 +127,7 @@ impl NodeRef {
 
     fn is_left_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.left.map(|p| p.0) == Some(self.0))
+            .is_some_and(|p| p.left.map(|p| p.0) == Some(self.0))
     }
 
     fn connect_right(mut self, mut child: Self) {
@@ -144,7 +144,7 @@ impl NodeRef {
 
     fn is_right_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.right.map(|p| p.0) == Some(self.0))
+            .is_some_and(|p| p.right.map(|p| p.0) == Some(self.0))
     }
 
     fn disconnect_parent(self) -> Option<Self> {
@@ -262,8 +262,8 @@ impl NodeRef {
     }
 
     fn is_root(self) -> bool {
-        self.parent.map_or(true, |p| {
-            p.left.map_or(true, |s| s.0 != self.0) && p.right.map_or(true, |d| d.0 != self.0)
+        self.parent.is_none_or(|p| {
+            p.left.is_none_or(|s| s.0 != self.0) && p.right.is_none_or(|d| d.0 != self.0)
         })
     }
 }

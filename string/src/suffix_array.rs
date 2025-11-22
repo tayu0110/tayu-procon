@@ -4,6 +4,7 @@ use std::ops::Index;
 //      S   : s[i] < s[i+1]
 //      L   : s[i] > s[i+1]
 //      LMS : s[i-1] = L-type && s[i] = S-type (Left-Most-S)
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 enum Type {
@@ -30,7 +31,7 @@ impl<'a> SuffixArray<'a> {
             return Self { s, sa };
         }
 
-        Self::sa_is(Self::CHARS, &s, &mut sa);
+        Self::sa_is(Self::CHARS, s, &mut sa);
 
         Self { s, sa }
     }
@@ -93,7 +94,7 @@ impl<'a> SuffixArray<'a> {
 
         // If there is only one LMS-Type(tailling '\0') and the type[0] one is not S-Type, there is no need for a second sort
         // since the order of operations of the sort is unique since all elements except the last element are L-Types.
-        if lms_indices.len() == 0 && types[0] != Type::S {
+        if lms_indices.is_empty() && types[0] != Type::S {
             return;
         }
         // If there is only one LMS-Type for each bucket per character type, then a second sort is not necessary
@@ -121,7 +122,7 @@ impl<'a> SuffixArray<'a> {
             lms_ranks[index as usize] = rank - 1;
         }
 
-        if lms_indices.len() as u32 != rank + 1 {
+        if lms_indices.len() as u32 != rank {
             let (restore_index, new_s) = lms_ranks
                 .into_iter()
                 .take(s.len())
@@ -132,7 +133,7 @@ impl<'a> SuffixArray<'a> {
             Self::sa_is(rank as usize + 1, &new_s, sa);
             lms_indices
                 .iter_mut()
-                .zip(sa.into_iter())
+                .zip(sa.iter_mut())
                 .for_each(|(lms, i)| *lms = restore_index[*i as usize]);
         };
 
@@ -150,10 +151,7 @@ impl<'a> SuffixArray<'a> {
         let kinds = char_start.len() - 1;
 
         let mut filled_lms = vec![0; kinds];
-        for (lms, c) in lms_indices
-            .into_iter()
-            .map(|&lms| (lms, s[lms as usize].into()))
-        {
+        for (lms, c) in lms_indices.iter().map(|&lms| (lms, s[lms as usize].into())) {
             sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
             filled_lms[c as usize] += 1;
         }
@@ -189,6 +187,9 @@ impl<'a> SuffixArray<'a> {
                     sa[(char_start[nc] + filled[nc]) as usize] = lms as u32 - 1;
                     filled[nc] += 1;
                 }
+                if backet_index != 0 {
+                    sa[(char_start[backet_index + 1] - 1 - lms_index) as usize] = u32::MAX;
+                }
             }
 
             max_lms_num = std::cmp::max(max_lms_num, filled_lms[backet_index]);
@@ -197,7 +198,7 @@ impl<'a> SuffixArray<'a> {
 
         // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
         // since the order of operations of the sort is unique since all elements except the last element are L-Types.
-        if lms_indices.len() == 0 && types[0] != Type::S {
+        if lms_indices.is_empty() && types[0] != Type::S {
             return max_lms_num;
         }
 
@@ -279,9 +280,12 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use rand::Rng;
+
     use crate::SuffixArray;
 
     fn sa_test(sample: &str) {
+        eprintln!("\nsample: {sample}");
         let sa = SuffixArray::new(sample);
         let mut nsa = (0..sample.len() as u32).collect::<Vec<_>>();
         nsa.sort_by_key(|&i| &sample[i as usize..]);
@@ -313,5 +317,21 @@ mod tests {
 
         sa_test("jbfbjhujbfbcad");
         sa_test("ucbpgpgfqtfbirqxkfggxfphesjbfbjhumooucrgcatspkprcogpqsdxlwasjqnbkbbozgajnbhhilexbifnqjbfbcad");
+        sa_test("sbzjwelsbzjxc");
+        sa_test("myjbuhrcxmfbpakdmyknjbuhwa");
+        sa_test("aftscrqbscmlhmzwlelelexnznghf");
+        sa_test("stfwogugoitdwccfbwdlmpaaztwxogugxpwvrystswsidypstbvssvvifxcil");
+    }
+
+    #[test]
+    fn suffix_array_regression_tests() {
+        let mut rng = rand::rng();
+        for _ in 0..10000 {
+            let len = rng.random_range(1..50);
+            let s = (0..len)
+                .map(|_| (b'a' + rng.random_range(0..26)) as char)
+                .collect::<String>();
+            sa_test(&s);
+        }
     }
 }

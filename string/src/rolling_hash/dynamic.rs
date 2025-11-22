@@ -170,8 +170,8 @@ mod tests {
     use super::*;
     use crate::RollingHash;
     use rand::{
-        distributions::{Alphanumeric, DistString},
-        thread_rng, Rng,
+        distr::{Alphanumeric, SampleString},
+        rng, Rng,
     };
 
     #[test]
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn updatable_rolling_hash_random_test() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         const LEN: usize = 10;
 
         for _ in 0..100 {
@@ -206,8 +206,8 @@ mod tests {
 
             let mut hash = DynamicRollingHash::new(&s);
 
-            let start = rng.gen_range(0..LEN);
-            let end = rng.gen_range(start..LEN + 1);
+            let start = rng.random_range(0..LEN);
+            let end = rng.random_range(start..LEN + 1);
             eprint!("s: {s}, start: {start}, end: {end} ");
             hash.reverse(start..end);
 
