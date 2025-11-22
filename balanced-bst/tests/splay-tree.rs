@@ -10,7 +10,7 @@ fn map_random_test() {
 
     for _ in 0..1000 {
         let mut tree = SplayTreeMap::new();
-        let mut array = vec![0; K];
+        let mut array = [0; K];
         let mut query = vec![];
         for _ in 0..Q {
             let ty = rng.gen_bool(0.4) as usize;

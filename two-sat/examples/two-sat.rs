@@ -30,7 +30,7 @@ fn main() {
 
     println!("Yes");
     let res = ts.answer();
-    for (i, &res) in res.into_iter().enumerate() {
+    for (i, &res) in res.iter().enumerate() {
         if res {
             println!("{}", p[i].0);
         } else {

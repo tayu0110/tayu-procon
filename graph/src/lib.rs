@@ -95,7 +95,6 @@ mod tests {
         bellman_ford, dijkstra_heap, dijkstra_v2, low_link, scc, topological_sort, warshall_floyd,
         DirectedGraph, UnDirectedGraph,
     };
-    use std::i64::MAX;
 
     #[test]
     fn graph_test() {
@@ -122,25 +121,75 @@ mod tests {
         let dir: DirectedGraph = DirectedGraph::from_weighted_edges(10, weighted_edges);
 
         let dist = dijkstra_heap(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX]);
+        assert_eq!(
+            dist,
+            vec![0, 3, 14, i64::MAX, 9, 13, 11, i64::MAX, 8, i64::MAX]
+        );
 
         let dist = dijkstra_v2(0, &dir);
-        assert_eq!(dist, vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX]);
+        assert_eq!(
+            dist,
+            vec![0, 3, 14, i64::MAX, 9, 13, 11, i64::MAX, 8, i64::MAX]
+        );
 
         let dists = warshall_floyd(&dir);
         assert_eq!(
             dists,
             vec![
-                vec![0, 3, 14, MAX, 9, 13, 11, MAX, 8, MAX],
-                vec![12, 0, 11, MAX, 6, 10, 8, MAX, 5, MAX],
-                vec![1, 4, 0, MAX, 10, 9, 12, MAX, 9, MAX],
-                vec![7, 10, 21, 0, 16, 20, 18, MAX, 15, 3],
-                vec![MAX, MAX, MAX, MAX, 0, 4, 2, MAX, MAX, MAX],
-                vec![MAX, MAX, MAX, MAX, MAX, 0, MAX, MAX, MAX, MAX],
-                vec![MAX, MAX, MAX, MAX, MAX, MAX, 0, MAX, MAX, MAX],
-                vec![8, 11, 22, MAX, 17, 21, 19, 0, 16, MAX],
-                vec![7, 10, 6, MAX, 1, 5, 3, MAX, 0, MAX],
-                vec![MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, MAX, 0]
+                vec![0, 3, 14, i64::MAX, 9, 13, 11, i64::MAX, 8, i64::MAX],
+                vec![12, 0, 11, i64::MAX, 6, 10, 8, i64::MAX, 5, i64::MAX],
+                vec![1, 4, 0, i64::MAX, 10, 9, 12, i64::MAX, 9, i64::MAX],
+                vec![7, 10, 21, 0, 16, 20, 18, i64::MAX, 15, 3],
+                vec![
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    0,
+                    4,
+                    2,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX
+                ],
+                vec![
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    0,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX
+                ],
+                vec![
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    0,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX
+                ],
+                vec![8, 11, 22, i64::MAX, 17, 21, 19, 0, 16, i64::MAX],
+                vec![7, 10, 6, i64::MAX, 1, 5, 3, i64::MAX, 0, i64::MAX],
+                vec![
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    i64::MAX,
+                    0
+                ]
             ]
         );
 
@@ -247,15 +296,15 @@ mod tests {
         // |par|NA| 0| 0| 1| 1| 2| 3| 4| 4| 5| 7| 9|
         // +---+--+--+--+--+--+--+--+--+--+--+--+--+
         let mut undir =
-            UnDirectedTree::from_par_list(vec![std::usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9])
+            UnDirectedTree::from_par_list(vec![usize::MAX, 0, 0, 1, 1, 2, 3, 4, 4, 5, 7, 9])
                 .unwrap();
 
         let anc = nth_ancestor(&mut undir);
         assert_eq!(anc(6, 2), 1);
         assert_eq!(anc(1, 1), 0);
-        assert_eq!(anc(3, 100000), std::usize::MAX);
+        assert_eq!(anc(3, 100000), usize::MAX);
         assert_eq!(anc(11, 3), 2);
-        assert_eq!(anc(0, 1), std::usize::MAX);
+        assert_eq!(anc(0, 1), usize::MAX);
 
         // 9 --- 1 --- 8 --- 4 --- 6     (0, 1, 3), (0, 2, 1), (0, 3, 7), (0, 7, 8),
         // |     |     |     |           (1, 8, 5), (1, 9, 4),

@@ -19,6 +19,5 @@ pub use rational;
 pub use segtree;
 pub use simple_rand;
 pub use string;
-pub use trie;
 pub use unionfind;
 pub use utility;

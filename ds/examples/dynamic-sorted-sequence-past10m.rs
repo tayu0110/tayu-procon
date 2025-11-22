@@ -31,7 +31,7 @@ fn main() {
     let mut seq = p
         .iter()
         .cloned()
-        .map(|p| Reverse(p))
+        .map(Reverse)
         .collect::<DynamicSortedSequence<T>>();
     for _ in 0..q {
         scan!(ty: usize);

@@ -1,7 +1,6 @@
 use std::{
     marker::PhantomData,
     ops::{Bound, RangeBounds},
-    usize,
 };
 
 pub trait AbelianGroup {

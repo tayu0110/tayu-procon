@@ -182,9 +182,9 @@ where
     }
 
     fn all_apply(&mut self, idx: usize, val: &M::Act) {
-        self.tree[idx] = M::map(&self.tree[idx], &val);
+        self.tree[idx] = M::map(&self.tree[idx], val);
         if idx < self.size {
-            self.lazy[idx] = M::composite(&val, &self.lazy[idx]);
+            self.lazy[idx] = M::composite(val, &self.lazy[idx]);
             self.has_lazy[idx] = true;
         }
     }

@@ -79,7 +79,7 @@ impl<W: Clone> FixedGraph<W, false> {
     /// ```
     pub fn eulerian_trail(&self) -> Option<(Vec<usize>, Vec<usize>)> {
         let sd = (0..self.num_vertexes())
-            .filter_map(|v| (self.edges(v).len() % 2 == 1).then_some(v))
+            .filter(|v| self.edges(*v).len() % 2 == 1)
             .collect::<Vec<_>>();
         (sd.is_empty() || sd.len() == 2).then(|| {
             let s = (0..self.num_vertexes())

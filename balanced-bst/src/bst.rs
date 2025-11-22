@@ -10,7 +10,9 @@ struct Node<T> {
 }
 
 impl<T> Node<T> {
-    pub fn new(val: T) -> Self { Self { parent: None, left: None, right: None, val } }
+    pub fn new(val: T) -> Self {
+        Self { parent: None, left: None, right: None, val }
+    }
 }
 
 #[derive(Debug)]
@@ -104,7 +106,9 @@ impl<T: Ord> NodeRef<T> {
 }
 
 impl<T> Clone for NodeRef<T> {
-    fn clone(&self) -> Self { NodeRef(self.0) }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<T> Copy for NodeRef<T> {}
@@ -112,11 +116,15 @@ impl<T> Copy for NodeRef<T> {}
 impl<T> Deref for NodeRef<T> {
     type Target = Node<T>;
 
-    fn deref(&self) -> &Self::Target { unsafe { self.0.as_ref() } }
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref() }
+    }
 }
 
 impl<T> DerefMut for NodeRef<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target { unsafe { self.0.as_mut() } }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut() }
+    }
 }
 
 pub struct BinarySearchTree<T> {
@@ -124,9 +132,13 @@ pub struct BinarySearchTree<T> {
 }
 
 impl<T: Ord> BinarySearchTree<T> {
-    pub const fn new() -> Self { Self { root: None } }
+    pub const fn new() -> Self {
+        Self { root: None }
+    }
 
-    pub fn contains(&self, val: &T) -> bool { self.get(val).is_some() }
+    pub fn contains(&self, val: &T) -> bool {
+        self.get(val).is_some()
+    }
 
     pub fn get(&self, val: &T) -> Option<&T> {
         let mut node = self.root.as_ref()?.get();
@@ -176,7 +188,9 @@ impl<T: Ord> BinarySearchTree<T> {
 
         while &node.val != val {
             if val < &node.val {
-                let Some(left) = node.left else { break; };
+                let Some(left) = node.left else {
+                    break;
+                };
                 node = left;
             } else {
                 let Some(right) = node.right else { break };
@@ -232,6 +246,12 @@ impl<T: Ord> BinarySearchTree<T> {
         }
 
         unsafe { Some(node.into_raw().val) }
+    }
+}
+
+impl<T: Ord> Default for BinarySearchTree<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

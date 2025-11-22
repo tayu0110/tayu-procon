@@ -12,11 +12,16 @@ simple-rand = { package = "simple-rand", path = "../simple-rand" }
 
 [dev-dependencies]
 cpio = { package = "cpio", version = "0.1.0", git = "https://github.com/tayu0110/tayu-procon.git" }
+criterion = "=0.4.0"
 rand = "0.8.5"
 
 [features]
 # default = ["const_methods"]
 const_methods = ["dep:arbitrary-modint"]
+
+[[bench]]
+name = "divisor_enumeration"
+harness = false
 
 [profile.release]
 debug = 1

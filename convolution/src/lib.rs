@@ -63,7 +63,10 @@ pub fn convolution<M: Modulo>(mut a: Vec<u32>, mut b: Vec<u32>) -> Vec<u32> {
     unsafe {
         utility::u32tomint::<M>(&mut a);
         utility::u32tomint::<M>(&mut b);
-        let mut res = convolution_mod::<M>(transmute(a), transmute(b));
+        let mut res = convolution_mod::<M>(
+            transmute::<Vec<u32>, Vec<MontgomeryModint<M>>>(a),
+            transmute::<Vec<u32>, Vec<MontgomeryModint<M>>>(b),
+        );
         utility::minttou32(&mut res);
         transmute(res)
     }

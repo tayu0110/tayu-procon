@@ -29,7 +29,7 @@ impl BitVector {
     fn new(data: Box<[BitBlock]>) -> Self {
         const L: usize = LARGE_WIDTH / BitBlock::BITS as usize;
         let (mut large, mut small) = (
-            Vec::with_capacity((data.len() + L - 1) / L + 1),
+            Vec::with_capacity(data.len().div_ceil(L) + 1),
             Vec::with_capacity(data.len() + 1),
         );
         large.push(0);
@@ -106,7 +106,7 @@ impl BitVector {
 
 /// Reference : https://miti-7.hatenablog.com/entry/2018/04/28/152259
 #[derive(Debug, Clone)]
-pub struct WaveletMatrix<T, W = DefaultZST, C: = DefaultZST> {
+pub struct WaveletMatrix<T, W = DefaultZST, C = DefaultZST> {
     len: usize,
     bitvec: Vec<BitVector>,
     bound: Vec<usize>,
@@ -123,13 +123,13 @@ macro_rules! impl_wavelet_matrix {
                 pub const fn len(&self) -> usize {
                     self.len
                 }
-            
+
                 /// Check `self.len() == 0`
                 pub const fn is_empty(&self) -> bool {
                     self.len() == 0
                 }
-            
-                /// Get the `at`-th element of an original sequence.  
+
+                /// Get the `at`-th element of an original sequence.
                 /// If `at >= self.len()` is satisfied, return `None`.
                 ///
                 /// # Examples
@@ -156,27 +156,27 @@ macro_rules! impl_wavelet_matrix {
                                 now = bound + unsafe { bitvec.count::<1>(now) };
                             }
                         }
-            
+
                         res
                     })
                 }
-            
+
                 fn countk_to(&self, k: $t, first: usize, to: usize) -> usize {
                     let mut b = self.bitvec.len();
                     let mut now = to;
                     for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()) {
                         b -= 1;
-            
+
                         if (k >> b) & 1 == 0 {
                             now = unsafe { bitvec.count::<0>(now) };
                         } else {
                             now = bound + unsafe { bitvec.count::<1>(now) };
                         }
                     }
-            
+
                     now - first
                 }
-            
+
                 /// Count the number of `k` that exists within `range`.
                 ///
                 /// # Panics
@@ -199,12 +199,12 @@ macro_rules! impl_wavelet_matrix {
                     };
                     let Range { start, end } = convert_range(self.len(), range);
                     assert!(end <= self.len());
-            
+
                     let mut res = self.countk_to(k, first as usize, end);
                     if start > 0 {
                         res -= self.countk_to(k, first as usize, start);
                     }
-            
+
                     res
                 }
 
@@ -235,14 +235,14 @@ macro_rules! impl_wavelet_matrix {
                 }
 
                 /// Count the number of numbers contained `within` the range of the `range` of the number sequence.
-                /// 
+                ///
                 /// # Panics
                 /// - `range` must specify the range within an original sequence.
-                /// 
+                ///
                 /// # Examples
                 /// ```rust
                 /// use ds::WaveletMatrix;
-                /// 
+                ///
                 /// let wm = WaveletMatrix::from([0u64, 1, 0, 2, 1, 1]);
                 /// assert_eq!(wm.count_within(.., ..), 6);
                 /// assert_eq!(wm.count_within(0..2, ..), 5);
@@ -268,7 +268,7 @@ macro_rules! impl_wavelet_matrix {
                     }) - s
                 }
 
-                /// Get `nth`-th `k` in an original sequence.  
+                /// Get `nth`-th `k` in an original sequence.
                 /// If such an element is not found, return `None`.
                 ///
                 /// `nth` is 0-index.
@@ -292,19 +292,19 @@ macro_rules! impl_wavelet_matrix {
                         for (bitvec, bound) in self.bitvec.iter().zip(self.bound.iter()).rev() {
                             let bit = k & 1;
                             k >>= 1;
-            
+
                             if bit == 0 {
                                 now = bitvec.position_of::<0>(now);
                             } else {
                                 now = bitvec.position_of::<1>(now - bound);
                             }
                         }
-            
+
                         now
                     })
                 }
-            
-                /// Get `nth`-th smallest element that exists within `range`.  
+
+                /// Get `nth`-th smallest element that exists within `range`.
                 /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
                 ///
                 /// `nth` is 0-index.
@@ -331,7 +331,7 @@ macro_rules! impl_wavelet_matrix {
                             let zeros_until_end = unsafe { bitvec.count::<0>(end) };
                             let zeros_until_start = unsafe { bitvec.count::<0>(start) };
                             let zeros = zeros_until_end - zeros_until_start;
-            
+
                             res <<= 1;
                             if nth < zeros {
                                 (start, end) = (zeros_until_start, zeros_until_end);
@@ -344,12 +344,12 @@ macro_rules! impl_wavelet_matrix {
                                 );
                             }
                         }
-            
+
                         res
                     })
                 }
-            
-                /// Get `nth`-th smallest element that exists within `range`.  
+
+                /// Get `nth`-th smallest element that exists within `range`.
                 /// If `nth` is longer than the length of `range` or `range` is empty, return `None`.
                 ///
                 /// # Panics
@@ -369,8 +369,8 @@ macro_rules! impl_wavelet_matrix {
                     (!range.is_empty() && nth < range.len())
                         .then(|| self.nth_smallest(range.len() - 1 - nth, range).unwrap())
                 }
-            
-                /// Return elements and frequencies within the range indicated by `range` in descending order of frequency.  
+
+                /// Return elements and frequencies within the range indicated by `range` in descending order of frequency.
                 /// Returned tuples represents `(element, frequency)`.
                 ///
                 /// This method should in some cases result in very poor performance and should be used with care.
@@ -398,7 +398,7 @@ macro_rules! impl_wavelet_matrix {
                 ) -> impl Iterator<Item = ($t, usize)> + '_ {
                     let Range { start, end } = convert_range(self.len(), range);
                     assert!(end <= self.len());
-            
+
                     let mut nt = BinaryHeap::new();
                     nt.push((end - start, start, 0, 0));
                     std::iter::from_fn(move || {
@@ -406,7 +406,7 @@ macro_rules! impl_wavelet_matrix {
                             if level == self.bitvec.len() {
                                 return Some((value, width));
                             }
-            
+
                             let end = width + start;
                             let bitvec = &self.bitvec[level];
                             let zeros_until_end = unsafe { bitvec.count::<0>(end) };
@@ -424,11 +424,11 @@ macro_rules! impl_wavelet_matrix {
                                 ));
                             }
                         }
-            
+
                         None
                     })
                 }
-            
+
                 /// Return the sum of elements that exists within `range`.
                 ///
                 /// Note that performance is worse when most of the elements in the range are distinct.
@@ -481,20 +481,20 @@ macro_rules! impl_wavelet_matrix {
 
                 /// Returns the sum of the weights of the points
                 /// whose values are in the `within` range of the `range` of the original sequence.
-                /// 
+                ///
                 /// In other words, this method returns the sum of the weights of the points inside the square
-                /// in the value range `within` and definition range `range`,  
+                /// in the value range `within` and definition range `range`,
                 /// with the index of the number sequence as horizontal axis and the value as vertical axis.
-                /// 
+                ///
                 /// # Panics
                 /// - `range` must specify the range within an original sequence.
-                /// 
+                ///
                 /// # Examples
                 /// ```rust
                 /// // This is the alias of `WaveletMatrix<T, W, CumSum<W>>`.
                 /// // `CumSum` can process static range sum queries.
                 /// use ds::StaticRectangleSum;
-                /// 
+                ///
                 /// let wm = StaticRectangleSum::from([(0u64, 1u64), (1, 2), (0, 3), (2, 4), (1, 5), (1, 6)]);
                 /// assert_eq!(wm.sum_of_weight(.., ..), 21);
                 /// assert_eq!(wm.sum_of_weight(1.., ..), 17);
@@ -521,25 +521,25 @@ macro_rules! impl_wavelet_matrix {
                     }) - s
                 }
             }
-            
+
             impl From<Vec<$t>> for WaveletMatrix<$t> {
                 fn from(value: Vec<$t>) -> Self {
                     value.into_iter().map(|v| (v, DefaultZST)).collect::<Self>()
                 }
             }
-            
+
             impl From<&[$t]> for WaveletMatrix<$t> {
                 fn from(value: &[$t]) -> Self {
                     Self::from(value.to_vec())
                 }
             }
-            
+
             impl<const N: usize> From<[$t; N]> for WaveletMatrix<$t> {
                 fn from(value: [$t; N]) -> Self {
                     Self::from(&value[..])
                 }
             }
-            
+
             impl FromIterator<$t> for WaveletMatrix<$t> {
                 fn from_iter<T: IntoIterator<Item = $t>>(iter: T) -> Self {
                     Self::from(iter.into_iter().collect::<Vec<$t>>())
@@ -552,9 +552,9 @@ macro_rules! impl_wavelet_matrix {
                     let Some(&max) = value.iter().max() else {
                         return Self::default();
                     };
-            
+
                     if max == 0 {
-                        let len = (value.len() + BitBlock::BITS as usize - 1) / BitBlock::BITS as usize;
+                        let len = value.len().div_ceil(BitBlock::BITS as usize);
                         return Self {
                             len: value.len(),
                             bitvec: vec![BitVector::new(vec![0; len].into_boxed_slice())],
@@ -564,7 +564,7 @@ macro_rules! impl_wavelet_matrix {
                             _phantom: PhantomData,
                         };
                     }
-            
+
                     let width = <$t>::BITS - max.leading_zeros();
                     let mut bitvec = vec![];
                     let mut cumsum = vec![C::new(&weights[..])];
@@ -578,7 +578,7 @@ macro_rules! impl_wavelet_matrix {
                                 .map(|v| v.iter().rev().fold(0u16, |s, v| (s << 1) | ((v >> r) as u16 & 1)))
                                 .collect(),
                         );
-                        
+
                         bound.push(unsafe { bv.count::<0>(value.len()) });
                         let (mut zeros, mut ones) = (0, *bound.last().unwrap());
                         for (v, w) in value.iter().zip(weights.iter()) {
@@ -597,7 +597,7 @@ macro_rules! impl_wavelet_matrix {
                         cumsum.push(C::new(&weights[..]));
                         bitvec.push(bv);
                     }
-            
+
                     let mut first = HashMap::from([(value[0], 0)]);
                     first.extend(
                         value
@@ -605,7 +605,7 @@ macro_rules! impl_wavelet_matrix {
                             .enumerate()
                             .filter_map(|(i, v)| (v[0] != v[1]).then_some((v[1], i as u32 + 1))),
                     );
-            
+
                     Self {
                         len: value.len(),
                         bitvec,
@@ -674,7 +674,9 @@ impl_wavelet_matrix!(u8, u16, u32, u64, u128, usize);
 
 #[derive(Debug, Clone, Default)]
 pub struct CumSum<W>
-where W: Clone + Copy + Add + Sub {
+where
+    W: Clone + Copy + Add + Sub,
+{
     cum: Vec<W>,
 }
 
@@ -684,7 +686,9 @@ pub trait StaticRangeSum<W>: Clone + Default {
 }
 
 impl<W> StaticRangeSum<W> for CumSum<W>
-where W: Clone + Copy + Default + Add<W, Output = W> + Sub<W, Output = W> {
+where
+    W: Clone + Copy + Default + Add<W, Output = W> + Sub<W, Output = W>,
+{
     fn new(slice: &[W]) -> Self {
         let mut cum = vec![W::default()];
         cum.extend(slice);

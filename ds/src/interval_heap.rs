@@ -36,6 +36,12 @@ impl<T> IntervalHeap<T> {
     }
 }
 
+impl<T> Default for IntervalHeap<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Ord> IntervalHeap<T> {
     fn parent(&self, node: usize) -> Option<usize> {
         (node > 1).then_some((node >> 1).wrapping_sub(1) & !1)

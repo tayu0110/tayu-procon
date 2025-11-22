@@ -18,7 +18,7 @@ fn main() {
 
     let dist = dijkstra_heap(s, &graph);
 
-    if dist[t] == std::i64::MAX {
+    if dist[t] == i64::MAX {
         writeln!(out, "-1").unwrap();
         return;
     }

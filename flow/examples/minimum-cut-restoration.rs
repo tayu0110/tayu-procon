@@ -8,8 +8,8 @@ fn main() {
     // in: i, out: i+n
     let mut ff = Dinic::new(2 * n);
     for (a, b) in e.into_iter().map(|(a, b)| (a - 1, b - 1)) {
-        ff.set_edge(a + n, b, std::i64::MAX);
-        ff.set_edge(b + n, a, std::i64::MAX);
+        ff.set_edge(a + n, b, i64::MAX);
+        ff.set_edge(b + n, a, i64::MAX);
     }
 
     for (i, c) in c.into_iter().enumerate() {

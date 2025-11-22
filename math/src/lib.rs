@@ -50,6 +50,48 @@ macro_rules! impl_factors {
 
 impl_factors!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);
 
+// pub struct Divisors<T: MathInt, const FACTORS: usize> {
+//     origin: T,
+//     factors: usize,
+//     divisor: Option<T>,
+//     cursor: usize,
+//     // (factor, cur_divisor, num_factors, used_factors)
+//     fmemo: [(T, T, u8, u8); FACTORS],
+// }
+
+// macro_rules! impl_divisors {
+//     ( $($t:ty),* ) => {
+//         $(
+//             impl Divisors<$t, { <$t>::BITS as usize }> {
+//                 fn new(origin: $t) -> Self {
+//                     assert!(origin > 0);
+//                     let mut res = Self {
+//                         origin,
+//                         factors: 0,
+//                         divisor: Some(1),
+//                         cursor: 0,
+//                         fmemo: [(0, 0, 0, 0); <$t>::BITS as usize],
+//                     };
+//                     for (fac, num) in origin.factorize() {
+//                         res.fmemo[res.factors] = (fac, 1, num as u8, 0);
+//                         res.factors += 1;
+//                     }
+//                     res
+//                 }
+//             }
+//             impl Iterator for Divisors<$t, { <$t>::BITS as usize }> {
+//                 type Item = $t;
+//                 fn next(&mut self) -> Option<Self::Item> {
+//                     let res = self.divisor?;
+
+//                 }
+//             }
+//         )*
+//     };
+// }
+
+// impl_divisors!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize);
+
 pub trait MathInt: Sized + Copy {
     /// Return the greatest common divisor of `self` and `other`.
     /// `gcd(0, 0)` is assumed to be `0`.
@@ -680,7 +722,7 @@ macro_rules! impl_math_int {
                     return (self as usize).saturating_sub(1);
                 }
                 let v = self.sqrti() as usize;
-                let mut s = (v + 1) / 2;
+                let mut s = v.div_ceil(2);
                 let mut smalls = (0..s).collect::<Vec<_>>();
                 let mut roughs = (0..s).map(|s| 2 * s + 1).collect::<Vec<_>>();
                 let mut larges = (0..s).map(|s| (self as usize / (2 * s + 1) - 1) / 2).collect::<Vec<_>>();
@@ -1213,10 +1255,10 @@ mod tests {
     #[test]
     fn miller_rabin_test_test() {
         const MAX: u64 = 100_000;
-        let mut p = vec![std::u64::MAX; MAX as usize];
+        let mut p = vec![u64::MAX; MAX as usize];
 
         for i in 2..MAX {
-            if p[i as usize] == std::u64::MAX {
+            if p[i as usize] == u64::MAX {
                 for j in (2..MAX).take_while(|j| i * *j < MAX) {
                     p[(i * j) as usize] = i;
                 }
@@ -1255,6 +1297,18 @@ mod tests {
         let mut f = 999381247093216751u64.divisors();
         f.sort();
         assert_eq!(f, vec![1, 999665081, 999716071, 999381247093216751]);
+
+        for i in 1u32..100000 {
+            let mut divs = i.divisors();
+            let facts = i.factorize().map(|f| f.1 + 1).product::<u32>();
+            assert_eq!(facts as usize, divs.len());
+
+            divs.sort_unstable();
+            for j in 0..divs.len() {
+                assert_eq!(i % divs[j], 0);
+                assert_eq!(i, divs[j] * divs[divs.len() - 1 - j]);
+            }
+        }
     }
 
     #[test]

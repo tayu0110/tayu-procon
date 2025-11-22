@@ -360,18 +360,17 @@ impl<M: MapMonoid> NodeRef<M> {
 
     fn is_left_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.left.map_or(false, |l| l.index == self.index))
+            .is_some_and(|p| p.left.is_some_and(|l| l.index == self.index))
     }
 
     fn is_right_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.right.map_or(false, |r| r.index == self.index))
+            .is_some_and(|p| p.right.is_some_and(|r| r.index == self.index))
     }
 
     fn is_root(self) -> bool {
-        self.parent.map_or(true, |p| {
-            p.left.map_or(true, |s| s != self) && p.right.map_or(true, |d| d != self)
-        })
+        self.parent
+            .is_none_or(|p| p.left != Some(self) && p.right != Some(self))
     }
 }
 

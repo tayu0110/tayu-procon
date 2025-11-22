@@ -29,7 +29,11 @@ impl<M: Modulo> From<Vec<Vec<u32>>> for Matrix<MontgomeryModint<M>> {
         data[tail..]
             .iter_mut()
             .for_each(|v| *v = MontgomeryModint::<M>::new(*v).rawval());
-        Self { row, col, data: unsafe { transmute(data) } }
+        Self {
+            row,
+            col,
+            data: unsafe { transmute::<Vec<u32>, Vec<MontgomeryModint<M>>>(data) },
+        }
     }
 }
 

@@ -18,7 +18,7 @@ fn main() {
         .iter()
         .enumerate()
         .filter(|(_, v)| v == &max)
-        .last()
+        .next_back()
         .unwrap();
 
     let mut res = vec![now];

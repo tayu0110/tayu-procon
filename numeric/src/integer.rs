@@ -1,11 +1,14 @@
 use super::Numeric;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Rem, RemAssign, Shl, ShlAssign,
+    Shr, ShrAssign,
+};
 
 macro_rules! impl_numeric_trait_for_integer {
     ( $( $t:tt )* ) => {
         $(impl Numeric for $t {
-            fn max_value() -> Self { std::$t::MAX }
-            fn min_value() -> Self { std::$t::MIN }
+            fn max_value() -> Self { $t::MAX }
+            fn min_value() -> Self { $t::MIN }
         })*
     };
 }

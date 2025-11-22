@@ -125,10 +125,7 @@ impl<W: Clone, const DIR: bool> FixedGraph<W, DIR> {
         }
     }
 
-    pub fn edges(
-        &self,
-        vertex: usize,
-    ) -> impl Iterator<Item = &'_ Edge<W>> + ExactSizeIterator + '_ {
+    pub fn edges(&self, vertex: usize) -> impl ExactSizeIterator<Item = &'_ Edge<W>> + '_ {
         let range = self.vertexes[vertex].clone();
         self.edges[range].iter()
     }

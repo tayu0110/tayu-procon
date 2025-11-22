@@ -4,8 +4,8 @@ use std::ops::Neg;
 macro_rules! impl_numeric_trait_for_float {
     ( $( $t:tt )* ) => {
         $(impl Numeric for $t {
-            fn max_value() -> Self { std::$t::MAX }
-            fn min_value() -> Self { std::$t::MIN }
+            fn max_value() -> Self { $t::MAX }
+            fn min_value() -> Self { $t::MIN }
         })*
     };
 }

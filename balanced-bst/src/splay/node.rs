@@ -151,7 +151,9 @@ impl<K: Ord + Debug, V: Debug> SplayNodeRef<K, V> {
         //       / \
         //      d   e
         // If not, it is not necessary to do anything.
-        let Some(right) = self.disconnect_right() else { return self };
+        let Some(right) = self.disconnect_right() else {
+            return self;
+        };
 
         // If right has left-child, disconnect it
         //      |
@@ -216,7 +218,9 @@ impl<K: Ord + Debug, V: Debug> SplayNodeRef<K, V> {
         //   / \
         //  d   e
         // If not, it is not necessary to do anything.
-        let Some(left) = self.disconnect_left() else { return self };
+        let Some(left) = self.disconnect_left() else {
+            return self;
+        };
 
         // If left has right-child, disconnect it
         //      |
@@ -307,18 +311,18 @@ impl<K: Ord + Debug, V: Debug> SplayNodeRef<K, V> {
 
     pub(super) fn is_left_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.left.map_or(false, |l| l.key == self.key))
+            .is_some_and(|p| p.left.is_some_and(|l| l.key == self.key))
     }
 
     pub(super) fn is_right_child(self) -> bool {
         self.parent
-            .map_or(false, |p| p.right.map_or(false, |r| r.key == self.key))
+            .is_some_and(|p| p.right.is_some_and(|r| r.key == self.key))
     }
 }
 
 impl<K, V> Clone for SplayNodeRef<K, V> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

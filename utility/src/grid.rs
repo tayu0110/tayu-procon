@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 #[derive(Debug, Clone)]
 pub struct BinaryGrid<const FILL: char = '#', const EMPTY: char = '.'> {
     inner: Vec<Vec<bool>>,
@@ -284,9 +282,8 @@ impl<const FILL: char, const EMPTY: char> TryFrom<Vec<Vec<char>>> for BinaryGrid
     }
 }
 
-impl<const FILL: char, const EMPTY: char> TryFrom<Vec<Vec<bool>>> for BinaryGrid<FILL, EMPTY> {
-    type Error = Infallible;
-    fn try_from(value: Vec<Vec<bool>>) -> Result<Self, Self::Error> {
-        Ok(Self { inner: value })
+impl<const FILL: char, const EMPTY: char> From<Vec<Vec<bool>>> for BinaryGrid<FILL, EMPTY> {
+    fn from(value: Vec<Vec<bool>>) -> Self {
+        Self { inner: value }
     }
 }

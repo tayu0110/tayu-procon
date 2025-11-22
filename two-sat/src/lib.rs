@@ -18,8 +18,10 @@ impl TwoSAT {
 
     pub fn add_clause(&mut self, i: usize, f: bool, j: usize, g: bool) {
         assert!(i < self.size && j < self.size);
-        self.graph.set_edge(2 * i + if f { 0 } else { 1 }, 2 * j + if g { 1 } else { 0 });
-        self.graph.set_edge(2 * j + if g { 0 } else { 1 }, 2 * i + if f { 1 } else { 0 });
+        self.graph
+            .set_edge(2 * i + if f { 0 } else { 1 }, 2 * j + if g { 1 } else { 0 });
+        self.graph
+            .set_edge(2 * j + if g { 0 } else { 1 }, 2 * i + if f { 1 } else { 0 });
         self.is_built = false;
     }
 
@@ -39,8 +41,10 @@ impl TwoSAT {
             }
             self.res[i] = self.scc_groups[2 * i] < self.scc_groups[2 * i + 1];
         }
-        return true;
+        true
     }
 
-    pub fn answer(&self) -> &Vec<bool> { &self.res }
+    pub fn answer(&self) -> &Vec<bool> {
+        &self.res
+    }
 }

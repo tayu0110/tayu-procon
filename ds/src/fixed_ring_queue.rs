@@ -87,6 +87,12 @@ impl<T, const SIZE: usize> FixedRingQueue<T, SIZE> {
     }
 }
 
+impl<T, const SIZE: usize> Default for FixedRingQueue<T, SIZE> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, const SIZE: usize> FromIterator<T> for FixedRingQueue<T, SIZE> {
     #[inline]
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {

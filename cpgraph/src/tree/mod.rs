@@ -75,10 +75,7 @@ impl<W: Clone, const DIR: bool> FixedTree<W, DIR> {
     /// // If Tree = FixedTree<(), true>, neighbor will be equal to vec![2, 3].
     /// assert_eq!(neighbor, vec![0, 2, 3]);
     /// ```
-    pub fn edges(
-        &self,
-        vertex: usize,
-    ) -> impl Iterator<Item = &'_ Edge<W>> + ExactSizeIterator + '_ {
+    pub fn edges(&self, vertex: usize) -> impl ExactSizeIterator<Item = &'_ Edge<W>> + '_ {
         self.graph.edges(vertex)
     }
 

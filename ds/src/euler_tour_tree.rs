@@ -482,7 +482,7 @@ impl<M: MapMonoid> EulerTourTree<M> {
         while !now.has_aux_edges() && now.has_aux_edges_subtree() {
             if now
                 .left()
-                .map_or(false, |l| l.has_aux_edges() || l.has_aux_edges_subtree())
+                .is_some_and(|l| l.has_aux_edges() || l.has_aux_edges_subtree())
             {
                 now = now.left().unwrap();
             } else {
@@ -506,9 +506,10 @@ impl<M: MapMonoid> EulerTourTree<M> {
         }
 
         while !now.is_own_layers_edge() && now.has_own_laysers_edge_on_subtree() {
-            if now.left().map_or(false, |l| {
-                l.is_own_layers_edge() || l.has_own_laysers_edge_on_subtree()
-            }) {
+            if now
+                .left()
+                .is_some_and(|l| l.is_own_layers_edge() || l.has_own_laysers_edge_on_subtree())
+            {
                 now = now.left().unwrap();
             } else {
                 now = now.right().unwrap();

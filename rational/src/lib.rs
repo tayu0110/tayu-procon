@@ -52,6 +52,7 @@ macro_rules! impl_rational {
             }
 
             fn reduce_expanded(num: $expand, den: $expand) -> Result<($t, $t), <$t as TryFrom<$expand>>::Error> {
+                #[allow(irrefutable_let_patterns)]
                 if let (Ok(num), Ok(den)) = (<$t>::try_from(num), <$t>::try_from(den)) {
                     return Ok(Self::reduce(num, den));
                 }

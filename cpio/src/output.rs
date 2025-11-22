@@ -5,7 +5,7 @@ use std::{
     ptr::{addr_of_mut, write_volatile},
 };
 
-const LUT: [u8; 40000] = {
+static LUT: [u8; 40000] = {
     let mut cnt = 0;
     let mut lut = [0; 40000];
 

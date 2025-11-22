@@ -9,8 +9,8 @@ use std::{
 };
 
 thread_local! {
-    static MOD: RefCell<u64> = RefCell::new(998244353);
-    static BARRETT: RefCell<BarrettReduction> = RefCell::new(BarrettReduction::new(998244353));
+    static MOD: RefCell<u64> = const { RefCell::new(998244353) };
+    static BARRETT: RefCell<BarrettReduction> = const { RefCell::new(BarrettReduction::new(998244353)) };
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

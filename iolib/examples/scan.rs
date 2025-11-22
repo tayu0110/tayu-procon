@@ -12,7 +12,7 @@ fn main() {
         t[u].push((v, w));
     }
 
-    let mut dist = vec![std::i64::MAX; n];
+    let mut dist = vec![i64::MAX; n];
     dist[0] = 0;
     for i in 0..=n {
         for from in 0..n {

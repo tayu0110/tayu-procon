@@ -720,7 +720,7 @@ impl<M: Modulo> From<Vec<u32>> for Polynomial<M> {
     fn from(mut v: Vec<u32>) -> Self {
         unsafe {
             u32tomint::<M>(&mut v[..]);
-            Self { coef: transmute(v) }
+            Self { coef: transmute::<Vec<u32>, Vec<MontgomeryModint<M>>>(v) }
         }
     }
 }

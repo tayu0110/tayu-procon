@@ -26,7 +26,7 @@ impl<'a, D: Direction> Tree<D> {
     }
 
     fn make_parlist(&mut self) {
-        let mut par = vec![std::usize::MAX; self.size];
+        let mut par = vec![usize::MAX; self.size];
 
         static QUEUE: Mutex<FixedRingQueue<usize>> = Mutex::new(FixedRingQueue::new());
         let mut nt = QUEUE.lock().unwrap();

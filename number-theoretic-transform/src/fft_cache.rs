@@ -90,3 +90,9 @@ impl<M: Modulo> FftCache<M> {
         irate
     }
 }
+
+impl<M: Modulo> Default for FftCache<M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

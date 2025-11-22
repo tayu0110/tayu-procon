@@ -1045,7 +1045,7 @@ where
     ///
     /// If removal occurs, return `Some`, otherwise return `None`.
     pub fn remove_once(&mut self, element: &M::M) -> Option<M::M> {
-        let mut back = self.split_off_by(&element);
+        let mut back = self.split_off_by(element);
         if back.first() != Some(element) {
             self.seq.extend(back.seq);
             return None;
@@ -1428,7 +1428,7 @@ mod tests {
         let mut seq = p
             .iter()
             .cloned()
-            .map(|p| Reverse(p))
+            .map(Reverse)
             .collect::<DynamicSortedSequence<T>>();
         for _ in 0..q {
             let ty: usize = rng.gen_range(1..=3);
@@ -1483,7 +1483,7 @@ mod tests {
         seq.insert(10);
         seq.insert(30);
         seq.insert(20);
-        assert_eq!(seq.range(15..).nth(0), Some(&20));
+        assert_eq!(seq.range(15..).next(), Some(&20));
         assert_eq!(seq.range(15..).nth(1), Some(&20));
         assert_eq!(seq.range(15..).nth(2), Some(&30));
         assert_eq!(seq.range(15..).nth(3), None);

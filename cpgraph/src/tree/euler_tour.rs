@@ -53,7 +53,7 @@ impl EulerTour {
     }
 
     /// Returns information on all edges included in the Euler Tour, starting from the front.
-    pub fn edges(&self) -> impl Iterator<Item = EulerTourEdge> + ExactSizeIterator + '_ {
+    pub fn edges(&self) -> impl ExactSizeIterator<Item = EulerTourEdge> + '_ {
         self.vertexes
             .windows(2)
             .zip(self.level.iter())

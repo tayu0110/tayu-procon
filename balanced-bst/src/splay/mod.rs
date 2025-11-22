@@ -154,7 +154,7 @@ impl<K: Ord + Debug, V: Debug> SplayTreeMap<K, V> {
         }
     }
 
-    pub fn iter(&self) -> Iter<K, V> {
+    pub fn iter(&'_ self) -> Iter<'_, K, V> {
         Iter {
             front: self.root.as_ref().map(|c| {
                 let mut node = c.get();
@@ -174,7 +174,7 @@ impl<K: Ord + Debug, V: Debug> SplayTreeMap<K, V> {
         }
     }
 
-    pub fn range(&self, range: impl RangeBounds<K>) -> Range<K, V> {
+    pub fn range(&'_ self, range: impl RangeBounds<K>) -> Range<'_, K, V> {
         Range {
             iter: Iter {
                 front: self.root.as_ref().and_then(|c| {
@@ -250,6 +250,12 @@ impl<K: Ord + Debug, V: Debug> SplayTreeMap<K, V> {
                 _phantom: PhantomData,
             },
         }
+    }
+}
+
+impl<K: Ord + Debug, V: Debug> Default for SplayTreeMap<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

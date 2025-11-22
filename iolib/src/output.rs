@@ -34,7 +34,7 @@ impl Writable for &str {
     }
 }
 
-const LUT: [u8; 40000] = {
+static LUT: [u8; 40000] = {
     let mut lut = [0; 40000];
     let mut i = 0;
     while i < 10000 {
@@ -100,7 +100,7 @@ macro_rules! impl_writable_integer {
                 if self < &0 {
                     '-'.write(dest);
                 }
-                (self.abs() as $ut).write(dest);
+                (self.unsigned_abs() as $ut).write(dest);
             }
         })*
     };

@@ -49,6 +49,12 @@ impl<const MAX: usize> Sieve<MAX> {
     }
 }
 
+impl<const MAX: usize> Default for Sieve<MAX> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Index<usize> for Sieve {
     type Output = usize;
     fn index(&self, index: usize) -> &Self::Output {
