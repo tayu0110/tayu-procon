@@ -472,6 +472,13 @@ impl<'a> Iterator for Iter<'a> {
 mod tests {
     use crate::SuffixArray;
 
+    fn sa_test(sample: &str) {
+        let sa = SuffixArray::new(sample);
+        let mut nsa = (0..sample.len() as u32).collect::<Vec<_>>();
+        nsa.sort_by_key(|&i| &sample[i as usize..]);
+        assert_eq!(nsa, sa.iter().copied().collect::<Vec<_>>());
+    }
+
     #[test]
     fn suffix_array_test() {
         let sample: &'static str = "mmiissiissiippii";
@@ -512,6 +519,9 @@ mod tests {
                 1, 17, 15, 14, 5, 7, 24, 10, 19, 26, 0, 25, 22, 20, 28, 2, 16, 18, 27, 23, 13, 8,
                 11, 6, 4, 29, 12, 21, 3, 9
             ]
-        )
+        );
+
+        sa_test("jbfbjhumooucrfnqjbfbcad");
+        sa_test("ucbpgpgfqtfbirqxkfggxfphesjbfbjhumooucrgcatspkprcogpqsdxlwasjqnbkbbozgajnbhhilexbifnqjbfbcad");
     }
 }
