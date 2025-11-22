@@ -1,67 +1,4 @@
-#![allow(clippy::comparison_chain, clippy::upper_case_acronyms)]
-
-use std::cell::Cell;
-use std::collections::BTreeMap;
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::ops::{Index, IndexMut};
-
-pub trait IndexMap<T> {
-    fn kinds(&self) -> usize;
-    fn to_u32(&self, from: &T) -> u32;
-    fn to_usize(&self, from: &T) -> usize;
-}
-
-pub struct IdentityMap<T: Ord>(usize, PhantomData<T>);
-
-pub struct SparseMap<'a, T: Ord> {
-    map: BTreeMap<&'a T, u32>,
-}
-
-macro_rules! impl_index_map {
-    ( $( $t:ty ),* ) => {
-        $(
-            impl IndexMap<$t> for IdentityMap<$t> {
-                #[inline]
-                fn kinds(&self) -> usize {
-                    self.0
-                }
-                #[inline]
-                fn to_u32(&self, from: & $t) -> u32 {
-                    *from as u32
-                }
-                #[inline]
-                fn to_usize(&self, from: & $t) -> usize {
-                    *from as usize
-                }
-            }
-        )*
-    };
-}
-
-impl_index_map!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, char);
-
-impl<'a, 'b: 'a, T: Ord + 'b> SparseMap<'a, T> {
-    fn from_iter(v: impl Iterator<Item = &'b T>) -> Self {
-        let mut map = v.map(|v| (v, 0)).collect::<BTreeMap<&'b T, u32>>();
-        map.iter_mut()
-            .enumerate()
-            .for_each(|(i, kv)| *kv.1 = i as u32);
-        Self { map }
-    }
-}
-
-impl<'a, T: Ord> IndexMap<T> for SparseMap<'a, T> {
-    fn kinds(&self) -> usize {
-        self.map.len()
-    }
-    fn to_u32(&self, from: &T) -> u32 {
-        *self.map.get(from).unwrap()
-    }
-    fn to_usize(&self, from: &T) -> usize {
-        *self.map.get(from).unwrap() as usize
-    }
-}
+use std::ops::Index;
 
 // s[i] := A suffix of the string 's' that begins from i-th element. (0 <= i < s.len()-1)
 //      S   : s[i] < s[i+1]
@@ -75,337 +12,209 @@ enum Type {
     LMS,
 }
 
-struct Buckets {
-    len: usize,
-    sa: ManuallyDrop<*mut u32>,
-    bucket: Vec<BucketInfo>,
-}
-
-impl Buckets {
-    fn new(char_num: Vec<u32>, sa: &mut [u32]) -> Self {
-        let mut now = 0;
-        let len = sa.len();
-        let sa = ManuallyDrop::new(sa.as_mut_ptr());
-        Buckets {
-            len,
-            sa,
-            bucket: char_num
-                .into_iter()
-                .map(|c| {
-                    let res = BucketInfo { front: 0, back: 0, start: now };
-                    now += c;
-                    res
-                })
-                .collect(),
-        }
-    }
-
-    fn get(&self, bucket: usize, index: usize) -> u32 {
-        let index = unsafe { self.bucket.get_unchecked(bucket) }.start as usize + index;
-        unsafe { *self.sa.add(index) }
-    }
-
-    fn get_back(&self, bucket: usize, index: usize) -> u32 {
-        let index = self
-            .bucket
-            .get(bucket + 1)
-            .map_or(self.len, |b| b.start as usize)
-            - 1
-            - index;
-        unsafe { *self.sa.add(index) }
-    }
-
-    fn reset(&mut self) {
-        self.bucket.iter_mut().for_each(|b| {
-            b.front = 0;
-            b.back = 0;
-        });
-    }
-
-    fn push_front(&mut self, index: usize, val: u32) {
-        unsafe {
-            *self.sa.add(
-                self.bucket.get_unchecked(index).start as usize
-                    + self.bucket.get_unchecked(index).front as usize,
-            ) = val;
-            self.bucket.get_unchecked_mut(index).front += 1;
-        }
-    }
-
-    fn push_back(&mut self, index: usize, val: u32) {
-        let next_start = self
-            .bucket
-            .get(index + 1)
-            .map_or(self.len, |b| b.start as usize);
-        unsafe {
-            self.bucket.get_unchecked_mut(index).back += 1;
-            *self
-                .sa
-                .add(next_start - self.bucket.get_unchecked(index).back as usize) = val;
-        }
-    }
-}
-
-impl Index<usize> for Buckets {
-    type Output = BucketInfo;
-    fn index(&self, index: usize) -> &Self::Output {
-        unsafe { self.bucket.get_unchecked(index) }
-    }
-}
-
-impl IndexMut<usize> for Buckets {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        unsafe { self.bucket.get_unchecked_mut(index) }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct BucketInfo {
-    front: u32,
-    back: u32,
-    start: u32,
-}
-
-const THRESHOLD_NAIVE: usize = 10;
-
-#[inline]
-fn sa_naive<T: Ord>(s: &[T], sa: &mut [u32]) {
-    sa.iter_mut()
-        .take(s.len())
-        .enumerate()
-        .for_each(|(i, v)| *v = i as u32);
-    sa[0..s.len()].sort_unstable_by_key(|i| &s[*i as usize..]);
-}
-
-fn sa_is<T: Ord>(s: &[T], sa: &mut [u32], map: &impl IndexMap<T>) {
-    if s.len() <= THRESHOLD_NAIVE {
-        sa_naive(s, sa);
-        return;
-    }
-
-    let mut char_num = vec![0; map.kinds()];
-    for c in s {
-        char_num[map.to_usize(c)] += 1;
-    }
-
-    // If If only one character of each exists at most, bucket sorting is sufficient.
-    if char_num.iter().max().unwrap() <= &1 {
-        Cell::from_mut(&mut char_num[..])
-            .as_slice_of_cells()
-            .windows(2)
-            .for_each(|v| v[1].set(v[0].get() + v[1].get()));
-
-        for (i, c) in s.iter().enumerate() {
-            sa[char_num[map.to_usize(c)] as usize - 1] = i as u32;
-        }
-
-        return;
-    }
-
-    let mut types = vec![Type::S; s.len()];
-    types[s.len() - 1] = Type::L;
-
-    for (i, c) in s.windows(2).enumerate().rev() {
-        types[i] = if c[0] < c[1] {
-            Type::S
-        } else if c[0] > c[1] {
-            if types[i + 1] == Type::S {
-                types[i + 1] = Type::LMS;
-            }
-            Type::L
-        } else {
-            types[i + 1]
-        };
-    }
-
-    let mut lms_indices = types
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &t)| (t == Type::LMS).then_some(i as u32))
-        .collect::<Vec<_>>();
-
-    let mut buckets = Buckets::new(char_num, sa);
-
-    // Calculate Pseudo SA
-    let max_lms_num = induced_sort(&lms_indices, &mut buckets, s, &types, sa, map);
-
-    // If there is only one LMS-Type(tailling '\0') and the type[0] one is not S-Type, there is no need for a second sort
-    // since the order of operations of the sort is unique since all elements except the last element are L-Types.
-    if lms_indices.is_empty() && types[0] != Type::S {
-        return;
-    }
-    // If there is only one LMS-Type for each bucket per character type, then a second sort is not necessary
-    // because the order of the sorting operations is unique.
-    if max_lms_num <= 1 {
-        return;
-    }
-
-    let mut lms_prev = s.len() as u32 - 1;
-    let mut lms_next = vec![u32::MAX; s.len()];
-    for &i in lms_indices.iter().rev() {
-        lms_next[i as usize] = lms_prev;
-        lms_prev = i;
-    }
-
-    let mut rank = 0;
-    let mut lms_prev = (usize::MAX, usize::MAX);
-    let mut lms_ranks = lms_next;
-    for (index, lms_index) in sa
-        .iter()
-        .take(s.len())
-        .filter_map(|&index| (types[index as usize] == Type::LMS).then_some(index as usize))
-        .zip(lms_indices.iter_mut())
-    {
-        *lms_index = index as u32;
-        let (l, r) = (index, lms_ranks[index] as usize);
-        let (pl, pr) = lms_prev;
-        if pr - pl != r - l || s[pl..pr + 1] != s[l..r + 1] {
-            rank += 1;
-            lms_prev = (l, r);
-        }
-        lms_ranks[index] = rank as u32 - 1;
-    }
-
-    if lms_indices.len() != rank + 1 {
-        let (restore_index, new_s) = lms_ranks
-            .into_iter()
-            .take(s.len())
-            .enumerate()
-            .filter_map(|(i, c)| (c != u32::MAX).then_some((i as u32, c)))
-            .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
-        sa_is(&new_s, sa, &IdentityMap(rank + 1, PhantomData));
-        lms_indices
-            .iter_mut()
-            .zip(sa.iter())
-            .for_each(|(lms, i)| *lms = restore_index[*i as usize]);
-    };
-
-    buckets.reset();
-    induced_sort(&lms_indices, &mut buckets, s, &types, sa, map);
-}
-
-#[inline]
-fn induced_sort<T: Ord>(
-    lms_indices: &[u32],
-    buckets: &mut Buckets,
-    s: &[T],
-    types: &[Type],
-    sa: &mut [u32],
-    map: &impl IndexMap<T>,
-) -> u32 {
-    let kinds = map.kinds();
-
-    lms_indices
-        .iter()
-        .map(|&lms| (lms, map.to_u32(&s[lms as usize])))
-        .for_each(|(lms, c)| {
-            buckets.push_back(c as usize, lms);
-        });
-
-    {
-        let nc = map.to_usize(&s[s.len() - 1]);
-        buckets.push_front(nc, s.len() as u32 - 1);
-    }
-
-    let mut max_lms_num = 0;
-    for bucket_index in 0..kinds {
-        let filled_lms = buckets[bucket_index].back;
-        let mut checked = 0;
-        while checked < buckets[bucket_index].front as usize {
-            let now = buckets.get(bucket_index, checked);
-            if now > 0 && types[now as usize - 1] == Type::L {
-                let nc = map.to_usize(&s[now as usize - 1]);
-                buckets.push_front(nc, now - 1);
-            }
-            checked += 1;
-        }
-
-        for lms_index in 0..filled_lms as usize {
-            let lms = buckets.get_back(bucket_index, lms_index) as usize;
-            if lms > 0 && types[lms - 1] == Type::L {
-                let nc = map.to_usize(&s[lms - 1]);
-                buckets.push_front(nc, lms as u32 - 1);
-            }
-        }
-
-        max_lms_num = max_lms_num.max(filled_lms);
-    }
-
-    // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
-    // since the order of operations of the sort is unique since all elements except the last element are L-Types.
-    if lms_indices.is_empty() && types[0] != Type::S {
-        return max_lms_num;
-    }
-
-    buckets.reset();
-    // Because sa is used around, s.len() and sa.len() are not always equal.
-    for &sa in sa
-        .iter()
-        .take(s.len())
-        .rev()
-        .filter(|&&sa| (1..u32::MAX).contains(&sa) && types[sa as usize - 1] != Type::L)
-    {
-        let c = map.to_usize(&s[sa as usize - 1]);
-        buckets.push_back(c, sa - 1);
-    }
-
-    max_lms_num
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Suffix Array
-////////////////////////////////////////////////////////////////////////////////
-
 pub struct SuffixArray<'a, T = u8> {
     s: &'a [T],
     sa: Vec<u32>,
 }
 
-impl<'a, T> SuffixArray<'a, T>
-where
-    T: Ord,
-    IdentityMap<T>: IndexMap<T>,
-{
-    pub fn from_int_slice(v: &'a [T], dense: bool) -> Self {
-        let mut sa = vec![u32::MAX; v.len()];
-
-        if sa.len() <= THRESHOLD_NAIVE {
-            sa_naive(v, &mut sa);
-            return Self { s: v, sa };
-        }
-
-        if dense {
-            sa_is(v, &mut sa, &IdentityMap(v.len(), PhantomData));
-        } else {
-            let map = SparseMap::from_iter(v.iter());
-            sa_is(v, &mut sa, &map);
-        }
-
-        Self { s: v, sa }
-    }
-}
-
 impl<'a> SuffixArray<'a> {
     const CHARS: usize = 1 << 8;
+    const THRESHOLD_NAIVE: usize = 10;
 
     pub fn new(s: &'a str) -> Self {
         let s = s.as_bytes();
         let mut sa = vec![u32::MAX; s.len()];
 
-        if sa.len() <= THRESHOLD_NAIVE {
-            sa_naive(s, &mut sa);
+        if sa.len() <= Self::THRESHOLD_NAIVE {
+            Self::sa_naive(s, &mut sa);
             return Self { s, sa };
         }
 
-        sa_is(s, &mut sa, &IdentityMap(Self::CHARS, PhantomData));
+        Self::sa_is(Self::CHARS, &s, &mut sa);
 
         Self { s, sa }
     }
 
     #[inline]
-    pub fn get(&self, index: usize) -> usize {
-        self.sa[index] as usize
+    fn sa_naive<T: Ord>(s: &[T], sa: &mut [u32]) {
+        sa.iter_mut()
+            .take(s.len())
+            .enumerate()
+            .for_each(|(i, v)| *v = i as u32);
+        sa[0..s.len()].sort_by_key(|i| &s[*i as usize..]);
+    }
+
+    fn sa_is<T: Clone + Copy + Ord + Into<u32>>(kinds: usize, s: &[T], sa: &mut [u32]) {
+        if s.len() <= Self::THRESHOLD_NAIVE {
+            Self::sa_naive(s, sa);
+            return;
+        }
+
+        let mut lms_prev = s.len() as u32 - 1;
+        let mut lms_next = vec![u32::MAX; s.len()];
+
+        let mut types = vec![Type::S; s.len()];
+        types[s.len() - 1] = Type::L;
+
+        let mut char_start = vec![0u32; kinds + 1];
+        char_start[(*s.last().unwrap()).into() as usize + 1] = 1;
+
+        for (i, c) in s.windows(2).enumerate().rev() {
+            char_start[c[0].into() as usize + 1] += 1;
+
+            types[i] = if c[0] < c[1] {
+                Type::S
+            } else if c[0] > c[1] {
+                if types[i + 1] == Type::S {
+                    types[i + 1] = Type::LMS;
+                    lms_next[i + 1] = lms_prev;
+                    lms_prev = i as u32 + 1;
+                }
+                Type::L
+            } else {
+                types[i + 1]
+            };
+        }
+
+        let mut lms_indices = types
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, t)| t == &&Type::LMS)
+            .map(|(i, _)| i as u32)
+            .collect::<Vec<_>>();
+
+        for i in 0..kinds {
+            char_start[i + 1] += char_start[i];
+        }
+
+        // Calculate Pseudo SA
+        let max_lms_num = Self::induced_sort(&lms_indices, &char_start, s, &types, sa);
+
+        // If there is only one LMS-Type(tailling '\0') and the type[0] one is not S-Type, there is no need for a second sort
+        // since the order of operations of the sort is unique since all elements except the last element are L-Types.
+        if lms_indices.len() == 0 && types[0] != Type::S {
+            return;
+        }
+        // If there is only one LMS-Type for each bucket per character type, then a second sort is not necessary
+        // because the order of the sorting operations is unique.
+        if max_lms_num <= 1 {
+            return;
+        }
+
+        let mut rank = 0;
+        let mut lms_prev = (usize::MAX, usize::MAX);
+        let mut lms_ranks = lms_next;
+        for (i, &index) in sa
+            .iter()
+            .take(s.len())
+            .filter(|&&index| types[index as usize] == Type::LMS)
+            .enumerate()
+        {
+            lms_indices[i] = index;
+            let (l, r) = (index as usize, lms_ranks[index as usize] as usize);
+            let (pl, pr) = lms_prev;
+            if pr - pl != r - l || s[pl..pr + 1] != s[l..r + 1] {
+                rank += 1;
+                lms_prev = (l, r);
+            }
+            lms_ranks[index as usize] = rank - 1;
+        }
+
+        if lms_indices.len() as u32 != rank + 1 {
+            let (restore_index, new_s) = lms_ranks
+                .into_iter()
+                .take(s.len())
+                .enumerate()
+                .filter(|(_, c)| c != &u32::MAX)
+                .map(|(i, c)| (i as u32, c))
+                .unzip::<u32, u32, Vec<u32>, Vec<u32>>();
+            Self::sa_is(rank as usize + 1, &new_s, sa);
+            lms_indices
+                .iter_mut()
+                .zip(sa.into_iter())
+                .for_each(|(lms, i)| *lms = restore_index[*i as usize]);
+        };
+
+        Self::induced_sort(&lms_indices, &char_start, s, &types, sa);
+    }
+
+    #[inline]
+    fn induced_sort<T: Clone + Copy + Ord + Into<u32>>(
+        lms_indices: &[u32],
+        char_start: &[u32],
+        s: &[T],
+        types: &[Type],
+        sa: &mut [u32],
+    ) -> u32 {
+        let kinds = char_start.len() - 1;
+
+        let mut filled_lms = vec![0; kinds];
+        for (lms, c) in lms_indices
+            .into_iter()
+            .map(|&lms| (lms, s[lms as usize].into()))
+        {
+            sa[(char_start[c as usize + 1] - 1 - filled_lms[c as usize]) as usize] = lms;
+            filled_lms[c as usize] += 1;
+        }
+
+        let mut max_lms_num = 0;
+        let mut filled = vec![0; kinds];
+        {
+            let nc = s[s.len() - 1].into() as usize;
+            sa[char_start[nc] as usize] = s.len() as u32 - 1;
+            filled[nc] += 1;
+        }
+
+        for backet_index in 0..kinds {
+            let mut rem = filled[backet_index];
+            let mut checked = char_start[backet_index] as usize;
+            while rem > 0 {
+                if sa[checked] > 0 && types[sa[checked] as usize - 1] == Type::L {
+                    let nc = s[sa[checked] as usize - 1].into() as usize;
+                    sa[(char_start[nc] + filled[nc]) as usize] = sa[checked] - 1;
+                    filled[nc] += 1;
+                    if backet_index == nc {
+                        rem += 1;
+                    }
+                }
+                checked += 1;
+                rem -= 1;
+            }
+
+            for lms_index in 0..filled_lms[backet_index] {
+                let lms = sa[(char_start[backet_index + 1] - 1 - lms_index) as usize] as usize;
+                if lms > 0 && types[lms - 1] == Type::L {
+                    let nc = s[lms - 1].into() as usize;
+                    sa[(char_start[nc] + filled[nc]) as usize] = lms as u32 - 1;
+                    filled[nc] += 1;
+                }
+            }
+
+            max_lms_num = std::cmp::max(max_lms_num, filled_lms[backet_index]);
+            filled[backet_index] = 0;
+        }
+
+        // If there is only one LMS-Type and the type[0] one is not S-Type, there is no need for a second sort
+        // since the order of operations of the sort is unique since all elements except the last element are L-Types.
+        if lms_indices.len() == 0 && types[0] != Type::S {
+            return max_lms_num;
+        }
+
+        for i in (0..s.len()).rev() {
+            if sa[i] != u32::MAX && sa[i] > 0 && types[sa[i] as usize - 1] != Type::L {
+                let c = (s[sa[i] as usize - 1]).into() as usize;
+                sa[(char_start[c + 1] - 1 - filled[c]) as usize] = sa[i] - 1;
+                filled[c] += 1;
+            }
+        }
+
+        max_lms_num
+    }
+
+    #[inline]
+    pub fn get_sa(&self) -> &[u32] {
+        &self.sa
     }
 
     /// LCPA\[i\] := Longest Common Prefix between s\[sa\[i\]\] and s\[sa\[i+1\]\]
@@ -442,14 +251,14 @@ impl<'a> SuffixArray<'a> {
     }
 }
 
-impl<'a, T> Index<usize> for SuffixArray<'a, T> {
+impl<'a> Index<usize> for SuffixArray<'a> {
     type Output = u32;
     fn index(&self, index: usize) -> &Self::Output {
         &self.sa[index]
     }
 }
 
-impl<'a, T> IntoIterator for SuffixArray<'a, T> {
+impl IntoIterator for SuffixArray<'_> {
     type Item = u32;
     type IntoIter = std::vec::IntoIter<u32>;
     fn into_iter(self) -> Self::IntoIter {
@@ -476,7 +285,8 @@ mod tests {
         let sa = SuffixArray::new(sample);
         let mut nsa = (0..sample.len() as u32).collect::<Vec<_>>();
         nsa.sort_by_key(|&i| &sample[i as usize..]);
-        assert_eq!(nsa, sa.iter().copied().collect::<Vec<_>>());
+        let sa = sa.iter().copied().collect::<Vec<_>>();
+        assert_eq!(nsa, sa, "\nsample: {sample}");
     }
 
     #[test]
@@ -496,32 +306,12 @@ mod tests {
         let lcpa = sa.lcp_array();
         assert_eq!(lcpa, vec![1, 4, 1, 1, 0, 3, 0, 0, 0, 2]);
 
-        let sample: &'static str = "ababacaca";
-        let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![8, 0, 2, 6, 4, 1, 3, 7, 5]);
+        sa_test("ababacaca");
+        sa_test("iqwfmiwjua");
+        sa_test("caamclyoemcpxfzhdixt");
+        sa_test("kamyucteqzhrvqcbnanikykphkjolv");
 
-        let sample: &'static str = "iqwfmiwjua";
-        let sa = SuffixArray::new(sample);
-        assert_eq!(sa.sa, vec![9, 3, 0, 5, 7, 4, 1, 8, 2, 6]);
-
-        let sample: &'static str = "caamclyoemcpxfzhdixt";
-        let sa = SuffixArray::new(sample);
-        assert_eq!(
-            sa.sa,
-            vec![1, 2, 0, 4, 10, 16, 8, 13, 15, 17, 5, 3, 9, 7, 11, 19, 12, 18, 6, 14]
-        );
-
-        let sample: &'static str = "kamyucteqzhrvqcbnanikykphkjolv";
-        let sa = SuffixArray::new(sample);
-        assert_eq!(
-            sa.sa,
-            vec![
-                1, 17, 15, 14, 5, 7, 24, 10, 19, 26, 0, 25, 22, 20, 28, 2, 16, 18, 27, 23, 13, 8,
-                11, 6, 4, 29, 12, 21, 3, 9
-            ]
-        );
-
-        sa_test("jbfbjhumooucrfnqjbfbcad");
+        sa_test("jbfbjhujbfbcad");
         sa_test("ucbpgpgfqtfbirqxkfggxfphesjbfbjhumooucrgcatspkprcogpqsdxlwasjqnbkbbozgajnbhhilexbifnqjbfbcad");
     }
 }
