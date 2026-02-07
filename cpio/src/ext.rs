@@ -1,6 +1,6 @@
 use std::os::raw::{c_int, c_long, c_void};
 
-extern "C" {
+unsafe extern "C" {
     pub fn mmap(
         addr: *mut c_void,
         len: usize,

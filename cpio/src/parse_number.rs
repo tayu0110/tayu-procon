@@ -48,7 +48,7 @@ mod x86_64 {
     // This function requests the size of 'buf' must be 16.
     // If this condition is not satisfied, the behavior cannot be not defined.
     pub unsafe fn parse16c(buf: &[u8]) -> u64 {
-        let mut chunk = _mm_lddqu_si128(buf.as_ptr() as _);
+        let mut chunk = unsafe { _mm_lddqu_si128(buf.as_ptr() as _) };
         chunk = _mm_madd_epi16(_mm_maddubs_epi16(_mm_sub_epi8(chunk, ZEROS), TEN), HUN);
         chunk = _mm_madd_epi16(_mm_packus_epi32(chunk, chunk), THO);
         let res = _mm_cvtsi128_si64(chunk) as u64;
